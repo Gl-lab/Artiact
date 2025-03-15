@@ -1,35 +1,33 @@
-﻿using System.Diagnostics;
-using System.Net.Http.Headers;
-using System.Text;
+﻿using System.Text;
 using System.Text.Json;
 using Artiact.Models;
+using Artiact.Models.Api;
 using Microsoft.Extensions.Logging;
 
 namespace Artiact.Client;
 
 public class GameClient : IGameClient
 {
-    private readonly IGameHttpClient _httpClient;
+    private readonly ICacheService _cacheService;
 
     private readonly string _characterName;
+    private readonly IGameHttpClient _httpClient;
     private readonly ILogger<IGameClient> _logger;
-    private readonly string _cacheFilePath = "map_cache.json";
-    private readonly TimeSpan _cacheDuration = TimeSpan.FromHours( 1 );
-    
+
     public GameClient( IGameHttpClient httpClient,
-                       string characterName,
-                       ILogger<IGameClient> logger )
+                       ApiSettings apiSettings,
+                       ILogger<IGameClient> logger,
+                       ICacheService cacheService )
     {
         _httpClient = httpClient;
-
-        _characterName = characterName;
+        _characterName = apiSettings.Character;
         _logger = logger;
+        _cacheService = cacheService;
     }
 
     public async Task<Character> GetCharacter()
     {
         string detailsUrl = $"/characters/{_characterName}";
-
 
         _logger.LogInformation( detailsUrl );
         HttpResponseMessage response = await _httpClient.GetAsync( detailsUrl );
@@ -126,72 +124,104 @@ public class GameClient : IGameClient
 
     public async Task<List<MapPlace>> GetMap()
     {
-        if ( File.Exists( _cacheFilePath ) )
+        List<MapPlace>? cachedMap = await _cacheService.GetFromCache<List<MapPlace>>();
+        if ( cachedMap != null )
         {
-            FileInfo cacheInfo = new( _cacheFilePath );
-            if ( DateTime.UtcNow - cacheInfo.LastWriteTimeUtc < _cacheDuration )
-            {
-                string cachedData = await File.ReadAllTextAsync( _cacheFilePath );
-                _logger.LogInformation( "GetMap use cache" );
-                return JsonSerializer.Deserialize<List<MapPlace>>( cachedData ) ??
-                    throw new InvalidOperationException();
-            }
+            _logger.LogInformation( "GetMap use cache" );
+            return cachedMap;
         }
 
-        Map map = await GetMapPage( 1 );
+        Map map = await GetPage<Map>( "maps", 1 );
         List<MapPlace> result = map.Data;
-        for ( int i = 2; i < map.Pages; i++ )
+        for ( int i = 2; i <= map.Pages; i++ )
         {
-            map = await GetMapPage( i );
+            map = await GetPage<Map>( "maps", i );
             result.AddRange( map.Data );
         }
 
-        await File.WriteAllTextAsync( _cacheFilePath, JsonSerializer.Serialize( result ) );
-        return result ?? throw new InvalidOperationException();
-    }
-
-    private async Task<Map> GetMapPage( int page )
-    {
-        string? requestUri = $"/maps?page={page}";
-        _logger.LogInformation( requestUri );
-        HttpResponseMessage response = await _httpClient.GetAsync( requestUri );
-        if ( !response.IsSuccessStatusCode )
-        {
-            throw new Exception();
-        }
-
-        Map map =
-            JsonSerializer.Deserialize<Map>( await response.Content.ReadAsStringAsync() ) ?? throw new
-                InvalidOperationException();
-        return map;
+        await _cacheService.SaveToCache( result );
+        return result;
     }
 
 
     public async Task<List<ResourceDatum>> GetResources()
     {
-        string? requestUri = "/resources";
+        List<ResourceDatum>? cachedResources = await _cacheService.GetFromCache<List<ResourceDatum>>();
+        if ( cachedResources != null )
+        {
+            _logger.LogInformation( "GetResources use cache" );
+            return cachedResources;
+        }
+
+        ResourceResponse resourceResponse = await GetPage<ResourceResponse>( "resources", 1 );
+        List<ResourceDatum> result = resourceResponse.Data ?? throw new InvalidOperationException();
+
+        for ( int i = 2; i <= resourceResponse.Pages; i++ )
+        {
+            resourceResponse = await GetPage<ResourceResponse>( "resources", i );
+            result.AddRange( resourceResponse.Data ?? throw new InvalidOperationException() );
+        }
+
+        await _cacheService.SaveToCache( result );
+        return result;
+    }
+
+    private async Task<T> GetPage<T>( string endpoint, int page )
+    {
+        string requestUri = $"/{endpoint}?page={page}";
         _logger.LogInformation( requestUri );
         HttpResponseMessage response = await _httpClient.GetAsync( requestUri );
         if ( !response.IsSuccessStatusCode )
         {
-            throw new Exception();
+            throw new Exception( $"Unable to get {endpoint}" );
         }
 
-        ResourceResponse map =
-            JsonSerializer.Deserialize<ResourceResponse>( await response.Content.ReadAsStringAsync() ) ?? throw new
-                InvalidOperationException();
-
-        return map.Data ?? throw new InvalidOperationException();
+        return JsonSerializer.Deserialize<T>( await response.Content.ReadAsStringAsync() ) ??
+            throw new InvalidOperationException();
     }
 
-    public Task<List<ItemDatum>> GetItems()
+    public async Task<List<ItemDatum>> GetItems()
     {
-        throw new NotImplementedException();
+        List<ItemDatum>? cachedItems = await _cacheService.GetFromCache<List<ItemDatum>>();
+        if ( cachedItems != null )
+        {
+            _logger.LogInformation( "GetItems use cache" );
+            return cachedItems;
+        }
+
+        ItemsResponse itemResponse = await GetPage<ItemsResponse>( "items", 1 );
+        List<ItemDatum> result = itemResponse.Data ?? throw new InvalidOperationException();
+
+        for ( int i = 2; i <= itemResponse.Pages; i++ )
+        {
+            itemResponse = await GetPage<ItemsResponse>( "items", i );
+            result.AddRange( itemResponse.Data ?? throw new InvalidOperationException() );
+        }
+
+        await _cacheService.SaveToCache( result );
+        return result;
     }
 
-    public Task<MonsterDatum> GetMonsters()
+    public async Task<List<MonsterDatum>> GetMonsters()
     {
-        throw new NotImplementedException();
+        List<MonsterDatum>? cachedMonsters = await _cacheService.GetFromCache<List<MonsterDatum>>();
+        if ( cachedMonsters != null )
+        {
+            _logger.LogInformation( "GetMonsters use cache" );
+            return cachedMonsters;
+        }
+
+        MonstersResponse monsterResponse = await GetPage<MonstersResponse>( "monsters", 1 );
+        List<MonsterDatum> result = monsterResponse.Data ?? throw new InvalidOperationException();
+
+        for ( int i = 2; i <= monsterResponse.Pages; i++ )
+        {
+            monsterResponse = await GetPage<MonstersResponse>( "monsters", i );
+            result.AddRange( monsterResponse.Data ?? throw new InvalidOperationException() );
+        }
+
+        await _cacheService.SaveToCache( result );
+        return result;
     }
 
     private async Task<ActionResponse> GetAction( string detailsUrl, HttpContent? content = null )

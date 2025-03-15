@@ -1,6 +1,6 @@
 ﻿using System.Text.Json.Serialization;
 
-namespace Artiact.Models;
+namespace Artiact.Models.Api;
 
 public class Details
 {

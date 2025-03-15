@@ -1,12 +1,12 @@
 ﻿using System.Text.Json.Serialization;
 
-namespace Artiact.Models;
+namespace Artiact.Models.Api;
 
 public class Effect
 {
-    [JsonPropertyName("code")]
+    [JsonPropertyName( "code" )]
     public string Code { get; set; }
 
-    [JsonPropertyName("value")]
+    [JsonPropertyName( "value" )]
     public int Value { get; set; }
 }

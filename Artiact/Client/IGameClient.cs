@@ -1,4 +1,5 @@
 ﻿using Artiact.Models;
+using Artiact.Models.Api;
 
 namespace Artiact.Client;
 
@@ -15,10 +16,10 @@ public interface IGameClient
     public Task<ActionResponse> UseItem( Item item );
     public Task<ActionResponse> Recycling( Item item );
     public Task<ActionResponse> DeleteItem( Item item );
-    
-    
+
+
     Task<List<MapPlace>> GetMap();
     Task<List<ResourceDatum>> GetResources();
     Task<List<ItemDatum>> GetItems();
-    public Task<MonsterDatum> GetMonsters();
+    public Task<List<MonsterDatum>> GetMonsters();
 }

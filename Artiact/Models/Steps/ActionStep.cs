@@ -1,14 +1,16 @@
 ﻿using Artiact.Client;
+using Artiact.Models.Api;
 
-namespace Artiact.Models;
+namespace Artiact.Models.Steps;
 
 public class ActionStep : BaseStep, IStep
 {
     private readonly Func<IGameClient, Task<ActionResponse>> _action;
-    private Func<bool>? _needRepeat;
+    private readonly Func<bool>? _needRepeat;
 
-    public ActionStep( Character character, Func<IGameClient, Task<ActionResponse>> action,
-                       Func<bool>? needRepeat = null) : base( character )
+    public ActionStep( Character character,
+                       Func<IGameClient, Task<ActionResponse>> action,
+                       Func<bool>? needRepeat = null ) : base( character )
     {
         _action = action;
         _needRepeat = needRepeat;

@@ -1,9 +1,15 @@
-﻿using Artiact.Models;
-using Artiact.Client;
+﻿using Artiact.Client;
+using Artiact.Models;
+using Artiact.Models.Api;
 
 namespace Artiact.Services;
 
-public class MapService
+public interface IMapService
+{
+    public Task<MapPoint?> GetByContentCode( ContentCode contentCode );
+}
+
+public class MapService : IMapService
 {
     private readonly IGameClient _client;
 
@@ -38,7 +44,7 @@ public class MapService
         return new MapPoint
         {
             X = place.X,
-            Y = place.Y,
+            Y = place.Y
         };
     }
 }

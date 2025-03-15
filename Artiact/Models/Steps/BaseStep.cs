@@ -1,4 +1,6 @@
-﻿namespace Artiact.Models;
+﻿using Artiact.Models.Api;
+
+namespace Artiact.Models.Steps;
 
 public abstract class BaseStep
 {
@@ -9,5 +11,8 @@ public abstract class BaseStep
         Character = character;
     }
 
-    protected Task Delay( int seconds ) => Task.Delay( TimeSpan.FromSeconds( seconds ) );
+    protected Task Delay( int seconds )
+    {
+        return Task.Delay( TimeSpan.FromSeconds( seconds ) );
+    }
 }

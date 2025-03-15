@@ -1,22 +1,21 @@
 ﻿using System.Text.Json.Serialization;
 
-namespace Artiact.Models;
-
+namespace Artiact.Models.Api;
 
 public class ResourceDatum
 {
-    [JsonPropertyName("name")]
+    [JsonPropertyName( "name" )]
     public string Name { get; set; }
 
-    [JsonPropertyName("code")]
+    [JsonPropertyName( "code" )]
     public string Code { get; set; }
 
-    [JsonPropertyName("skill")]
-    public string Skill { get; set; }
+    [JsonPropertyName( "skill" )]
+    public string? Skill { get; set; }
 
-    [JsonPropertyName("level")]
+    [JsonPropertyName( "level" )]
     public int Level { get; set; }
 
-    [JsonPropertyName("drops")]
-    public List<Drop> Drops { get; set; }
+    [JsonPropertyName( "drops" )]
+    public List<Drop>? Drops { get; set; }
 }

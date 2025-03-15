@@ -1,11 +1,7 @@
-﻿using System.ComponentModel;
-
-namespace Artiact.Models;
+﻿namespace Artiact.Models;
 
 public record ContentCode( string Value )
 {
-    public override string ToString() => Value;
-
     public static readonly ContentCode None = new( "none" );
 
 
@@ -18,4 +14,9 @@ public record ContentCode( string Value )
     public static readonly ContentCode Woodcutting = new( "woodcutting" );
     public static readonly ContentCode GoldRocks = new( "gold_rocks" );
     public static readonly ContentCode Cyclops = new( "cyclops" );
+
+    public override string ToString()
+    {
+        return Value;
+    }
 }

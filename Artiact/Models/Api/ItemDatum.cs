@@ -1,33 +1,33 @@
 ﻿using System.Text.Json.Serialization;
 
-namespace Artiact.Models;
+namespace Artiact.Models.Api;
 
 public class ItemDatum
 {
-    [JsonPropertyName("name")]
+    [JsonPropertyName( "name" )]
     public string Name { get; set; }
 
-    [JsonPropertyName("code")]
+    [JsonPropertyName( "code" )]
     public string Code { get; set; }
 
-    [JsonPropertyName("level")]
+    [JsonPropertyName( "level" )]
     public int Level { get; set; }
 
-    [JsonPropertyName("type")]
+    [JsonPropertyName( "type" )]
     public string Type { get; set; }
 
-    [JsonPropertyName("subtype")]
+    [JsonPropertyName( "subtype" )]
     public string Subtype { get; set; }
 
-    [JsonPropertyName("description")]
+    [JsonPropertyName( "description" )]
     public string Description { get; set; }
 
-    [JsonPropertyName("effects")]
+    [JsonPropertyName( "effects" )]
     public List<Effect> Effects { get; set; }
 
-    [JsonPropertyName("craft")]
-    public Craft Craft { get; set; }
+    [JsonPropertyName( "craft" )]
+    public Craft? Craft { get; set; }
 
-    [JsonPropertyName("tradeable")]
+    [JsonPropertyName( "tradeable" )]
     public bool Tradeable { get; set; }
 }

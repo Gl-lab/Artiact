@@ -1,12 +1,13 @@
 ﻿namespace Artiact.Models;
 
-public enum GoalType 
+public enum GoalType
 {
-    Level = 1,
+    LevelUp = 1,
     Fishing,
     Mining,
     Woodcutting,
     Weaponcrafting,
     Gearcrafting,
-    Cooking
+    Cooking,
+    SpendResources
 }

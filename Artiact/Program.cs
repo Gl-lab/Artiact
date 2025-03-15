@@ -1,51 +1,69 @@
-﻿using System;
-using System.Net.Http;
-using System.Net.Http.Headers;
-using System.Text;
-using System.Text.Json;
-using System.Threading.Tasks;
-using Artiact.Client;
-using Artiact.Models;
+﻿using Artiact.Client;
 using Artiact.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Artiact;
 
-class Program
+internal class Program
 {
-    static async Task Main( string[] args )
+    private static async Task Main( string[] args )
     {
         IConfigurationRoot configuration = new ConfigurationBuilder()
                                           .SetBasePath( AppContext.BaseDirectory )
-                                          .AddJsonFile( "appsettings.json", optional: false, reloadOnChange: true )
+                                          .AddJsonFile( "appsettings.json", false, true )
                                           .AddUserSecrets<Program>()
                                           .Build();
 
-        // Настройка сервисов
-        ServiceProvider serviceProvider = new ServiceCollection()
-                                         .AddHttpClient()
-                                         .BuildServiceProvider();
+        // Создаем провайдер сервисов
+        ServiceProvider serviceProvider = ConfigureServices( configuration );
 
-        IHttpClientFactory? httpClientFactory = serviceProvider.GetService<IHttpClientFactory>();
-        HttpClient httpClient = httpClientFactory.CreateClient();
-
-        IConfigurationSection apiSettings = configuration.GetSection( "ApiSettings" );
-        string? baseUrl = apiSettings[ "BaseUrl" ];
-        string? username = apiSettings[ "Username" ];
-        string? password = apiSettings[ "Password" ];
-        string? characterName = apiSettings[ "Character" ];
-
-        using ILoggerFactory factory = LoggerFactory.Create( builder => builder.AddConsole() );
-        ILogger<IGameClient> logger = factory.CreateLogger<IGameClient>();
-        IGameHttpClient gameHttpClient = new GameHttpClient( baseUrl, username, password, httpClient );
-        GameClient client = new( gameHttpClient, characterName, logger );
-        IGoalService goalService = new GoalService();
-        MapService mapService = new( client );
-        IStepBuilder stepBuilder = new StepBuilder( client, mapService );
-        ActionService actionService = new( client, goalService, stepBuilder );
+        // Получаем сервис и запускаем приложение
+        IActionService actionService = serviceProvider.GetRequiredService<IActionService>();
         await actionService.Initialize();
         await actionService.Action();
     }
+
+    private static ServiceProvider ConfigureServices( IConfigurationRoot configuration )
+    {
+        ServiceCollection services = new ServiceCollection();
+
+        // Конфигурация
+        //services.AddScoped<IConfiguration>( configuration );
+
+        // Логирование
+        services.AddLogging( builder => builder.AddConsole() );
+
+        // HTTP клиент
+        services.AddHttpClient();
+
+        // Настройки API
+        IConfigurationSection apiSettings = configuration.GetSection( "ApiSettings" );
+        services.Configure<ApiSettings>( apiSettings );
+        services.AddSingleton(resolver => resolver.GetRequiredService<IOptions<ApiSettings>>().Value);
+        // Регистрация сервисов
+        services.AddScoped<ICacheService, CacheService>();
+        services.AddScoped<IGameHttpClient, GameHttpClient>();
+        services.AddScoped<IGameClient, GameClient>();
+        services.AddScoped<IGoalService, GoalService>();
+        services.AddScoped<IMapService, MapService>();
+        services.AddScoped<IStepBuilder, StepBuilder>();
+        services.AddScoped<IWearCraftTargetFinder, WearCraftTargetFinder>();
+        services.AddScoped<IActionService, ActionService>();
+        services.AddScoped<IGoalDecomposer, GoalDecomposer>();
+        services.AddScoped<IWearCraftTargetFinder, WearCraftTargetFinder>();
+        
+
+        return services.BuildServiceProvider();
+    }
+}
+
+public class ApiSettings
+{
+    public string BaseUrl { get; set; }
+    public string Username { get; set; }
+    public string Password { get; set; }
+    public string Character { get; set; }
 }

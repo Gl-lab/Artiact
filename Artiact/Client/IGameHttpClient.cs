@@ -2,7 +2,7 @@
 using System.Security.Authentication;
 using System.Text;
 using System.Text.Json;
-using Artiact.Models;
+using Artiact.Models.Api;
 
 namespace Artiact.Client;
 
@@ -14,21 +14,39 @@ public interface IGameHttpClient
 
 public class GameHttpClient : IGameHttpClient
 {
-    private readonly string _baseUrl;
-    private readonly string _username;
+    private readonly HttpClient _httpClient;
     private readonly string _password;
-    private HttpClient _httpClient;
+    private readonly string _username;
 
-    public GameHttpClient( string baseUrl,
-                           string username,
-                           string password,
-                           HttpClient httpClient )
+
+    public GameHttpClient(
+        IHttpClientFactory httpClientFactory,
+        ApiSettings settings )
     {
-        _baseUrl = baseUrl;
-        _username = username;
-        _password = password;
-        _httpClient = httpClient;
-        _httpClient.BaseAddress = new( _baseUrl );
+        _username = settings.Username;
+        _password = settings.Password;
+        _httpClient = httpClientFactory.CreateClient();
+        _httpClient.BaseAddress = new Uri( settings.BaseUrl );
+    }
+
+    public async Task<HttpResponseMessage> PostAsync( string requestUri, HttpContent? content = null )
+    {
+        if ( _httpClient.DefaultRequestHeaders.Authorization?.Scheme != "Bearer" )
+        {
+            await GetJwtToken();
+        }
+
+        return await _httpClient.PostAsync( requestUri, content );
+    }
+
+    public async Task<HttpResponseMessage> GetAsync( string requestUri )
+    {
+        if ( _httpClient.DefaultRequestHeaders.Authorization?.Scheme != "Bearer" )
+        {
+            await GetJwtToken();
+        }
+
+        return await _httpClient.GetAsync( requestUri );
     }
 
 
@@ -53,25 +71,5 @@ public class GameHttpClient : IGameHttpClient
                 new AuthenticationHeaderValue( "Bearer",
                     tokenContainer?.Token ?? throw new AuthenticationException( "Token is missing." ) );
         }
-    }
-
-    public async Task<HttpResponseMessage> PostAsync( string requestUri, HttpContent? content = null )
-    {
-        if ( _httpClient.DefaultRequestHeaders.Authorization?.Scheme != "Bearer" )
-        {
-            await GetJwtToken();
-        }
-
-        return await _httpClient.PostAsync( requestUri, content );
-    }
-
-    public async Task<HttpResponseMessage> GetAsync( string requestUri )
-    {
-        if ( _httpClient.DefaultRequestHeaders.Authorization?.Scheme != "Bearer" )
-        {
-            await GetJwtToken();
-        }
-
-        return await _httpClient.GetAsync( requestUri );
     }
 }

@@ -1,16 +1,21 @@
 ﻿using System.Text.Json.Serialization;
 
-namespace Artiact.Models;
+namespace Artiact.Models.Api;
 
 public class Map
 {
-    [JsonPropertyName( "data" )] public List<MapPlace> Data { get; set; }
+    [JsonPropertyName( "data" )]
+    public List<MapPlace> Data { get; set; }
 
-    [JsonPropertyName( "total" )] public int Total { get; set; }
+    [JsonPropertyName( "total" )]
+    public int Total { get; set; }
 
-    [JsonPropertyName( "page" )] public int Page { get; set; }
+    [JsonPropertyName( "page" )]
+    public int Page { get; set; }
 
-    [JsonPropertyName( "size" )] public int Size { get; set; }
+    [JsonPropertyName( "size" )]
+    public int Size { get; set; }
 
-    [JsonPropertyName( "pages" )] public int Pages { get; set; }
+    [JsonPropertyName( "pages" )]
+    public int Pages { get; set; }
 }

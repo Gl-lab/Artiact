@@ -1,21 +1,21 @@
 ﻿using System.Text.Json.Serialization;
 
-namespace Artiact.Models;
+namespace Artiact.Models.Api;
 
 public class ItemsResponse
 {
-    [JsonPropertyName("data")]
+    [JsonPropertyName( "data" )]
     public List<ItemDatum> Data { get; set; }
 
-    [JsonPropertyName("total")]
+    [JsonPropertyName( "total" )]
     public int Total { get; set; }
 
-    [JsonPropertyName("page")]
+    [JsonPropertyName( "page" )]
     public int Page { get; set; }
 
-    [JsonPropertyName("size")]
+    [JsonPropertyName( "size" )]
     public int Size { get; set; }
 
-    [JsonPropertyName("pages")]
+    [JsonPropertyName( "pages" )]
     public int Pages { get; set; }
 }

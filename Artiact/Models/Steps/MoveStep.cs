@@ -1,6 +1,7 @@
 ﻿using Artiact.Client;
+using Artiact.Models.Api;
 
-namespace Artiact.Models;
+namespace Artiact.Models.Steps;
 
 public class MoveStep : BaseStep, IStep
 {

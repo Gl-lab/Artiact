@@ -1,4 +1,5 @@
 ﻿using Artiact.Models;
+using Artiact.Models.Api;
 
 namespace Artiact.Services;
 

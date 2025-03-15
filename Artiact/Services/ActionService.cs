@@ -1,14 +1,22 @@
 ﻿using Artiact.Client;
 using Artiact.Models;
+using Artiact.Models.Api;
+using Artiact.Models.Steps;
 
 namespace Artiact.Services;
 
-public class ActionService
+public interface IActionService
 {
-    private Character _character;
+    Task Initialize();
+    Task Action();
+}
+
+public class ActionService : IActionService
+{
     private readonly IGameClient _client;
     private readonly IGoalService _goalService;
     private readonly IStepBuilder _stepBuilder;
+    private Character _character;
 
     public ActionService( IGameClient client,
                           IGoalService goalService,
@@ -26,8 +34,11 @@ public class ActionService
 
     public async Task Action()
     {
-        Goal goal = _goalService.GetGoal( _character );
-        IStep steps = await _stepBuilder.BuildSteps(goal , _character );
-        await steps.Execute( _client );
+        for ( int i = 0; i < 2; i++ )
+        {
+            Goal goal = _goalService.GetGoal( _character );
+            IStep step = await _stepBuilder.BuildStep( goal, _character );
+            await step.Execute( _client );
+        }
     }
 }
