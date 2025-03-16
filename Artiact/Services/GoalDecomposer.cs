@@ -7,11 +7,6 @@ using System.Collections.Generic;
 
 namespace Artiact.Services;
 
-public interface IGoalDecomposer
-{
-    Task<Goal> DecomposeGoal( Goal goal, Character character );
-}
-
 public class GoalDecomposer : IGoalDecomposer
 {
     private readonly ILogger<GoalDecomposer> _logger;
@@ -29,23 +24,20 @@ public class GoalDecomposer : IGoalDecomposer
         _wearCraftTargetFinder = wearCraftTargetFinder;
     }
 
-    public async Task<Goal> DecomposeGoal( Goal goal, Character character )
+    public async Task DecomposeGoal( Goal goal, Character character )
     {
         switch ( goal )
         {
-            case MiningGoal miningGoal:
-                return DecomposeMiningGoal( miningGoal, character );
-
-
+            case GatheringGoal gatheringGoal:
+                await DecomposeGatheringGoal( gatheringGoal, character );
+                break;
             case SpendResourcesGoal spendGoal:
-                DecomposeSpendResourcesGoal( spendGoal );
+                await DecomposeSpendResourcesGoal( spendGoal );
                 break;
         }
-
-        return goal;
     }
 
-    private Goal DecomposeMiningGoal( MiningGoal miningGoal, Character character )
+    private async Task DecomposeGatheringGoal( GatheringGoal gatheringGoal, Character character )
     {
         // Проверяем текущее состояние инвентаря
         int currentInventorySpace = character.InventoryMaxItems;
@@ -57,7 +49,7 @@ public class GoalDecomposer : IGoalDecomposer
         // Если места достаточно, возвращаем исходную цель
         if ( availableSpace >= 10 ) // Предполагаем, что нам нужно минимум 10 слотов для майнинга
         {
-            return miningGoal;
+            return;
         }
 
         // Если места недостаточно, создаем цель для освобождения инвентаря
@@ -66,79 +58,46 @@ public class GoalDecomposer : IGoalDecomposer
         // Получаем список ресурсов, которые можно потратить
         List<ResourceToSpend> resourcesToSpend = new List<ResourceToSpend>();
 
-        // Проверяем возможность крафта предметов из имеющихся ресурсов
-        CraftTarget? craftTarget = _wearCraftTargetFinder.FindTarget( character.Inventory.Select( x => new Item
+        foreach ( Item item in character.Inventory.Select( x => new Item
+                 {
+                     Code = x.Code,
+                     Quantity = x.Quantity
+                 } ) )
         {
-            Code = x.Code,
-            Quantity = x.Quantity
-        } ).ToList() );
+            resourcesToSpend.Add( new ResourceToSpend( item, SpendMethod.Craft ) );
+        }
+        // Пока тратим все
 
-        if ( craftTarget != null )
-        {
-            // Если нашли что можно скрафтить, добавляем ресурсы в список для крафта
-            foreach ( CraftStep step in craftTarget.Steps )
-            {
-                // resourcesToSpend.Add( new ResourceToSpend
-                // {
-                //     Items = step.RequiredItems,
-                //     Method = SpendMethod.Craft
-                // } );
-            }
-        }
-        else
-        {
-            // // Если крафтить нечего, ищем ресурсы которые можно удалить или переработать
-            // var resourceItems = character.Inventory
-            //                              .Where( item => item.Code == "resource" && item.Quantity > 0 )
-            //                              .OrderBy( item => item.Level ) // Начинаем с низкоуровневых ресурсов
-            //                              .Take( 3 ) // Берем первые 3 типа ресурсов
-            //                              .ToList();
-            //
-            // if ( resourceItems.Any() )
-            // {
-            //     resourcesToSpend.Add( new ResourceToSpend
-            //     {
-            //         Items = resourceItems,
-            //         Method = SpendMethod.Recycle // Предпочитаем переработку удалению
-            //     } );
-            // }
-        }
 
         // Создаем подцель для освобождения места
         SpendResourcesGoal spendResourcesGoal = new SpendResourcesGoal( resourcesToSpend );
-        spendResourcesGoal.AddSubGoal( miningGoal );
-
-
-        return spendResourcesGoal;
+        await DecomposeGoal( spendResourcesGoal, character );
+        gatheringGoal.AddSubGoal( spendResourcesGoal );
     }
 
 
-    private List<Goal> DecomposeSpendResourcesGoal( SpendResourcesGoal goal )
+    private Task DecomposeSpendResourcesGoal( SpendResourcesGoal goal )
     {
-        List<Goal> subgoals = new List<Goal>();
+        List<Item> craftResources =
+            goal.Resources.Where( x => x.Method == SpendMethod.Craft ).Select( x => x.Item ).ToList();
+        CraftTarget? target = _wearCraftTargetFinder.FindTarget( craftResources );
+        if ( target != null )
+        {
+            goal.AddSubGoal( new GearCraftingGoal( target ) );
+        }
+
 
         foreach ( ResourceToSpend resource in goal.Resources )
         {
             switch ( resource.Method )
             {
-                case SpendMethod.Craft:
-                    // For crafting, we need to find a recipe that uses this item and create a crafting goal
-                    CraftTarget? target = _wearCraftTargetFinder.FindTarget( resource.Items );
-                    if ( target != null )
-                    {
-                        subgoals.Add( new GearCraftingGoal( target ) );
-                    }
-
-                    break;
-
                 case SpendMethod.Delete:
                 case SpendMethod.Recycle:
                     // These methods can be handled directly by the client
-                    subgoals.Add( goal );
+
                     break;
             }
         }
-
-        return subgoals;
+        return Task.CompletedTask;
     }
 }

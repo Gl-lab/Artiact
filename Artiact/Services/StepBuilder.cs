@@ -7,15 +7,13 @@ namespace Artiact.Services;
 
 public class StepBuilder : IStepBuilder
 {
-    private readonly IGoalDecomposer _goalDecomposer;
     private readonly IGameClient _gameClient;
     private readonly IMapService _mapService;
 
-    public StepBuilder( IGoalDecomposer goalDecomposer,
-                        IGameClient gameClient,
-                        IMapService mapService )
+    public StepBuilder(
+        IGameClient gameClient,
+        IMapService mapService )
     {
-        _goalDecomposer = goalDecomposer;
         _gameClient = gameClient;
         _mapService = mapService;
     }
@@ -24,15 +22,12 @@ public class StepBuilder : IStepBuilder
     {
         MixedStep step = new MixedStep( character );
 
-        // Сначала декомпозируем цель на подцели
-        goal = await _goalDecomposer.DecomposeGoal( goal, character );
-
         // Если есть подцели, сначала обрабатываем их
         if ( goal.SubGoals.Count != 0 )
         {
             foreach ( Goal subGoal in goal.SubGoals )
             {
-                step.AddStep( await BuildStepsForGoal( subGoal, character ) );
+                step.AddStep( await BuildStep( subGoal, character ) );
             }
         }
 
@@ -47,10 +42,12 @@ public class StepBuilder : IStepBuilder
     {
         switch ( goal )
         {
-            case MiningGoal:
+            case GatheringGoal:
                 return await BuildMiningSteps( character );
             case SpendResourcesGoal spendGoal:
-                return BuildSpendResourcesStep( spendGoal, character );
+                return await BuildSpendResourcesStep( spendGoal, character );
+            case GearCraftingGoal craftingGoal:
+                return await BuildCraftingSteps( craftingGoal, character );
             default:
                 throw new InvalidOperationException();
         }
@@ -85,7 +82,8 @@ public class StepBuilder : IStepBuilder
     {
         List<ResourceDatum> resource = await _gameClient.GetResources();
         List<ResourceDatum> miningResource = resource
-                                            .Where( x => x.Skill is not null && x.Skill == ResourceSkill.Mining.ToString() )
+                                            .Where( x =>
+                                                 x.Skill is not null && x.Skill == ResourceSkill.Mining.ToString() )
                                             .Where( x =>
                                                  x.Level <=
                                                  ( character.MiningLevel == 0 ? 1 : character.MiningLevel ) )
@@ -97,7 +95,7 @@ public class StepBuilder : IStepBuilder
     }
 
 
-    private IStep BuildSpendResourcesStep( SpendResourcesGoal goal, Character character )
+    private async Task<IStep> BuildSpendResourcesStep( SpendResourcesGoal goal, Character character )
     {
         MixedStep step = new MixedStep( character );
         foreach ( ResourceToSpend resource in goal.Resources )
@@ -105,22 +103,81 @@ public class StepBuilder : IStepBuilder
             switch ( resource.Method )
             {
                 case SpendMethod.Delete:
-                    foreach ( Item resourceItem in resource.Items )
-                    {
-                        step.AddStep( new ActionStep( character, client => client.DeleteItem( resourceItem ) ) );
-                    }
+
+                    step.AddStep( new ActionStep( character, client => client.DeleteItem( resource.Item ) ) );
+
 
                     break;
+              
 
                 case SpendMethod.Recycle:
                     throw new NotImplementedException();
                     //TODO: Сделать шаги поиск подходящей точки на карте, движение к ней и ActionStep с Recycle
                     break;
-
-                // Crafting is handled by CraftingGoal decomposition
             }
         }
 
         return step;
+    }
+
+    private async Task<IStep> BuildCraftingSteps( GearCraftingGoal goal, Character character )
+    {
+        List<IStep> steps = new();
+
+        // Группируем шаги крафта по мастерским
+        Dictionary<string, List<CraftStep>> stepsByWorkshop = new Dictionary<string, List<CraftStep>>();
+        
+        // Добавляем промежуточные шаги
+        foreach ( CraftStep craftStep in goal.Item.Steps )
+        {
+            string skill = craftStep.Item.Craft.Skill;
+            if ( !stepsByWorkshop.ContainsKey( skill ) )
+            {
+                stepsByWorkshop[ skill ] = new List<CraftStep>();
+            }
+            stepsByWorkshop[ skill ].Add( craftStep );
+        }
+
+        // Добавляем финальный шаг крафта
+        string finalSkill = goal.Item.FinalItem.Craft.Skill;
+        if ( !stepsByWorkshop.ContainsKey( finalSkill ) )
+        {
+            stepsByWorkshop[ finalSkill ] = new List<CraftStep>();
+        }
+        stepsByWorkshop[ finalSkill ].Add( new CraftStep 
+        { 
+            Item = goal.Item.FinalItem,
+            RequiredItems = goal.Item.FinalItem.Craft.Items
+        } );
+
+        // Обрабатываем каждую мастерскую
+        foreach ( KeyValuePair<string, List<CraftStep>> workshopGroup in stepsByWorkshop )
+        {
+            // Находим мастерскую для текущего навыка
+            MapPoint? workshop = await _mapService.GetWorkshopBySkillCode( new ContentCode( workshopGroup.Key ) );
+            if ( workshop == null )
+            {
+                throw new InvalidOperationException( $"Workshop not found for skill {workshopGroup.Key}" );
+            }
+
+            // Если персонаж не в мастерской, добавляем шаг перемещения
+            if ( character.X != workshop.X || character.Y != workshop.Y )
+            {
+                steps.Add( new MoveStep( workshop, character ) );
+            }
+
+            // Добавляем шаги крафта для текущей мастерской
+            foreach ( CraftStep craftStep in workshopGroup.Value )
+            {
+                steps.Add( new ActionStep( character, client => client.Crafting( new Item { Code = craftStep.Item.Code } ) ) );
+            }
+        }
+
+        if ( steps.Count > 1 )
+        {
+            return new MixedStep( steps, character );
+        }
+
+        return steps.First();
     }
 }

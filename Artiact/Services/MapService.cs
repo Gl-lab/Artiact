@@ -4,28 +4,9 @@ using Artiact.Models.Api;
 
 namespace Artiact.Services;
 
-public interface IMapService
-{
-    public Task<MapPoint?> GetByContentCode( ContentCode contentCode );
-}
-
 public class MapService : IMapService
 {
     private readonly IGameClient _client;
-
-    private Dictionary<ContentType, List<ContentCode>> contentCodeByType =
-        new()
-        {
-            { ContentType.Resource, new List<ContentCode> { ContentCode.SalmonFishingSpot, ContentCode.GoldRocks } },
-            {
-                ContentType.Monster,
-                new List<ContentCode>
-                {
-                    ContentCode.GoblinWolfrider, ContentCode.Orc, ContentCode.Ogre, ContentCode.Pig, ContentCode.Cyclops
-                }
-            },
-            { ContentType.Workshop, new List<ContentCode> { ContentCode.Woodcutting } }
-        };
 
     public MapService( IGameClient client )
     {
@@ -36,6 +17,23 @@ public class MapService : IMapService
     {
         List<MapPlace> map = await _client.GetMap();
         MapPlace? place = map.FirstOrDefault( d => d.Content?.Code == contentCode.ToString() );
+        if ( place is null )
+        {
+            return null;
+        }
+
+        return new MapPoint
+        {
+            X = place.X,
+            Y = place.Y
+        };
+    }
+
+    public async Task<MapPoint?> GetWorkshopBySkillCode( ContentCode skillCode )
+    {
+        List<MapPlace> map = await _client.GetMap();
+        MapPlace? place = map.FirstOrDefault( d =>
+            d.Content?.Type == ContentType.Workshop.ToString() && d.Content?.Code == skillCode.ToString() );
         if ( place is null )
         {
             return null;

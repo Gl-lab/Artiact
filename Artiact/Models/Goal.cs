@@ -33,11 +33,11 @@ public class GearCraftingGoal : Goal
     }
 }
 
-public class MiningGoal : Goal
+public class GatheringGoal : Goal
 {
     public int TargetLevel { get; }
 
-    public MiningGoal( int targetLevel ) : base( GoalType.Mining )
+    public GatheringGoal( int targetLevel ) : base( GoalType.Gathering )
     {
         TargetLevel = targetLevel;
     }
@@ -75,20 +75,13 @@ public class SpendResourcesGoal : Goal
 
 public class ResourceToSpend
 {
-    public List<Item> Items { get; set; }
+    public Item Item { get; set; }
     public SpendMethod Method { get; }
 
-    public ResourceToSpend( List<Item> items, SpendMethod method )
+    public ResourceToSpend( Item item,
+                            SpendMethod method )
     {
-        Items = items;
-
+        Item = item;
         Method = method;
     }
-}
-
-public enum SpendMethod
-{
-    Craft,
-    Delete,
-    Recycle
 }

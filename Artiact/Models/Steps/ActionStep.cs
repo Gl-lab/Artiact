@@ -21,6 +21,7 @@ public class ActionStep : BaseStep, IStep
         do
         {
             ActionResponse actionResponse = await _action( client );
+            Character = actionResponse.Data.Character;  
             await Delay( actionResponse.Data.Cooldown.TotalSeconds );
         } while ( _needRepeat?.Invoke() ?? false );
     }

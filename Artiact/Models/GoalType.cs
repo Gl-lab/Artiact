@@ -4,7 +4,7 @@ public enum GoalType
 {
     LevelUp = 1,
     Fishing,
-    Mining,
+    Gathering,
     Woodcutting,
     Weaponcrafting,
     Gearcrafting,

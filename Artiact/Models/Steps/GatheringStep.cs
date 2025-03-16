@@ -12,6 +12,7 @@ public class GatheringStep : BaseStep, IStep
     public async Task Execute( IGameClient client )
     {
         ActionResponse actionResponse = await client.Gathering();
+        Character = actionResponse.Data.Character;  
         await Delay( actionResponse.Data.Cooldown.TotalSeconds );
     }
 }

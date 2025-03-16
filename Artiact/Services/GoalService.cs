@@ -7,7 +7,7 @@ public class GoalService : IGoalService
 {
     public Goal GetGoal( Character character )
     {
-        return new MiningGoal( 20 )
+        return new GatheringGoal( 20 )
         {
         };
     }
