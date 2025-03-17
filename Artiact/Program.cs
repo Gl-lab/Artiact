@@ -43,6 +43,7 @@ internal class Program
         IConfigurationSection apiSettings = configuration.GetSection( "ApiSettings" );
         services.Configure<ApiSettings>( apiSettings );
         services.AddSingleton(resolver => resolver.GetRequiredService<IOptions<ApiSettings>>().Value);
+        
         // Регистрация сервисов
         services.AddScoped<ICacheService, CacheService>();
         services.AddScoped<IGameHttpClient, GameHttpClient>();
@@ -50,11 +51,14 @@ internal class Program
         services.AddScoped<IGoalService, GoalService>();
         services.AddScoped<IMapService, MapService>();
         services.AddScoped<IStepBuilder, StepBuilder>();
-        services.AddScoped<IWearCraftTargetFinder, WearCraftTargetFinder>();
-        services.AddScoped<IActionService, ActionService>();
-        services.AddScoped<IGoalDecomposer, GoalDecomposer>();
+        
+        // Регистрация сервисов крафта
+        services.AddScoped<ICraftTargetEvaluator, CraftTargetEvaluator>();
+        services.AddScoped<ICraftChainBuilder, CraftChainBuilder>();
         services.AddScoped<IWearCraftTargetFinder, WearCraftTargetFinder>();
         
+        services.AddScoped<IActionService, ActionService>();
+        services.AddScoped<IGoalDecomposer, GoalDecomposer>();
 
         return services.BuildServiceProvider();
     }
