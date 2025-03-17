@@ -21,6 +21,7 @@ public class CraftStep
 {
     public ItemDatum Item { get; set; }
     public List<Item> RequiredItems { get; set; }
+    public int Quantity { get; set; }
 }
 
 public class WearCraftTargetFinder : IWearCraftTargetFinder
@@ -70,18 +71,21 @@ public class WearCraftTargetFinder : IWearCraftTargetFinder
         // Подсчитываем количество доступных ресурсов
         foreach ( Item item in availableItems )
         {
-            if ( !availableResources.ContainsKey( item.Code ) )
-                availableResources[ item.Code ] = 0;
+            availableResources.TryAdd( item.Code, 0 );
             availableResources[ item.Code ] += item.Quantity;
         }
 
         // Ищем все предметы, которые можно скрафтить
         foreach ( ItemDatum item in _allItems.Where( i => _wearableTypes.Contains( i.Type ) && i.Craft != null ) )
         {
-            CraftTarget? craftTarget = TryCreateCraftChain( item, availableResources );
-            if ( craftTarget != null )
+            // Проверяем, хватает ли ресурсов для крафта финального предмета
+            if ( CanCraftFinalItem( item, availableResources ) )
             {
-                targets.Add( craftTarget );
+                CraftTarget? craftTarget = TryCreateCraftChain( item, availableResources );
+                if ( craftTarget != null )
+                {
+                    targets.Add( craftTarget );
+                }
             }
         }
 
@@ -93,7 +97,7 @@ public class WearCraftTargetFinder : IWearCraftTargetFinder
         HashSet<string> visited = new HashSet<string>();
         CraftTarget craftTarget = new CraftTarget { FinalItem = targetItem };
 
-        if ( CanCraftItem( targetItem, availableResources, visited, craftTarget ) )
+        if ( CanCraftItem( targetItem, 1, availableResources, visited, craftTarget ) )
         {
             return craftTarget;
         }
@@ -102,6 +106,7 @@ public class WearCraftTargetFinder : IWearCraftTargetFinder
     }
 
     private bool CanCraftItem( ItemDatum item,
+                               int requiredQuantity,
                                Dictionary<string, int> availableResources,
                                HashSet<string> visited,
                                CraftTarget craftTarget )
@@ -120,7 +125,8 @@ public class WearCraftTargetFinder : IWearCraftTargetFinder
         CraftStep craftStep = new CraftStep
         {
             Item = item,
-            RequiredItems = new List<Item>()
+            RequiredItems = new List<Item>(),
+            Quantity = requiredQuantity
         };
 
         // Проверяем каждый требуемый предмет для крафта
@@ -132,32 +138,85 @@ public class WearCraftTargetFinder : IWearCraftTargetFinder
 
             // Если предмет доступен напрямую
             if ( availableResources.ContainsKey( requiredItem.Code ) &&
-                availableResources[ requiredItem.Code ] >= requiredItem.Quantity )
+                availableResources[ requiredItem.Code ] >= requiredItem.Quantity * craftStep.Quantity )
             {
                 craftStep.RequiredItems.Add( new Item
                 {
                     Code = requiredItem.Code,
-                    Quantity = requiredItem.Quantity
+                    Quantity = requiredItem.Quantity * craftStep.Quantity
                 } );
                 continue;
             }
 
             // Пробуем создать промежуточный предмет
             Dictionary<string, int> tempResources = new Dictionary<string, int>( availableResources );
-            if ( CanCraftItem( itemData, tempResources, visited, craftTarget ) )
+            if ( CanCraftItem( itemData, requiredItem.Quantity, tempResources, visited, craftTarget ) )
             {
                 craftStep.RequiredItems.Add( new Item
                 {
                     Code = requiredItem.Code,
-                    Quantity = requiredItem.Quantity
+                    Quantity = requiredItem.Quantity * craftStep.Quantity
                 } );
+                availableResources.TryAdd( requiredItem.Code, requiredItem.Quantity * craftStep.Quantity );
                 continue;
             }
 
             return false;
         }
 
+        // Проверяем, хватает ли ресурсов для всех шагов крафта
+        Dictionary<string, int> remainingResources = new Dictionary<string, int>( availableResources );
+        foreach ( Item requiredItem in craftStep.RequiredItems )
+        {
+            if ( !remainingResources.ContainsKey( requiredItem.Code ) ||
+                remainingResources[ requiredItem.Code ] < requiredItem.Quantity )
+            {
+                return false;
+            }
+
+            remainingResources[ requiredItem.Code ] -= requiredItem.Quantity;
+        }
+
         craftTarget.Steps.Add( craftStep );
+        return true;
+    }
+
+    private bool CanCraftFinalItem( ItemDatum item, Dictionary<string, int> availableResources )
+    {
+        if ( item.Craft == null )
+            return false;
+
+        // Проверяем каждый требуемый предмет для крафта
+        foreach ( Item requiredItem in item.Craft.Items )
+        {
+            ItemDatum? itemData = _allItems.FirstOrDefault( i => i.Code == requiredItem.Code );
+            if ( itemData == null )
+                return false;
+
+            // Проверяем, есть ли достаточно ресурсов для крафта
+            if ( !availableResources.ContainsKey( requiredItem.Code ) ||
+                availableResources[ requiredItem.Code ] < requiredItem.Quantity )
+            {
+                // Если предмета нет в доступных ресурсах, проверяем можно ли его скрафтить
+                if ( itemData.Craft != null )
+                {
+                    // Проверяем, хватает ли ресурсов для крафта промежуточного предмета
+                    foreach ( Item craftItem in itemData.Craft.Items )
+                    {
+                        if ( !availableResources.ContainsKey( craftItem.Code ) ||
+                            availableResources[ craftItem.Code ] < craftItem.Quantity * requiredItem.Quantity )
+                        {
+                            return false;
+                        }
+                    }
+                }
+                else
+                {
+                    return false;
+                }
+            }
+        }
+
         return true;
     }
 }
