@@ -76,11 +76,11 @@ public class GoalDecomposer : IGoalDecomposer
     }
 
 
-    private Task DecomposeSpendResourcesGoal( SpendResourcesGoal goal )
+    private async Task DecomposeSpendResourcesGoal( SpendResourcesGoal goal )
     {
         List<Item> craftResources =
             goal.Resources.Where( x => x.Method == SpendMethod.Craft ).Select( x => x.Item ).ToList();
-        CraftTarget? target = _wearCraftTargetFinder.FindTarget( craftResources );
+        CraftTarget? target = await _wearCraftTargetFinder.FindTarget( craftResources );
         if ( target != null )
         {
             goal.AddSubGoal( new GearCraftingGoal( target ) );
@@ -98,6 +98,5 @@ public class GoalDecomposer : IGoalDecomposer
                     break;
             }
         }
-        return Task.CompletedTask;
     }
 }

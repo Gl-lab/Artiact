@@ -231,7 +231,7 @@ public class GameClient : IGameClient
 
         if ( !response.IsSuccessStatusCode )
         {
-            throw new Exception( $"Unable : {detailsUrl}" );
+            throw new Exception( $"Unable : {detailsUrl} StatusCode : {response.StatusCode}" );
         }
 
         ActionResponse? actionResponse =

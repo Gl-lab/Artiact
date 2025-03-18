@@ -124,12 +124,12 @@ public class WearCraftTargetFinderTests
         _chainBuilderMock.Setup(x => x.TryCreateCraftChain(
             It.Is<ItemDatum>(i => i.Code == "copper_dagger"),
             It.IsAny<Dictionary<string, int>>()))
-            .Returns(expectedCraftTarget);
+            .ReturnsAsync(expectedCraftTarget);
         _targetEvaluatorMock.Setup(x => x.SelectBestTarget(It.IsAny<List<CraftTarget>>()))
             .Returns(expectedCraftTarget);
 
         // Act
-        CraftTarget? result = _finder.FindTarget(availableItems);
+        CraftTarget? result = await _finder.FindTarget(availableItems);
 
         // Assert
         Assert.NotNull(result);

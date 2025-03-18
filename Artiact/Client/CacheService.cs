@@ -12,7 +12,7 @@ public class CacheService : ICacheService
     public CacheService( ILogger<ICacheService> logger, TimeSpan? cacheDuration = null )
     {
         _logger = logger;
-        _cacheDuration = cacheDuration ?? TimeSpan.FromHours( 1 );
+        _cacheDuration = cacheDuration ?? TimeSpan.FromHours( 48 );
 
         if ( !Directory.Exists( CacheDirectory ) )
         {

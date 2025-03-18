@@ -105,10 +105,7 @@ public class StepBuilder : IStepBuilder
                 case SpendMethod.Delete:
 
                     step.AddStep( new ActionStep( character, client => client.DeleteItem( resource.Item ) ) );
-
-
                     break;
-              
 
                 case SpendMethod.Recycle:
                     throw new NotImplementedException();
@@ -169,7 +166,11 @@ public class StepBuilder : IStepBuilder
             // Добавляем шаги крафта для текущей мастерской
             foreach ( CraftStep craftStep in workshopGroup.Value )
             {
-                steps.Add( new ActionStep( character, client => client.Crafting( new Item { Code = craftStep.Item.Code } ) ) );
+                steps.Add( new ActionStep( character, client => client.Crafting( new Item
+                {
+                    Code = craftStep.Item.Code,
+                    Quantity = craftStep.Quantity
+                } ) ) );
             }
         }
 

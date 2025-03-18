@@ -3,6 +3,7 @@ using Artiact.Models;
 using Artiact.Models.Api;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace Artiact.Services;
 
@@ -29,10 +30,10 @@ public class WearCraftTargetFinder : IWearCraftTargetFinder
         };
     }
 
-    public CraftTarget? FindTarget( List<Item> availableItems )
+    public async Task<CraftTarget?> FindTarget( List<Item> availableItems )
     {
-        _allItems = _gameClient.GetItems().Result;
-        List<CraftTarget> possibleTargets = FindPossibleTargets( availableItems );
+        _allItems = await _gameClient.GetItems();
+        List<CraftTarget> possibleTargets = await FindPossibleTargets( availableItems );
 
         if ( !possibleTargets.Any() )
         {
@@ -42,7 +43,7 @@ public class WearCraftTargetFinder : IWearCraftTargetFinder
         return _targetEvaluator.SelectBestTarget( possibleTargets );
     }
 
-    private List<CraftTarget> FindPossibleTargets( List<Item> availableItems )
+    private async Task<List<CraftTarget>> FindPossibleTargets( List<Item> availableItems )
     {
         List<CraftTarget> targets = new List<CraftTarget>();
         Dictionary<string, int> availableResources = CalculateAvailableResources( availableItems );
@@ -51,7 +52,7 @@ public class WearCraftTargetFinder : IWearCraftTargetFinder
         {
             if ( CanCraftFinalItem( item, availableResources ) )
             {
-                CraftTarget? craftTarget = _chainBuilder.TryCreateCraftChain( item, availableResources );
+                CraftTarget? craftTarget = await _chainBuilder.TryCreateCraftChain( item, availableResources );
                 if ( craftTarget != null )
                 {
                     targets.Add( craftTarget );
