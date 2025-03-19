@@ -4,6 +4,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using NLog.Extensions.Logging;
 
 namespace Artiact;
 
@@ -30,11 +31,12 @@ internal class Program
     {
         ServiceCollection services = new ServiceCollection();
 
-        // Конфигурация
-        //services.AddScoped<IConfiguration>( configuration );
-
         // Логирование
-        services.AddLogging( builder => builder.AddConsole() );
+        services.AddLogging( builder =>
+        {
+            builder.AddConsole();
+            builder.AddNLog( configuration );
+        });
 
         // HTTP клиент
         services.AddHttpClient();

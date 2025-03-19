@@ -127,7 +127,7 @@ public class GameClient : IGameClient
         List<MapPlace>? cachedMap = await _cacheService.GetFromCache<List<MapPlace>>();
         if ( cachedMap != null )
         {
-            _logger.LogInformation( "GetMap use cache" );
+            _logger.LogTrace( "GetMap use cache" );
             return cachedMap;
         }
 
@@ -149,7 +149,7 @@ public class GameClient : IGameClient
         List<ResourceDatum>? cachedResources = await _cacheService.GetFromCache<List<ResourceDatum>>();
         if ( cachedResources != null )
         {
-            _logger.LogInformation( "GetResources use cache" );
+            _logger.LogTrace( "GetResources use cache" );
             return cachedResources;
         }
 
@@ -169,7 +169,7 @@ public class GameClient : IGameClient
     private async Task<T> GetPage<T>( string endpoint, int page )
     {
         string requestUri = $"/{endpoint}?page={page}";
-        _logger.LogInformation( requestUri );
+        _logger.LogDebug( requestUri );
         HttpResponseMessage response = await _httpClient.GetAsync( requestUri );
         if ( !response.IsSuccessStatusCode )
         {
@@ -185,7 +185,7 @@ public class GameClient : IGameClient
         List<ItemDatum>? cachedItems = await _cacheService.GetFromCache<List<ItemDatum>>();
         if ( cachedItems != null )
         {
-            _logger.LogInformation( "GetItems use cache" );
+            _logger.LogTrace( "GetItems use cache" );
             return cachedItems;
         }
 
@@ -207,7 +207,7 @@ public class GameClient : IGameClient
         List<MonsterDatum>? cachedMonsters = await _cacheService.GetFromCache<List<MonsterDatum>>();
         if ( cachedMonsters != null )
         {
-            _logger.LogInformation( "GetMonsters use cache" );
+            _logger.LogTrace( "GetMonsters use cache" );
             return cachedMonsters;
         }
 
@@ -226,17 +226,55 @@ public class GameClient : IGameClient
 
     private async Task<ActionResponse> GetAction( string detailsUrl, HttpContent? content = null )
     {
-        _logger.LogInformation( detailsUrl );
-        HttpResponseMessage response = await _httpClient.PostAsync( detailsUrl, content );
-
-        if ( !response.IsSuccessStatusCode )
+        const int maxRetries = 3;
+        const int retryDelayMs = 1000;
+        
+        for (int attempt = 1; attempt <= maxRetries; attempt++)
         {
-            throw new Exception( $"Unable : {detailsUrl} StatusCode : {response.StatusCode}" );
+            try
+            {
+                _logger.LogDebug( detailsUrl );
+                HttpResponseMessage response = await _httpClient.PostAsync( detailsUrl, content );
+
+                if ( response.IsSuccessStatusCode )
+                {
+                    ActionResponse? actionResponse =
+                        JsonSerializer.Deserialize<ActionResponse>( await response.Content.ReadAsStringAsync() );
+
+                    return actionResponse ?? throw new InvalidOperationException();
+                }
+
+                string errorContent = await response.Content.ReadAsStringAsync();
+                _logger.LogError( "Request failed: {Url}, Status: {StatusCode}, Response: {ErrorContent}", 
+                    detailsUrl, response.StatusCode, errorContent);
+
+                if (response.StatusCode == System.Net.HttpStatusCode.GatewayTimeout || 
+                    response.StatusCode == System.Net.HttpStatusCode.BadGateway)
+                {
+                    if (attempt < maxRetries)
+                    {
+                        _logger.LogWarning( "Retrying request after {Delay}ms (attempt {Attempt}/{MaxRetries})", 
+                            retryDelayMs, attempt, maxRetries);
+                        await Task.Delay(retryDelayMs);
+                        continue;
+                    }
+                }
+
+                throw new Exception( $"Request failed: {detailsUrl}, Status: {response.StatusCode}, Response: {errorContent}" );
+            }
+            catch (Exception ex) when (ex is HttpRequestException || ex is TaskCanceledException)
+            {
+                if (attempt < maxRetries)
+                {
+                    _logger.LogWarning( ex, "Network error occurred. Retrying request after {Delay}ms (attempt {Attempt}/{MaxRetries})", 
+                        retryDelayMs, attempt, maxRetries);
+                    await Task.Delay(retryDelayMs);
+                    continue;
+                }
+                throw;
+            }
         }
 
-        ActionResponse? actionResponse =
-            JsonSerializer.Deserialize<ActionResponse>( await response.Content.ReadAsStringAsync() );
-
-        return actionResponse ?? throw new InvalidOperationException();
+        throw new Exception($"Request failed after {maxRetries} attempts: {detailsUrl}");
     }
 }
