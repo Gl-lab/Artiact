@@ -1,9 +1,10 @@
 using Artiact.Client;
-using Artiact.Models;
-using Artiact.Models.Api;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Artiact.Contracts.Client;
+using Artiact.Contracts.Models;
+using Artiact.Contracts.Models.Api;
 
 namespace Artiact.Services;
 

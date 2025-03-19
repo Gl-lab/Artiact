@@ -1,4 +1,6 @@
-﻿namespace Artiact.Services;
+﻿using Artiact.Contracts.Models;
+
+namespace Artiact.Services;
 
 public class CraftTargetEvaluator : ICraftTargetEvaluator
 {

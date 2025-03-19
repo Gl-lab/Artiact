@@ -1,6 +1,6 @@
-﻿using Artiact.Models;
-using Artiact.Models.Api;
-using Artiact.Models.Steps;
+﻿using Artiact.Contracts.Models;
+using Artiact.Contracts.Models.Api;
+using Artiact.Contracts.Models.Steps;
 
 namespace Artiact.Services;
 

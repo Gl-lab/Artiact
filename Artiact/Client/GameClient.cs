@@ -1,7 +1,8 @@
 ﻿using System.Text;
 using System.Text.Json;
-using Artiact.Models;
-using Artiact.Models.Api;
+using Artiact.Contracts.Client;
+using Artiact.Contracts.Models;
+using Artiact.Contracts.Models.Api;
 using Microsoft.Extensions.Logging;
 
 namespace Artiact.Client;

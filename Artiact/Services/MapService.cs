@@ -1,6 +1,7 @@
 ﻿using Artiact.Client;
-using Artiact.Models;
-using Artiact.Models.Api;
+using Artiact.Contracts.Client;
+using Artiact.Contracts.Models;
+using Artiact.Contracts.Models.Api;
 
 namespace Artiact.Services;
 

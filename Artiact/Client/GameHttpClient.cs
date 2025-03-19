@@ -2,7 +2,7 @@
 using System.Security.Authentication;
 using System.Text;
 using System.Text.Json;
-using Artiact.Models.Api;
+using Artiact.Contracts.Models.Api;
 
 namespace Artiact.Client;
 

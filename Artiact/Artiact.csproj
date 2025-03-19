@@ -26,4 +26,8 @@
         </None>
     </ItemGroup>
 
+    <ItemGroup>
+      <ProjectReference Include="..\Artiact.Contracts\Artiact.Contracts.csproj" />
+    </ItemGroup>
+
 </Project>

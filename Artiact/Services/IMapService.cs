@@ -1,4 +1,4 @@
-﻿using Artiact.Models;
+﻿using Artiact.Contracts.Models;
 
 namespace Artiact.Services;
 

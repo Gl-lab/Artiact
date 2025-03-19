@@ -4,6 +4,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Artiact", "Artiact\Artiact.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Artiact.Tests", "Artiact.Tests\Artiact.Tests.csproj", "{4B142BDA-5D7F-4972-80F4-1CDDDF7DD427}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Artiact.Contracts", "Artiact.Contracts\Artiact.Contracts.csproj", "{213FE3B4-E736-4E3B-BC54-B2A8DC9BB2D5}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -18,5 +20,9 @@ Global
 		{4B142BDA-5D7F-4972-80F4-1CDDDF7DD427}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4B142BDA-5D7F-4972-80F4-1CDDDF7DD427}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{4B142BDA-5D7F-4972-80F4-1CDDDF7DD427}.Release|Any CPU.Build.0 = Release|Any CPU
+		{213FE3B4-E736-4E3B-BC54-B2A8DC9BB2D5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{213FE3B4-E736-4E3B-BC54-B2A8DC9BB2D5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{213FE3B4-E736-4E3B-BC54-B2A8DC9BB2D5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{213FE3B4-E736-4E3B-BC54-B2A8DC9BB2D5}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

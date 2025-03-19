@@ -1,4 +1,5 @@
 ﻿using Artiact.Client;
+using Artiact.Contracts.Client;
 using Artiact.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
