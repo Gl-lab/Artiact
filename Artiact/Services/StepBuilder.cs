@@ -1,8 +1,7 @@
-﻿using Artiact.Client;
-using Artiact.Contracts.Client;
+﻿using Artiact.Contracts.Client;
 using Artiact.Contracts.Models;
 using Artiact.Contracts.Models.Api;
-using Artiact.Contracts.Models.Steps;
+using Artiact.Models.Steps;
 
 namespace Artiact.Services;
 
@@ -19,43 +18,44 @@ public class StepBuilder : IStepBuilder
         _mapService = mapService;
     }
 
-    public async Task<IStep> BuildStep( Goal goal, Character character )
+    public async Task<IStep> BuildStep( Goal goal, ICharacterService characterService )
     {
-        MixedStep step = new MixedStep( character );
+        MixedStep step = new( characterService );
 
         // Если есть подцели, сначала обрабатываем их
         if ( goal.SubGoals.Count != 0 )
         {
             foreach ( Goal subGoal in goal.SubGoals )
             {
-                step.AddStep( await BuildStep( subGoal, character ) );
+                step.AddStep( await BuildStep( subGoal, characterService ) );
             }
         }
 
-        step.AddStep( await BuildStepsForGoal( goal, character ) );
+        step.AddStep( await BuildStepsForGoal( goal, characterService ) );
 
 
         return step;
     }
 
 
-    private async Task<IStep> BuildStepsForGoal( Goal goal, Character character )
+    private async Task<IStep> BuildStepsForGoal( Goal goal, ICharacterService characterService )
     {
         switch ( goal )
         {
             case GatheringGoal:
-                return await BuildMiningSteps( character );
+                return await BuildMiningSteps( characterService );
             case SpendResourcesGoal spendGoal:
-                return await BuildSpendResourcesStep( spendGoal, character );
+                return await BuildSpendResourcesStep( spendGoal, characterService );
             case GearCraftingGoal craftingGoal:
-                return await BuildCraftingSteps( craftingGoal, character );
+                return await BuildCraftingSteps( craftingGoal, characterService );
             default:
                 throw new InvalidOperationException();
         }
     }
 
-    private async Task<IStep> BuildMiningSteps( Character character )
+    private async Task<IStep> BuildMiningSteps( ICharacterService characterService )
     {
+        Character character = characterService.GetCharacter();
         ResourceDatum? resCandidate = await FindResourceCandidate( character );
 
         MapPoint? tagetMap = await _mapService.GetByContentCode( new ContentCode( resCandidate.Code ) );
@@ -64,16 +64,19 @@ public class StepBuilder : IStepBuilder
 
         if ( character.X != tagetMap.X || character.Y != tagetMap.Y )
         {
-            steps.Add( new MoveStep( tagetMap, character ) );
+            steps.Add( new MoveStep( tagetMap, characterService ) );
         }
 
-        steps.Add( new ActionStep( character, client => client.Gathering(),
-            () => character.InventoryMaxItems - 2 >= character.Inventory.Sum( x => x.Quantity ) ) );
+
+        steps.Add( new ActionStep( characterService, client => client.Gathering(), characterService =>
+            characterService.GetCharacter().InventoryMaxItems - 2 >=
+            characterService.GetCharacter().Inventory.Sum( x => x.Quantity )
+        ) );
 
 
         if ( steps.Count > 1 )
         {
-            return new MixedStep( steps, character );
+            return new MixedStep( steps, characterService );
         }
 
         return steps.First();
@@ -96,9 +99,9 @@ public class StepBuilder : IStepBuilder
     }
 
 
-    private async Task<IStep> BuildSpendResourcesStep( SpendResourcesGoal goal, Character character )
+    private async Task<IStep> BuildSpendResourcesStep( SpendResourcesGoal goal, ICharacterService character )
     {
-        MixedStep step = new MixedStep( character );
+        MixedStep step = new( character );
         foreach ( ResourceToSpend resource in goal.Resources )
         {
             switch ( resource.Method )
@@ -118,13 +121,13 @@ public class StepBuilder : IStepBuilder
         return step;
     }
 
-    private async Task<IStep> BuildCraftingSteps( GearCraftingGoal goal, Character character )
+    private async Task<IStep> BuildCraftingSteps( GearCraftingGoal goal, ICharacterService characterService )
     {
         List<IStep> steps = new();
 
         // Группируем шаги крафта по мастерским
-        Dictionary<string, List<CraftStep>> stepsByWorkshop = new Dictionary<string, List<CraftStep>>();
-        
+        Dictionary<string, List<CraftStep>> stepsByWorkshop = new();
+
         // Добавляем промежуточные шаги
         foreach ( CraftStep craftStep in goal.Item.Steps )
         {
@@ -133,6 +136,7 @@ public class StepBuilder : IStepBuilder
             {
                 stepsByWorkshop[ skill ] = new List<CraftStep>();
             }
+
             stepsByWorkshop[ skill ].Add( craftStep );
         }
 
@@ -142,8 +146,9 @@ public class StepBuilder : IStepBuilder
         {
             stepsByWorkshop[ finalSkill ] = new List<CraftStep>();
         }
-        stepsByWorkshop[ finalSkill ].Add( new CraftStep 
-        { 
+
+        stepsByWorkshop[ finalSkill ].Add( new CraftStep
+        {
             Item = goal.Item.FinalItem,
             RequiredItems = goal.Item.FinalItem.Craft.Items
         } );
@@ -159,15 +164,15 @@ public class StepBuilder : IStepBuilder
             }
 
             // Если персонаж не в мастерской, добавляем шаг перемещения
-            if ( character.X != workshop.X || character.Y != workshop.Y )
+            if ( characterService.GetCharacter().X != workshop.X || characterService.GetCharacter().Y != workshop.Y )
             {
-                steps.Add( new MoveStep( workshop, character ) );
+                steps.Add( new MoveStep( workshop, characterService ) );
             }
 
             // Добавляем шаги крафта для текущей мастерской
             foreach ( CraftStep craftStep in workshopGroup.Value )
             {
-                steps.Add( new ActionStep( character, client => client.Crafting( new Item
+                steps.Add( new ActionStep( characterService, client => client.Crafting( new Item
                 {
                     Code = craftStep.Item.Code,
                     Quantity = craftStep.Quantity
@@ -177,7 +182,7 @@ public class StepBuilder : IStepBuilder
 
         if ( steps.Count > 1 )
         {
-            return new MixedStep( steps, character );
+            return new MixedStep( steps, characterService );
         }
 
         return steps.First();

@@ -1,14 +1,11 @@
 ﻿using Artiact.Contracts.Models;
-using Artiact.Contracts.Models.Api;
 
 namespace Artiact.Services;
 
 public class GoalService : IGoalService
 {
-    public Goal GetGoal( Character character )
+    public Goal GetGoal( ICharacterService character )
     {
-        return new GatheringGoal( 20 )
-        {
-        };
+        return new GatheringGoal( 20 );
     }
 }

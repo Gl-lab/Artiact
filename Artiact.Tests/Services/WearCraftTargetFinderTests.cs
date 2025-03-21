@@ -1,4 +1,3 @@
-using Artiact.Client;
 using Artiact.Contracts.Client;
 using Artiact.Contracts.Models;
 using Artiact.Contracts.Models.Api;
@@ -9,10 +8,10 @@ namespace Artiact.Tests.Services;
 
 public class WearCraftTargetFinderTests
 {
-    private readonly Mock<IGameClient> _gameClientMock;
-    private readonly Mock<ICraftTargetEvaluator> _targetEvaluatorMock;
     private readonly Mock<ICraftChainBuilder> _chainBuilderMock;
     private readonly WearCraftTargetFinder _finder;
+    private readonly Mock<IGameClient> _gameClientMock;
+    private readonly Mock<ICraftTargetEvaluator> _targetEvaluatorMock;
 
     public WearCraftTargetFinderTests()
     {
@@ -22,19 +21,19 @@ public class WearCraftTargetFinderTests
         _finder = new WearCraftTargetFinder(
             _gameClientMock.Object,
             _targetEvaluatorMock.Object,
-            _chainBuilderMock.Object);
+            _chainBuilderMock.Object );
     }
 
     [Fact]
     public async Task FindTarget_WithCopperOre_ShouldCreateCopperDaggerCraftChain()
     {
         // Arrange
-        List<Item> availableItems = new List<Item>
+        List<Item> availableItems = new()
         {
             new() { Code = "copper_ore", Quantity = 92 }
         };
 
-        List<ItemDatum> allItems = new List<ItemDatum>
+        List<ItemDatum> allItems = new()
         {
             new()
             {
@@ -96,14 +95,14 @@ public class WearCraftTargetFinderTests
             }
         };
 
-        CraftTarget expectedCraftTarget = new CraftTarget
+        CraftTarget expectedCraftTarget = new()
         {
-            FinalItem = allItems[2], // copper_dagger
+            FinalItem = allItems[ 2 ], // copper_dagger
             Steps = new List<CraftStep>
             {
                 new()
                 {
-                    Item = allItems[1], // copper
+                    Item = allItems[ 1 ], // copper
                     Quantity = 6,
                     RequiredItems = new List<Item>
                     {
@@ -112,7 +111,7 @@ public class WearCraftTargetFinderTests
                 },
                 new()
                 {
-                    Item = allItems[2], // copper_dagger
+                    Item = allItems[ 2 ], // copper_dagger
                     Quantity = 1,
                     RequiredItems = new List<Item>
                     {
@@ -122,43 +121,43 @@ public class WearCraftTargetFinderTests
             }
         };
 
-        _gameClientMock.Setup(x => x.GetItems()).ReturnsAsync(allItems);
-        _chainBuilderMock.Setup(x => x.TryCreateCraftChain(
-            It.Is<ItemDatum>(i => i.Code == "copper_dagger"),
-            It.IsAny<Dictionary<string, int>>()))
-            .ReturnsAsync(expectedCraftTarget);
-        _targetEvaluatorMock.Setup(x => x.SelectBestTarget(It.IsAny<List<CraftTarget>>()))
-            .Returns(expectedCraftTarget);
+        _gameClientMock.Setup( x => x.GetItems() ).ReturnsAsync( allItems );
+        _chainBuilderMock.Setup( x => x.TryCreateCraftChain(
+                              It.Is<ItemDatum>( i => i.Code == "copper_dagger" ),
+                              It.IsAny<Dictionary<string, int>>() ) )
+                         .ReturnsAsync( expectedCraftTarget );
+        _targetEvaluatorMock.Setup( x => x.SelectBestTarget( It.IsAny<List<CraftTarget>>() ) )
+                            .Returns( expectedCraftTarget );
 
         // Act
-        CraftTarget? result = await _finder.FindTarget(availableItems);
+        CraftTarget? result = await _finder.FindTarget( availableItems );
 
         // Assert
-        Assert.NotNull(result);
-        Assert.Equal("copper_dagger", result.FinalItem.Code);
-        Assert.Equal(2, result.Steps.Count);
+        Assert.NotNull( result );
+        Assert.Equal( "copper_dagger", result.FinalItem.Code );
+        Assert.Equal( 2, result.Steps.Count );
 
         // Проверяем первый шаг (создание меди)
-        CraftStep copperStep = result.Steps[0];
-        Assert.Equal("copper", copperStep.Item.Code);
-        Assert.Equal(6, copperStep.Quantity);
-        Assert.Single(copperStep.RequiredItems);
-        Assert.Equal("copper_ore", copperStep.RequiredItems[0].Code);
-        Assert.Equal(60, copperStep.RequiredItems[0].Quantity);
+        CraftStep copperStep = result.Steps[ 0 ];
+        Assert.Equal( "copper", copperStep.Item.Code );
+        Assert.Equal( 6, copperStep.Quantity );
+        Assert.Single( copperStep.RequiredItems );
+        Assert.Equal( "copper_ore", copperStep.RequiredItems[ 0 ].Code );
+        Assert.Equal( 60, copperStep.RequiredItems[ 0 ].Quantity );
 
         // Проверяем второй шаг (создание кинжала)
-        CraftStep daggerStep = result.Steps[1];
-        Assert.Equal("copper_dagger", daggerStep.Item.Code);
-        Assert.Equal(1, daggerStep.Quantity);
-        Assert.Single(daggerStep.RequiredItems);
-        Assert.Equal("copper", daggerStep.RequiredItems[0].Code);
-        Assert.Equal(6, daggerStep.RequiredItems[0].Quantity);
+        CraftStep daggerStep = result.Steps[ 1 ];
+        Assert.Equal( "copper_dagger", daggerStep.Item.Code );
+        Assert.Equal( 1, daggerStep.Quantity );
+        Assert.Single( daggerStep.RequiredItems );
+        Assert.Equal( "copper", daggerStep.RequiredItems[ 0 ].Code );
+        Assert.Equal( 6, daggerStep.RequiredItems[ 0 ].Quantity );
 
         // Проверяем, что все моки были вызваны
-        _gameClientMock.Verify(x => x.GetItems(), Times.Once);
-        _chainBuilderMock.Verify(x => x.TryCreateCraftChain(
-            It.Is<ItemDatum>(i => i.Code == "copper_dagger"),
-            It.IsAny<Dictionary<string, int>>()), Times.Once);
-        _targetEvaluatorMock.Verify(x => x.SelectBestTarget(It.IsAny<List<CraftTarget>>()), Times.Once);
+        _gameClientMock.Verify( x => x.GetItems(), Times.Once );
+        _chainBuilderMock.Verify( x => x.TryCreateCraftChain(
+            It.Is<ItemDatum>( i => i.Code == "copper_dagger" ),
+            It.IsAny<Dictionary<string, int>>() ), Times.Once );
+        _targetEvaluatorMock.Verify( x => x.SelectBestTarget( It.IsAny<List<CraftTarget>>() ), Times.Once );
     }
-} 
+}

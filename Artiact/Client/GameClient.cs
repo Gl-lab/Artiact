@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using System.Net;
+using System.Text;
 using System.Text.Json;
 using Artiact.Contracts.Client;
 using Artiact.Contracts.Models;
@@ -167,20 +168,6 @@ public class GameClient : IGameClient
         return result;
     }
 
-    private async Task<T> GetPage<T>( string endpoint, int page )
-    {
-        string requestUri = $"/{endpoint}?page={page}";
-        _logger.LogDebug( requestUri );
-        HttpResponseMessage response = await _httpClient.GetAsync( requestUri );
-        if ( !response.IsSuccessStatusCode )
-        {
-            throw new Exception( $"Unable to get {endpoint}" );
-        }
-
-        return JsonSerializer.Deserialize<T>( await response.Content.ReadAsStringAsync() ) ??
-            throw new InvalidOperationException();
-    }
-
     public async Task<List<ItemDatum>> GetItems()
     {
         List<ItemDatum>? cachedItems = await _cacheService.GetFromCache<List<ItemDatum>>();
@@ -225,57 +212,74 @@ public class GameClient : IGameClient
         return result;
     }
 
+    private async Task<T> GetPage<T>( string endpoint, int page )
+    {
+        string requestUri = $"/{endpoint}?page={page}";
+        _logger.LogDebug( requestUri );
+        HttpResponseMessage response = await _httpClient.GetAsync( requestUri );
+        if ( !response.IsSuccessStatusCode )
+        {
+            throw new Exception( $"Unable to get {endpoint}" );
+        }
+
+        return JsonSerializer.Deserialize<T>( await response.Content.ReadAsStringAsync() ) ??
+            throw new InvalidOperationException();
+    }
+
     private async Task<ActionResponse> GetAction( string detailsUrl, HttpContent? content = null )
     {
         const int maxRetries = 3;
         const int retryDelayMs = 1000;
-        
-        for (int attempt = 1; attempt <= maxRetries; attempt++)
+
+        for ( int attempt = 1; attempt <= maxRetries; attempt++ )
         {
             try
             {
                 _logger.LogDebug( detailsUrl );
                 HttpResponseMessage response = await _httpClient.PostAsync( detailsUrl, content );
 
+                string context = await response.Content.ReadAsStringAsync();
                 if ( response.IsSuccessStatusCode )
                 {
                     ActionResponse? actionResponse =
-                        JsonSerializer.Deserialize<ActionResponse>( await response.Content.ReadAsStringAsync() );
+                        JsonSerializer.Deserialize<ActionResponse>( context );
 
                     return actionResponse ?? throw new InvalidOperationException();
                 }
 
-                string errorContent = await response.Content.ReadAsStringAsync();
-                _logger.LogError( "Request failed: {Url}, Status: {StatusCode}, Response: {ErrorContent}", 
-                    detailsUrl, response.StatusCode, errorContent);
+                _logger.LogError( "Request failed: {Url}, Status: {StatusCode}, Response: {Context}",
+                    detailsUrl, response.StatusCode, context );
 
-                if (response.StatusCode == System.Net.HttpStatusCode.GatewayTimeout || 
-                    response.StatusCode == System.Net.HttpStatusCode.BadGateway)
+                if ( response.StatusCode == HttpStatusCode.GatewayTimeout ||
+                    response.StatusCode == HttpStatusCode.BadGateway )
                 {
-                    if (attempt < maxRetries)
+                    if ( attempt < maxRetries )
                     {
-                        _logger.LogWarning( "Retrying request after {Delay}ms (attempt {Attempt}/{MaxRetries})", 
-                            retryDelayMs, attempt, maxRetries);
-                        await Task.Delay(retryDelayMs);
+                        _logger.LogWarning( "Retrying request after {Delay}ms (attempt {Attempt}/{MaxRetries})",
+                            retryDelayMs, attempt, maxRetries );
+                        await Task.Delay( retryDelayMs );
                         continue;
                     }
                 }
 
-                throw new Exception( $"Request failed: {detailsUrl}, Status: {response.StatusCode}, Response: {errorContent}" );
+                throw new Exception(
+                    $"Request failed: {detailsUrl}, Status: {response.StatusCode}, Response: {context}" );
             }
-            catch (Exception ex) when (ex is HttpRequestException || ex is TaskCanceledException)
+            catch ( Exception ex ) when ( ex is HttpRequestException || ex is TaskCanceledException )
             {
-                if (attempt < maxRetries)
+                if ( attempt < maxRetries )
                 {
-                    _logger.LogWarning( ex, "Network error occurred. Retrying request after {Delay}ms (attempt {Attempt}/{MaxRetries})", 
-                        retryDelayMs, attempt, maxRetries);
-                    await Task.Delay(retryDelayMs);
+                    _logger.LogWarning( ex,
+                        "Network error occurred. Retrying request after {Delay}ms (attempt {Attempt}/{MaxRetries})",
+                        retryDelayMs, attempt, maxRetries );
+                    await Task.Delay( retryDelayMs );
                     continue;
                 }
+
                 throw;
             }
         }
 
-        throw new Exception($"Request failed after {maxRetries} attempts: {detailsUrl}");
+        throw new Exception( $"Request failed after {maxRetries} attempts: {detailsUrl}" );
     }
 }

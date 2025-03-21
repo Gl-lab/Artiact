@@ -14,7 +14,7 @@
         <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.1"/>
         <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.0"/>
         <PackageReference Include="Microsoft.Extensions.Http" Version="8.0.1"/>
-        <PackageReference Include="NLog.Extensions.Logging" Version="5.4.0" />
+        <PackageReference Include="NLog.Extensions.Logging" Version="5.4.0"/>
     </ItemGroup>
 
     <ItemGroup>
@@ -22,12 +22,16 @@
             <CopyToOutputDirectory>Always</CopyToOutputDirectory>
         </None>
         <None Update="nlog.config">
-          <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
         </None>
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\Artiact.Contracts\Artiact.Contracts.csproj" />
+        <ProjectReference Include="..\Artiact.Contracts\Artiact.Contracts.csproj"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <Folder Include="Models\"/>
     </ItemGroup>
 
 </Project>

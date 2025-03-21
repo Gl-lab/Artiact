@@ -5,9 +5,9 @@ namespace Artiact.Client;
 
 public class CacheService : ICacheService
 {
-    private readonly ILogger<ICacheService> _logger;
-    private readonly TimeSpan _cacheDuration;
     private const string CacheDirectory = "cache";
+    private readonly TimeSpan _cacheDuration;
+    private readonly ILogger<ICacheService> _logger;
 
     public CacheService( ILogger<ICacheService> logger, TimeSpan? cacheDuration = null )
     {
@@ -39,16 +39,16 @@ public class CacheService : ICacheService
         return null;
     }
 
-    private static string GetName<T>() where T : class
-    {
-        return typeof( T ).IsGenericType ? typeof( T ).GenericTypeArguments.First().Name : typeof( T ).Name;
-    }
-
     public async Task SaveToCache<T>( T data ) where T : class
     {
         string name = GetName<T>();
         string cacheFilePath = Path.Combine( CacheDirectory, $"{name}.json" );
         await File.WriteAllTextAsync( cacheFilePath, JsonSerializer.Serialize( data ) );
         _logger.LogInformation( $"Saved {name} to cache" );
+    }
+
+    private static string GetName<T>() where T : class
+    {
+        return typeof( T ).IsGenericType ? typeof( T ).GenericTypeArguments.First().Name : typeof( T ).Name;
     }
 }

@@ -1,7 +1,3 @@
-using Artiact.Client;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using Artiact.Contracts.Client;
 using Artiact.Contracts.Models;
 using Artiact.Contracts.Models.Api;
@@ -10,9 +6,9 @@ namespace Artiact.Services;
 
 public class WearCraftTargetFinder : IWearCraftTargetFinder
 {
+    private readonly ICraftChainBuilder _chainBuilder;
     private readonly IGameClient _gameClient;
     private readonly ICraftTargetEvaluator _targetEvaluator;
-    private readonly ICraftChainBuilder _chainBuilder;
     private readonly HashSet<string> _wearableTypes;
     private List<ItemDatum> _allItems;
 
@@ -46,7 +42,7 @@ public class WearCraftTargetFinder : IWearCraftTargetFinder
 
     private async Task<List<CraftTarget>> FindPossibleTargets( List<Item> availableItems )
     {
-        List<CraftTarget> targets = new List<CraftTarget>();
+        List<CraftTarget> targets = new();
         Dictionary<string, int> availableResources = CalculateAvailableResources( availableItems );
 
         foreach ( ItemDatum item in _allItems.Where( i => _wearableTypes.Contains( i.Type ) && i.Craft != null ) )
@@ -66,7 +62,7 @@ public class WearCraftTargetFinder : IWearCraftTargetFinder
 
     private Dictionary<string, int> CalculateAvailableResources( List<Item> items )
     {
-        Dictionary<string, int> resources = new Dictionary<string, int>();
+        Dictionary<string, int> resources = new();
         foreach ( Item item in items )
         {
             resources.TryAdd( item.Code, 0 );

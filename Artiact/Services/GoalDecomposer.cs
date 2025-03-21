@@ -1,18 +1,14 @@
-using Artiact.Client;
-using Microsoft.Extensions.Logging;
-using System.Linq;
-using System.Collections.Generic;
 using Artiact.Contracts.Client;
 using Artiact.Contracts.Models;
 using Artiact.Contracts.Models.Api;
+using Microsoft.Extensions.Logging;
 
 namespace Artiact.Services;
 
 public class GoalDecomposer : IGoalDecomposer
 {
-    private readonly ILogger<GoalDecomposer> _logger;
-
     private readonly IGameClient _gameClient;
+    private readonly ILogger<GoalDecomposer> _logger;
     private readonly IWearCraftTargetFinder _wearCraftTargetFinder;
 
     public GoalDecomposer( ILogger<GoalDecomposer> logger,
@@ -25,12 +21,12 @@ public class GoalDecomposer : IGoalDecomposer
         _wearCraftTargetFinder = wearCraftTargetFinder;
     }
 
-    public async Task DecomposeGoal( Goal goal, Character character )
+    public async Task DecomposeGoal( Goal goal, ICharacterService characterService )
     {
         switch ( goal )
         {
             case GatheringGoal gatheringGoal:
-                await DecomposeGatheringGoal( gatheringGoal, character );
+                await DecomposeGatheringGoal( gatheringGoal, characterService );
                 break;
             case SpendResourcesGoal spendGoal:
                 await DecomposeSpendResourcesGoal( spendGoal );
@@ -38,8 +34,10 @@ public class GoalDecomposer : IGoalDecomposer
         }
     }
 
-    private async Task DecomposeGatheringGoal( GatheringGoal gatheringGoal, Character character )
+    private async Task DecomposeGatheringGoal( GatheringGoal gatheringGoal, ICharacterService characterService )
     {
+        Character character = characterService.GetCharacter();
+
         // Проверяем текущее состояние инвентаря
         int currentInventorySpace = character.InventoryMaxItems;
         int usedInventorySpace = character.Inventory.Sum( item => item.Quantity );
@@ -48,7 +46,7 @@ public class GoalDecomposer : IGoalDecomposer
         _logger.LogDebug( $"Checking inventory space: {availableSpace} slots available" );
 
         // Если места достаточно, возвращаем исходную цель
-        if ( availableSpace >= 10 ) // Предполагаем, что нам нужно минимум 10 слотов для майнинга
+        if ( availableSpace >= 10 )
         {
             return;
         }
@@ -57,7 +55,7 @@ public class GoalDecomposer : IGoalDecomposer
         _logger.LogDebug( "Not enough inventory space, creating SpendResourcesGoal" );
 
         // Получаем список ресурсов, которые можно потратить
-        List<ResourceToSpend> resourcesToSpend = new List<ResourceToSpend>();
+        List<ResourceToSpend> resourcesToSpend = new();
 
         foreach ( Item item in character.Inventory.Select( x => new Item
                  {
@@ -71,8 +69,8 @@ public class GoalDecomposer : IGoalDecomposer
 
 
         // Создаем подцель для освобождения места
-        SpendResourcesGoal spendResourcesGoal = new SpendResourcesGoal( resourcesToSpend );
-        await DecomposeGoal( spendResourcesGoal, character );
+        SpendResourcesGoal spendResourcesGoal = new( resourcesToSpend );
+        await DecomposeGoal( spendResourcesGoal, characterService );
         gatheringGoal.AddSubGoal( spendResourcesGoal );
     }
 

@@ -1,4 +1,3 @@
-using Artiact.Client;
 using Artiact.Contracts.Client;
 using Artiact.Contracts.Models;
 using Artiact.Contracts.Models.Api;
@@ -10,8 +9,8 @@ namespace Artiact.Tests.Services;
 public class CraftChainBuilderTests
 {
     private readonly List<ItemDatum> _allItems;
-    private readonly Mock<IGameClient> _gameClientMock;
     private readonly CraftChainBuilder _builder;
+    private readonly Mock<IGameClient> _gameClientMock;
 
     public CraftChainBuilderTests()
     {
@@ -78,71 +77,71 @@ public class CraftChainBuilderTests
         };
 
         _gameClientMock = new Mock<IGameClient>();
-        _gameClientMock.Setup(x => x.GetItems()).ReturnsAsync(_allItems);
-        _builder = new CraftChainBuilder(_gameClientMock.Object);
+        _gameClientMock.Setup( x => x.GetItems() ).ReturnsAsync( _allItems );
+        _builder = new CraftChainBuilder( _gameClientMock.Object );
     }
 
     [Fact]
     public async Task TryCreateCraftChain_WithEnoughResources_ShouldCreateValidChain()
     {
         // Arrange
-        ItemDatum targetItem = _allItems[2]; // copper_dagger
-        Dictionary<string, int> availableResources = new Dictionary<string, int>
+        ItemDatum targetItem = _allItems[ 2 ]; // copper_dagger
+        Dictionary<string, int> availableResources = new()
         {
             { "copper_ore", 100 } // Достаточно для создания меди и кинжала
         };
 
         // Act
-        CraftTarget? result = await _builder.TryCreateCraftChain(targetItem, availableResources);
+        CraftTarget? result = await _builder.TryCreateCraftChain( targetItem, availableResources );
 
         // Assert
-        Assert.NotNull(result);
-        Assert.Equal("copper_dagger", result.FinalItem.Code);
-        Assert.Equal(2, result.Steps.Count);
+        Assert.NotNull( result );
+        Assert.Equal( "copper_dagger", result.FinalItem.Code );
+        Assert.Equal( 2, result.Steps.Count );
 
         // Проверяем первый шаг (создание меди)
-        CraftStep copperStep = result.Steps[0];
-        Assert.Equal("copper", copperStep.Item.Code);
-        Assert.Equal(6, copperStep.Quantity);
-        Assert.Single(copperStep.RequiredItems);
-        Assert.Equal("copper_ore", copperStep.RequiredItems[0].Code);
-        Assert.Equal(60, copperStep.RequiredItems[0].Quantity);
+        CraftStep copperStep = result.Steps[ 0 ];
+        Assert.Equal( "copper", copperStep.Item.Code );
+        Assert.Equal( 6, copperStep.Quantity );
+        Assert.Single( copperStep.RequiredItems );
+        Assert.Equal( "copper_ore", copperStep.RequiredItems[ 0 ].Code );
+        Assert.Equal( 60, copperStep.RequiredItems[ 0 ].Quantity );
 
         // Проверяем второй шаг (создание кинжала)
-        CraftStep daggerStep = result.Steps[1];
-        Assert.Equal("copper_dagger", daggerStep.Item.Code);
-        Assert.Equal(1, daggerStep.Quantity);
-        Assert.Single(daggerStep.RequiredItems);
-        Assert.Equal("copper", daggerStep.RequiredItems[0].Code);
-        Assert.Equal(6, daggerStep.RequiredItems[0].Quantity);
+        CraftStep daggerStep = result.Steps[ 1 ];
+        Assert.Equal( "copper_dagger", daggerStep.Item.Code );
+        Assert.Equal( 1, daggerStep.Quantity );
+        Assert.Single( daggerStep.RequiredItems );
+        Assert.Equal( "copper", daggerStep.RequiredItems[ 0 ].Code );
+        Assert.Equal( 6, daggerStep.RequiredItems[ 0 ].Quantity );
 
         // Проверяем, что GetItems был вызван
-        _gameClientMock.Verify(x => x.GetItems(), Times.Once);
+        _gameClientMock.Verify( x => x.GetItems(), Times.Once );
     }
 
     [Fact]
     public async Task TryCreateCraftChain_WithNotEnoughResources_ShouldReturnNull()
     {
         // Arrange
-        ItemDatum targetItem = _allItems[2]; // copper_dagger
-        Dictionary<string, int> availableResources = new Dictionary<string, int>
+        ItemDatum targetItem = _allItems[ 2 ]; // copper_dagger
+        Dictionary<string, int> availableResources = new()
         {
             { "copper_ore", 50 } // Недостаточно для создания меди и кинжала
         };
 
         // Act
-        CraftTarget? result = await _builder.TryCreateCraftChain(targetItem, availableResources);
+        CraftTarget? result = await _builder.TryCreateCraftChain( targetItem, availableResources );
 
         // Assert
-        Assert.Null(result);
-        _gameClientMock.Verify(x => x.GetItems(), Times.Once);
+        Assert.Null( result );
+        _gameClientMock.Verify( x => x.GetItems(), Times.Once );
     }
 
     [Fact]
     public async Task TryCreateCraftChain_WithCircularDependency_ShouldReturnNull()
     {
         // Arrange
-        ItemDatum circularItem = new ItemDatum
+        ItemDatum circularItem = new()
         {
             Name = "Circular Item",
             Code = "circular_item",
@@ -157,18 +156,18 @@ public class CraftChainBuilderTests
             }
         };
 
-        List<ItemDatum> items = new List<ItemDatum> { circularItem };
-        Mock<IGameClient> gameClientMock = new Mock<IGameClient>();
-        gameClientMock.Setup(x => x.GetItems()).ReturnsAsync(items);
-        CraftChainBuilder builder = new CraftChainBuilder(gameClientMock.Object);
+        List<ItemDatum> items = new() { circularItem };
+        Mock<IGameClient> gameClientMock = new();
+        gameClientMock.Setup( x => x.GetItems() ).ReturnsAsync( items );
+        CraftChainBuilder builder = new( gameClientMock.Object );
 
-        Dictionary<string, int> availableResources = new Dictionary<string, int>();
+        Dictionary<string, int> availableResources = new();
 
         // Act
-        CraftTarget? result = await builder.TryCreateCraftChain(circularItem, availableResources);
+        CraftTarget? result = await builder.TryCreateCraftChain( circularItem, availableResources );
 
         // Assert
-        Assert.Null(result);
-        gameClientMock.Verify(x => x.GetItems(), Times.Once);
+        Assert.Null( result );
+        gameClientMock.Verify( x => x.GetItems(), Times.Once );
     }
 }

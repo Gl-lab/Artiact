@@ -1,6 +1,6 @@
 ﻿using Artiact.Contracts.Client;
 
-namespace Artiact.Contracts.Models.Steps;
+namespace Artiact.Models.Steps;
 
 public interface IStep
 {
