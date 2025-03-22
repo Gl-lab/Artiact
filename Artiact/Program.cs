@@ -13,9 +13,13 @@ internal class Program
 {
     private static async Task Main( string[] args )
     {
+        string environment = Environment.GetEnvironmentVariable( "ASPNETCORE_ENVIRONMENT" ) ?? "Production";
+
         IConfigurationRoot configuration = new ConfigurationBuilder()
                                           .SetBasePath( AppContext.BaseDirectory )
                                           .AddJsonFile( "appsettings.json", false, true )
+                                          .AddJsonFile( $"appsettings.{environment.ToLower()}.json", optional: true,
+                                               reloadOnChange: true )
                                           .AddUserSecrets<Program>()
                                           .Build();
 

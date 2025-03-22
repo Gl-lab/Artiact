@@ -6,7 +6,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Artiact.Tests", "Artiact.Te
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Artiact.Contracts", "Artiact.Contracts\Artiact.Contracts.csproj", "{213FE3B4-E736-4E3B-BC54-B2A8DC9BB2D5}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Artiact.SmartProxy", "Artiact.SmartProxy\Artiact.SmartProxy.csproj", "{5C8EB83A-BB80-4B26-9E10-1C1F562E41A0}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Artiact.MockService", "Artiact.MockService\Artiact.MockService.csproj", "{5C8EB83A-BB80-4B26-9E10-1C1F562E41A0}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

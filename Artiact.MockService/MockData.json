@@ -1,0 +1,66 @@
+[
+  {
+    "action": "gathering",
+    "position": {
+      "x": 2,
+      "y": 0
+    },
+    "changes": {
+      "mining_xp": {
+        "difference": 6
+      },
+      "inventory": [
+        {
+          "code": "copper_ore",
+          "difference": 1
+        }
+      ]
+    }
+  },
+  {
+    "action": "crafting",
+    "target": "copper_dagger",
+    "position": {
+      "x": 2,
+      "y": 1
+    },
+    "changes": {
+      "weaponcrafting_xp": {
+        "difference": 60
+      },
+      "inventory": [
+        {
+          "code": "copper_dagger",
+          "difference": 1
+        },
+        {
+          "code": "copper",
+          "difference": -6
+        }
+      ]
+    }
+  },
+  {
+    "action": "crafting",
+    "target": "copper",
+    "position": {
+      "x": 1,
+      "y": 5
+    },
+    "changes": {
+      "mining_xp": {
+        "difference": 5
+      },
+      "inventory": [
+        {
+          "code": "copper_ore",
+          "difference": -10
+        },
+        {
+          "code": "copper",
+          "difference": 1
+        }
+      ]
+    }
+  }
+]
