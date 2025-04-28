@@ -150,7 +150,8 @@ public class StepBuilder : IStepBuilder
         stepsByWorkshop[ finalSkill ].Add( new CraftStep
         {
             Item = goal.Item.FinalItem,
-            RequiredItems = goal.Item.FinalItem.Craft.Items
+            RequiredItems = goal.Item.FinalItem.Craft.Items,
+            Quantity = 1
         } );
 
         // Обрабатываем каждую мастерскую

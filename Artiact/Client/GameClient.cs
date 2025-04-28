@@ -212,6 +212,26 @@ public class GameClient : IGameClient
         return result;
     }
 
+    public async Task WarmUpCache()
+    {
+        _logger.LogInformation("Начинаем прогрев кеша");
+        
+        try
+        {
+            await GetMap();
+            await GetResources();
+            await GetItems();
+            await GetMonsters();
+            
+            _logger.LogInformation("Прогрев кеша успешно завершен");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Ошибка при прогреве кеша");
+            throw;
+        }
+    }
+
     private async Task<T> GetPage<T>( string endpoint, int page )
     {
         string requestUri = $"/{endpoint}?page={page}";

@@ -27,6 +27,7 @@ public class ActionService : IActionService
 
     public async Task Initialize()
     {
+        await _client.WarmUpCache();
         _characterService.SaveCharacter( await _client.GetCharacter() );
     }
 

@@ -35,4 +35,6 @@ public class MixedStep : BaseStep, IStep
     {
         _steps.AddRange( steps );
     }
+     
+    public IReadOnlyList<IStep> Steps => _steps; 
 }

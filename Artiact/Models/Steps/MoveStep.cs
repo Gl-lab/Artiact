@@ -1,4 +1,5 @@
-﻿using Artiact.Contracts.Client;
+﻿using System.Drawing;
+using Artiact.Contracts.Client;
 using Artiact.Contracts.Models;
 using Artiact.Contracts.Models.Api;
 using Artiact.Services;
@@ -8,6 +9,8 @@ namespace Artiact.Models.Steps;
 public class MoveStep : BaseStep, IStep
 {
     private readonly MapPoint _point;
+    
+    public MapPoint Point => _point;
 
 
     public MoveStep( MapPoint point, ICharacterService characterService ) : base( characterService )
