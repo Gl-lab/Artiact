@@ -1,4 +1,5 @@
-﻿using System.Net;
+﻿using System.Diagnostics;
+using System.Net;
 using System.Text;
 using System.Text.Json;
 using Artiact.Contracts.Client;
@@ -15,16 +16,19 @@ public class GameClient : IGameClient
     private readonly string _characterName;
     private readonly IGameHttpClient _httpClient;
     private readonly ILogger<IGameClient> _logger;
+    private readonly ActivitySource _activitySource;
 
     public GameClient( IGameHttpClient httpClient,
                        ApiSettings apiSettings,
                        ILogger<IGameClient> logger,
-                       ICacheService cacheService )
+                       ICacheService cacheService,
+                       ActivitySource activitySource )
     {
         _httpClient = httpClient;
         _characterName = apiSettings.Character;
         _logger = logger;
         _cacheService = cacheService;
+        _activitySource = activitySource;
     }
 
     public async Task<Character> GetCharacter()
@@ -214,20 +218,29 @@ public class GameClient : IGameClient
 
     public async Task WarmUpCache()
     {
-        _logger.LogInformation("Начинаем прогрев кеша");
-        
+        _logger.LogInformation( "Начинаем прогрев кеша" );
+        using Activity? activity = _activitySource.StartActivity("WarmUpCache", ActivityKind.Internal);
         try
         {
             await GetMap();
+            activity?.AddEvent(new ActivityEvent("Map cached"));
+
             await GetResources();
+            activity?.AddEvent(new ActivityEvent("Resources cached"));
+
             await GetItems();
+            activity?.AddEvent(new ActivityEvent("Items cached"));
+
             await GetMonsters();
-            
-            _logger.LogInformation("Прогрев кеша успешно завершен");
+            activity?.AddEvent(new ActivityEvent("Monsters cached"));
+
+
+            _logger.LogInformation( "Прогрев кеша успешно завершен" );
         }
-        catch (Exception ex)
+        catch ( Exception ex )
         {
-            _logger.LogError(ex, "Ошибка при прогреве кеша");
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            _logger.LogError( ex, "Ошибка при прогреве кеша" );
             throw;
         }
     }

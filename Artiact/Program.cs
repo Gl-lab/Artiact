@@ -1,4 +1,5 @@
-﻿using Artiact.Client;
+﻿using System.Diagnostics;
+using Artiact.Client;
 using Artiact.Contracts.Client;
 using Artiact.Services;
 using Microsoft.Extensions.Configuration;
@@ -6,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NLog.Extensions.Logging;
+using OpenTelemetry.Trace;
 
 namespace Artiact;
 
@@ -24,7 +26,7 @@ internal class Program
                                           .Build();
 
         // Создаем провайдер сервисов
-        ServiceProvider serviceProvider = ConfigureServices( configuration );
+        await using ServiceProvider serviceProvider = ConfigureServices( configuration );
 
         // Получаем сервис и запускаем приложение
         IActionService actionService = serviceProvider.GetRequiredService<IActionService>();
@@ -45,6 +47,15 @@ internal class Program
 
         // HTTP клиент
         services.AddHttpClient();
+        string artiactName = "Artiact.Client";
+        // Создаём TracerProvider
+        TracerProvider tracerProvider = OpenTelemetry.Sdk.CreateTracerProviderBuilder()
+                                                     .AddSource( artiactName )
+                                                     .AddConsoleExporter()
+                                                     .Build();
+
+        // Регистрируем его в DI
+        services.AddSingleton( tracerProvider );
 
         // Настройки API
         IConfigurationSection apiSettings = configuration.GetSection( "ApiSettings" );
@@ -67,7 +78,7 @@ internal class Program
 
         services.AddScoped<IActionService, ActionService>();
         services.AddScoped<IGoalDecomposer, GoalDecomposer>();
-
+        services.AddSingleton( new ActivitySource( artiactName ) );
         return services.BuildServiceProvider();
     }
 }
