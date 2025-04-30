@@ -112,10 +112,23 @@ public class WearCraftTargetFinder : IWearCraftTargetFinder
             return false;
         }
 
+        // Сначала проверяем, сколько у нас уже есть этого предмета
+        int existingQuantity = availableResources.ContainsKey( requiredItem.Code ) 
+            ? availableResources[ requiredItem.Code ] 
+            : 0;
+        
+        // Если уже имеющихся ресурсов недостаточно, проверяем возможность докрафтить остаток
+        int remainingNeeded = requiredItem.Quantity - existingQuantity;
+        if (remainingNeeded <= 0)
+        {
+            return true;
+        }
+
+        // Проверяем, хватит ли базовых ресурсов для крафта оставшегося количества
         foreach ( Item craftItem in itemData.Craft.Items )
         {
             if ( !availableResources.ContainsKey( craftItem.Code ) ||
-                availableResources[ craftItem.Code ] < craftItem.Quantity * requiredItem.Quantity )
+                availableResources[ craftItem.Code ] < craftItem.Quantity * remainingNeeded )
             {
                 return false;
             }

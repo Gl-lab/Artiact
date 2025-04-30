@@ -57,7 +57,7 @@ public class GoalDecomposer : IGoalDecomposer
         // Получаем список ресурсов, которые можно потратить
         List<ResourceToSpend> resourcesToSpend = new();
 
-        foreach ( Item item in character.Inventory.Select( x => new Item
+        foreach ( Item item in character.Inventory.Where( x => x.Quantity > 0 ).Select( x => new Item
                  {
                      Code = x.Code,
                      Quantity = x.Quantity

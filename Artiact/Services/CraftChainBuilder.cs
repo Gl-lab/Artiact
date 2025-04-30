@@ -52,13 +52,13 @@ public class CraftChainBuilder : ICraftChainBuilder
 
         foreach ( Item requiredItem in item.Craft.Items )
         {
-            ItemDatum? itemData = _allItems!.FirstOrDefault( i => i.Code == requiredItem.Code );
-            if ( itemData == null )
+            ItemDatum? requiredItemData = _allItems!.FirstOrDefault( i => i.Code == requiredItem.Code );
+            if ( requiredItemData == null )
             {
                 return false;
             }
 
-            if ( !ProcessRequiredItem( requiredItem, craftStep, itemData, availableResources, visited, craftTarget ) )
+            if ( !ProcessRequiredItem( requiredItem, craftStep, requiredItemData, availableResources, visited, craftTarget ) )
             {
                 return false;
             }
@@ -91,17 +91,29 @@ public class CraftChainBuilder : ICraftChainBuilder
         HashSet<string> visited,
         CraftTarget craftTarget )
     {
-        if ( HasEnoughResources( requiredItem, craftStep.Quantity, availableResources ) )
+        int totalRequired = requiredItem.Quantity * craftStep.Quantity;
+        int existingAmount = availableResources.GetValueOrDefault(requiredItem.Code);
+        int needToCraft = Math.Max(0, totalRequired - existingAmount);
+
+        if (needToCraft == 0)
         {
-            AddRequiredItem( craftStep, requiredItem );
+            AddRequiredItem(craftStep, requiredItem);
             return true;
         }
 
-        Dictionary<string, int> tempResources = new( availableResources );
-        if ( CanCraftItem( itemData, requiredItem.Quantity, tempResources, visited, craftTarget ) )
+        if (itemData.Craft == null)
         {
-            AddRequiredItem( craftStep, requiredItem );
-            availableResources.TryAdd( requiredItem.Code, requiredItem.Quantity * craftStep.Quantity );
+            return false;
+        }
+
+        int craftQuantity = (needToCraft + itemData.Craft.Quantity - 1) / itemData.Craft.Quantity;
+        Dictionary<string, int> tempResources = new(availableResources);
+        
+        if (CanCraftItem(itemData, craftQuantity, tempResources, visited, craftTarget))
+        {
+            AddRequiredItem(craftStep, requiredItem);
+            int newAmount = existingAmount + (craftQuantity * itemData.Craft.Quantity);
+            availableResources[requiredItem.Code] = newAmount;
             return true;
         }
 
