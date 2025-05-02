@@ -1,5 +1,3 @@
-using System.Text.Json;
-using Artiact.Contracts.Models.Api;
 using Artiact.SmartProxy.Models;
 
 namespace Artiact.SmartProxy.Services;
@@ -13,7 +11,7 @@ public class CharacterCache : ICharacterCache
     {
         _characters[ name ] = character;
     }
-    
+
     public CharacterExtension? GetCharacter( string? characterName )
     {
         return _characters.TryGetValue( characterName, out CharacterExtension? character ) ? character : null;

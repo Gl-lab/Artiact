@@ -17,6 +17,8 @@ public class MixedStep : BaseStep, IStep
         _steps = [];
     }
 
+    public IReadOnlyList<IStep> Steps => _steps;
+
 
     public async Task Execute( IGameClient client )
     {
@@ -35,6 +37,4 @@ public class MixedStep : BaseStep, IStep
     {
         _steps.AddRange( steps );
     }
-     
-    public IReadOnlyList<IStep> Steps => _steps; 
 }

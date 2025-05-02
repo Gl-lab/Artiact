@@ -23,7 +23,7 @@ public class CharacterExtension : Character
             MiningLevel++;
         }
     }
-    
+
     public void AddWeaponcraftingXp( int xp )
     {
         WeaponcraftingXp += xp;

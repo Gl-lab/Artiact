@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NLog.Extensions.Logging;
+using OpenTelemetry;
 using OpenTelemetry.Trace;
 
 namespace Artiact;
@@ -20,8 +21,8 @@ internal class Program
         IConfigurationRoot configuration = new ConfigurationBuilder()
                                           .SetBasePath( AppContext.BaseDirectory )
                                           .AddJsonFile( "appsettings.json", false, true )
-                                          .AddJsonFile( $"appsettings.{environment.ToLower()}.json", optional: true,
-                                               reloadOnChange: true )
+                                          .AddJsonFile( $"appsettings.{environment.ToLower()}.json", true,
+                                               true )
                                           .AddUserSecrets<Program>()
                                           .Build();
 
@@ -49,10 +50,10 @@ internal class Program
         services.AddHttpClient();
         string artiactName = "Artiact.Client";
         // Создаём TracerProvider
-        TracerProvider tracerProvider = OpenTelemetry.Sdk.CreateTracerProviderBuilder()
-                                                     .AddSource( artiactName )
-                                                     .AddConsoleExporter()
-                                                     .Build();
+        TracerProvider tracerProvider = Sdk.CreateTracerProviderBuilder()
+                                           .AddSource( artiactName )
+                                           .AddConsoleExporter()
+                                           .Build();
 
         // Регистрируем его в DI
         services.AddSingleton( tracerProvider );

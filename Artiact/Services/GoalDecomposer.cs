@@ -79,10 +79,10 @@ public class GoalDecomposer : IGoalDecomposer
     {
         List<Item> craftResources =
             goal.Resources.Where( x => x.Method == SpendMethod.Craft ).Select( x => x.Item ).ToList();
-        CraftTarget? target = await _wearCraftTargetFinder.FindTarget( craftResources );
-        if ( target != null )
+        List<CraftTarget> targets = await _wearCraftTargetFinder.FindTargets( craftResources );
+        foreach ( CraftTarget craftTarget in targets )
         {
-            goal.AddSubGoal( new GearCraftingGoal( target ) );
+            goal.AddSubGoal( new GearCraftingGoal( craftTarget ) );
         }
 
 

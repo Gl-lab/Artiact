@@ -118,7 +118,7 @@ public class CraftChainBuilderTests
         // Проверяем, что GetItems был вызван
         _gameClientMock.Verify( x => x.GetItems(), Times.Once );
     }
-    
+
     [Fact]
     public async Task TryCreateCraftChain_WithNotEnoughCopper_ShouldCreateValidChain()
     {

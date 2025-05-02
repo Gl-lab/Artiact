@@ -25,17 +25,17 @@ public class WearCraftTargetFinderTests
     }
 
     [Fact]
-    public async Task FindTarget_WithCopperOre_ShouldCreateCopperDaggerCraftChain()
+    public async Task FindTargets_WithCopperOre_ShouldCreateCopperDaggerCraftChain()
     {
         // Arrange
         List<Item> availableItems = new()
         {
-            new() { Code = "copper_ore", Quantity = 92 }
+            new Item { Code = "copper_ore", Quantity = 92 }
         };
 
         List<ItemDatum> allItems = new()
         {
-            new()
+            new ItemDatum
             {
                 Name = "Copper Ore",
                 Code = "copper_ore",
@@ -47,7 +47,7 @@ public class WearCraftTargetFinderTests
                 Craft = null,
                 Tradeable = true
             },
-            new()
+            new ItemDatum
             {
                 Name = "Copper",
                 Code = "copper",
@@ -68,7 +68,7 @@ public class WearCraftTargetFinderTests
                 },
                 Tradeable = true
             },
-            new()
+            new ItemDatum
             {
                 Name = "Copper Dagger",
                 Code = "copper_dagger",
@@ -130,10 +130,11 @@ public class WearCraftTargetFinderTests
                             .Returns( expectedCraftTarget );
 
         // Act
-        CraftTarget? result = await _finder.FindTarget( availableItems );
+        List<CraftTarget> results = await _finder.FindTargets( availableItems );
 
         // Assert
-        Assert.NotNull( result );
+        Assert.NotEmpty( results );
+        CraftTarget result = results.First();
         Assert.Equal( "copper_dagger", result.FinalItem.Code );
         Assert.Equal( 2, result.Steps.Count );
 
@@ -160,21 +161,20 @@ public class WearCraftTargetFinderTests
             It.IsAny<Dictionary<string, int>>() ), Times.Once );
         _targetEvaluatorMock.Verify( x => x.SelectBestTarget( It.IsAny<List<CraftTarget>>() ), Times.Once );
     }
-    
-    
+
     [Fact]
-    public async Task FindTarget_WithCopperOreAndCopper_ShouldCreateCopperDaggerCraftChain()
+    public async Task FindTargets_WithCopperOreAndCopper_ShouldCreateCopperDaggerCraftChain()
     {
         // Arrange
         List<Item> availableItems = new()
         {
-            new() { Code = "copper_ore", Quantity = 35 },
-            new() { Code = "copper", Quantity = 3 },
+            new Item { Code = "copper_ore", Quantity = 35 },
+            new Item { Code = "copper", Quantity = 3 }
         };
 
         List<ItemDatum> allItems = new()
         {
-            new()
+            new ItemDatum
             {
                 Name = "Copper Ore",
                 Code = "copper_ore",
@@ -186,7 +186,7 @@ public class WearCraftTargetFinderTests
                 Craft = null,
                 Tradeable = true
             },
-            new()
+            new ItemDatum
             {
                 Name = "Copper",
                 Code = "copper",
@@ -207,7 +207,7 @@ public class WearCraftTargetFinderTests
                 },
                 Tradeable = true
             },
-            new()
+            new ItemDatum
             {
                 Name = "Copper Dagger",
                 Code = "copper_dagger",
@@ -269,10 +269,11 @@ public class WearCraftTargetFinderTests
                             .Returns( expectedCraftTarget );
 
         // Act
-        CraftTarget? result = await _finder.FindTarget( availableItems );
+        List<CraftTarget> results = await _finder.FindTargets( availableItems );
 
         // Assert
-        Assert.NotNull( result );
+        Assert.NotEmpty( results );
+        CraftTarget result = results.First();
         Assert.Equal( "copper_dagger", result.FinalItem.Code );
         Assert.Equal( 2, result.Steps.Count );
 

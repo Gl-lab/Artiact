@@ -10,7 +10,7 @@ public class TokenController
     [HttpPost]
     public ActionResult<TokenContainer> Token()
     {
-        return new TokenContainer()
+        return new TokenContainer
         {
             Token = "dsdsad"
         };

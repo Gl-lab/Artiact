@@ -21,7 +21,7 @@ public class CharacterActionsController : ControllerBase
         Character character = _actionService.MoveAction( name, request );
         return new ActionResponse
         {
-            Data = new ActionData()
+            Data = new ActionData
             {
                 Character = character,
                 Cooldown = new Cooldown()
@@ -35,7 +35,7 @@ public class CharacterActionsController : ControllerBase
         Character character = _actionService.GatheringAction( name );
         return new ActionResponse
         {
-            Data = new ActionData()
+            Data = new ActionData
             {
                 Character = character,
                 Cooldown = new Cooldown()
@@ -54,7 +54,7 @@ public class CharacterActionsController : ControllerBase
         Character character = _actionService.CraftingAction( name, item );
         return new ActionResponse
         {
-            Data = new ActionData()
+            Data = new ActionData
             {
                 Character = character,
                 Cooldown = new Cooldown()

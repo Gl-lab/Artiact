@@ -1,8 +1,8 @@
+using System.Text.Json;
 using Artiact.Contracts.Models.Api;
 using Artiact.SmartProxy.Models;
 using Artiact.SmartProxy.Services;
 using Microsoft.AspNetCore.Mvc;
-using System.Text.Json;
 
 namespace Artiact.SmartProxy.Controllers;
 
@@ -26,7 +26,8 @@ public class CharactersController : ControllerBase
         string jsonContent = System.IO.File.ReadAllText( jsonPath );
         List<CharacterExtension>? characters = JsonSerializer.Deserialize<List<CharacterExtension>>( jsonContent );
 
-        CharacterExtension? character = characters.FirstOrDefault( c => c.Name.Equals( name, StringComparison.OrdinalIgnoreCase ) )
+        CharacterExtension? character =
+            characters.FirstOrDefault( c => c.Name.Equals( name, StringComparison.OrdinalIgnoreCase ) )
          ?? characters.FirstOrDefault( c => c.Name.Equals( "NewCharacter", StringComparison.OrdinalIgnoreCase ) );
 
         if ( character == null )

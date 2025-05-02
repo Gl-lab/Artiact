@@ -6,6 +6,6 @@ public interface ICharacterCache
 {
     void UpdateCharacter( string? characterName,
                           CharacterExtension newData );
-                          
+
     CharacterExtension? GetCharacter( string? characterName );
 }

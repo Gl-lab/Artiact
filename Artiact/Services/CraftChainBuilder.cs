@@ -58,7 +58,8 @@ public class CraftChainBuilder : ICraftChainBuilder
                 return false;
             }
 
-            if ( !ProcessRequiredItem( requiredItem, craftStep, requiredItemData, availableResources, visited, craftTarget ) )
+            if ( !ProcessRequiredItem( requiredItem, craftStep, requiredItemData, availableResources, visited,
+                    craftTarget ) )
             {
                 return false;
             }
@@ -92,28 +93,28 @@ public class CraftChainBuilder : ICraftChainBuilder
         CraftTarget craftTarget )
     {
         int totalRequired = requiredItem.Quantity * craftStep.Quantity;
-        int existingAmount = availableResources.GetValueOrDefault(requiredItem.Code);
-        int needToCraft = Math.Max(0, totalRequired - existingAmount);
+        int existingAmount = availableResources.GetValueOrDefault( requiredItem.Code );
+        int needToCraft = Math.Max( 0, totalRequired - existingAmount );
 
-        if (needToCraft == 0)
+        if ( needToCraft == 0 )
         {
-            AddRequiredItem(craftStep, requiredItem);
+            AddRequiredItem( craftStep, requiredItem );
             return true;
         }
 
-        if (itemData.Craft == null)
+        if ( itemData.Craft == null )
         {
             return false;
         }
 
-        int craftQuantity = (needToCraft + itemData.Craft.Quantity - 1) / itemData.Craft.Quantity;
-        Dictionary<string, int> tempResources = new(availableResources);
-        
-        if (CanCraftItem(itemData, craftQuantity, tempResources, visited, craftTarget))
+        int craftQuantity = ( needToCraft + itemData.Craft.Quantity - 1 ) / itemData.Craft.Quantity;
+        Dictionary<string, int> tempResources = new( availableResources );
+
+        if ( CanCraftItem( itemData, craftQuantity, tempResources, visited, craftTarget ) )
         {
-            AddRequiredItem(craftStep, requiredItem);
-            int newAmount = existingAmount + (craftQuantity * itemData.Craft.Quantity);
-            availableResources[requiredItem.Code] = newAmount;
+            AddRequiredItem( craftStep, requiredItem );
+            int newAmount = existingAmount + craftQuantity * itemData.Craft.Quantity;
+            availableResources[ requiredItem.Code ] = newAmount;
             return true;
         }
 

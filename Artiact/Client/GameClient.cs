@@ -11,12 +11,12 @@ namespace Artiact.Client;
 
 public class GameClient : IGameClient
 {
+    private readonly ActivitySource _activitySource;
     private readonly ICacheService _cacheService;
 
     private readonly string _characterName;
     private readonly IGameHttpClient _httpClient;
     private readonly ILogger<IGameClient> _logger;
-    private readonly ActivitySource _activitySource;
 
     public GameClient( IGameHttpClient httpClient,
                        ApiSettings apiSettings,
@@ -219,27 +219,27 @@ public class GameClient : IGameClient
     public async Task WarmUpCache()
     {
         _logger.LogInformation( "Начинаем прогрев кеша" );
-        using Activity? activity = _activitySource.StartActivity("WarmUpCache", ActivityKind.Internal);
+        using Activity? activity = _activitySource.StartActivity();
         try
         {
             await GetMap();
-            activity?.AddEvent(new ActivityEvent("Map cached"));
+            activity?.AddEvent( new ActivityEvent( "Map cached" ) );
 
             await GetResources();
-            activity?.AddEvent(new ActivityEvent("Resources cached"));
+            activity?.AddEvent( new ActivityEvent( "Resources cached" ) );
 
             await GetItems();
-            activity?.AddEvent(new ActivityEvent("Items cached"));
+            activity?.AddEvent( new ActivityEvent( "Items cached" ) );
 
             await GetMonsters();
-            activity?.AddEvent(new ActivityEvent("Monsters cached"));
+            activity?.AddEvent( new ActivityEvent( "Monsters cached" ) );
 
 
             _logger.LogInformation( "Прогрев кеша успешно завершен" );
         }
         catch ( Exception ex )
         {
-            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            activity?.SetStatus( ActivityStatusCode.Error, ex.Message );
             _logger.LogError( ex, "Ошибка при прогреве кеша" );
             throw;
         }

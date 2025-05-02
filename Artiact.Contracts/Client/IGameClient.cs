@@ -22,9 +22,9 @@ public interface IGameClient
     Task<List<ResourceDatum>> GetResources();
     Task<List<ItemDatum>> GetItems();
     public Task<List<MonsterDatum>> GetMonsters();
-    
+
     /// <summary>
-    /// Прогревает кеш, загружая все основные данные
+    ///     Прогревает кеш, загружая все основные данные
     /// </summary>
     public Task WarmUpCache();
 }

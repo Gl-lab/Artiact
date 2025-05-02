@@ -27,23 +27,42 @@ public class WearCraftTargetFinder : IWearCraftTargetFinder
         };
     }
 
-    public async Task<CraftTarget?> FindTarget( List<Item> availableItems )
+    public async Task<List<CraftTarget>> FindTargets( List<Item> availableItems )
     {
         _allItems = await _gameClient.GetItems();
-        List<CraftTarget> possibleTargets = await FindPossibleTargets( availableItems );
-
-        if ( !possibleTargets.Any() )
-        {
-            return null;
-        }
-
-        return _targetEvaluator.SelectBestTarget( possibleTargets );
+        return await FindOptimalTargets( availableItems );
     }
 
-    private async Task<List<CraftTarget>> FindPossibleTargets( List<Item> availableItems )
+    private async Task<List<CraftTarget>> FindOptimalTargets( List<Item> availableItems )
+    {
+        List<CraftTarget> selectedTargets = new();
+        Dictionary<string, int> remainingResources = CalculateAvailableResources( availableItems );
+
+        while ( true )
+        {
+            List<CraftTarget> possibleTargets = await FindPossibleTargets( remainingResources );
+
+            if ( !possibleTargets.Any() )
+            {
+                break;
+            }
+
+            CraftTarget bestTarget = _targetEvaluator.SelectBestTarget( possibleTargets );
+            if ( !CanCraftWithRemainingResources( bestTarget, remainingResources ) )
+            {
+                break;
+            }
+
+            selectedTargets.Add( bestTarget );
+            SubtractResources( remainingResources, bestTarget );
+        }
+
+        return selectedTargets;
+    }
+
+    private async Task<List<CraftTarget>> FindPossibleTargets( Dictionary<string, int> availableResources )
     {
         List<CraftTarget> targets = new();
-        Dictionary<string, int> availableResources = CalculateAvailableResources( availableItems );
 
         foreach ( ItemDatum item in _allItems.Where( i => _wearableTypes.Contains( i.Type ) && i.Craft != null ) )
         {
@@ -58,6 +77,41 @@ public class WearCraftTargetFinder : IWearCraftTargetFinder
         }
 
         return targets;
+    }
+
+    private bool CanCraftWithRemainingResources( CraftTarget target, Dictionary<string, int> resources )
+    {
+        Dictionary<string, int> resourcesCopy = new( resources );
+        return TrySubtractResources( resourcesCopy, target );
+    }
+
+    private void SubtractResources( Dictionary<string, int> resources, CraftTarget target )
+    {
+        foreach ( CraftStep step in target.Steps )
+        {
+            foreach ( Item item in step.RequiredItems )
+            {
+                resources[ item.Code ] -= item.Quantity;
+            }
+        }
+    }
+
+    private bool TrySubtractResources( Dictionary<string, int> resources, CraftTarget target )
+    {
+        foreach ( CraftStep step in target.Steps )
+        {
+            foreach ( Item item in step.RequiredItems )
+            {
+                if ( !resources.ContainsKey( item.Code ) || resources[ item.Code ] < item.Quantity )
+                {
+                    return false;
+                }
+
+                resources[ item.Code ] -= item.Quantity;
+            }
+        }
+
+        return true;
     }
 
     private Dictionary<string, int> CalculateAvailableResources( List<Item> items )
@@ -112,19 +166,16 @@ public class WearCraftTargetFinder : IWearCraftTargetFinder
             return false;
         }
 
-        // Сначала проверяем, сколько у нас уже есть этого предмета
-        int existingQuantity = availableResources.ContainsKey( requiredItem.Code ) 
-            ? availableResources[ requiredItem.Code ] 
+        int existingQuantity = availableResources.ContainsKey( requiredItem.Code )
+            ? availableResources[ requiredItem.Code ]
             : 0;
-        
-        // Если уже имеющихся ресурсов недостаточно, проверяем возможность докрафтить остаток
+
         int remainingNeeded = requiredItem.Quantity - existingQuantity;
-        if (remainingNeeded <= 0)
+        if ( remainingNeeded <= 0 )
         {
             return true;
         }
 
-        // Проверяем, хватит ли базовых ресурсов для крафта оставшегося количества
         foreach ( Item craftItem in itemData.Craft.Items )
         {
             if ( !availableResources.ContainsKey( craftItem.Code ) ||
