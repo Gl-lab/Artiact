@@ -71,18 +71,13 @@ internal class Program
         builder.Services.AddScoped<IGoalDecomposer, GoalDecomposer>();
         builder.Services.AddSingleton( new ActivitySource( artiactName ) );
 
+        // Добавляем фоновый сервис
+        builder.Services.AddHostedService<ArtiactBackgroundService>();
+
         WebApplication app = builder.Build();
 
         // Добавляем эндпоинт для метрик Prometheus
         app.UseOpenTelemetryPrometheusScrapingEndpoint();
-
-        // Добавляем эндпоинт для запуска основной логики
-        app.MapGet( "/start", async ( IActionService actionService ) =>
-        {
-            await actionService.Initialize();
-            await actionService.Action();
-            return Results.Ok( "Action completed" );
-        } );
 
         // Добавляем эндпоинт для информации о состоянии
         app.MapGet( "/health", () => Results.Ok( new
