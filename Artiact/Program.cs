@@ -1,13 +1,11 @@
 ﻿using System.Diagnostics;
+using System.Diagnostics.Metrics;
 using Artiact.Client;
 using Artiact.Contracts.Client;
 using Artiact.Services;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NLog.Extensions.Logging;
-using OpenTelemetry;
+using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 
 namespace Artiact;
@@ -16,71 +14,84 @@ internal class Program
 {
     private static async Task Main( string[] args )
     {
-        string environment = Environment.GetEnvironmentVariable( "ASPNETCORE_ENVIRONMENT" ) ?? "Production";
+        WebApplicationBuilder builder = WebApplication.CreateBuilder( args );
 
-        IConfigurationRoot configuration = new ConfigurationBuilder()
-                                          .SetBasePath( AppContext.BaseDirectory )
-                                          .AddJsonFile( "appsettings.json", false, true )
-                                          .AddJsonFile( $"appsettings.{environment.ToLower()}.json", true,
-                                               true )
-                                          .AddUserSecrets<Program>()
-                                          .Build();
+        // Создаем метрики
+        Meter meter = new( "Artiact.Application" );
+        
+        // Конфигурация
+        string environment = builder.Environment.EnvironmentName;
+        builder.Configuration
+               .SetBasePath( AppContext.BaseDirectory )
+               .AddJsonFile( "appsettings.json", false, true )
+               .AddJsonFile( $"appsettings.{environment.ToLower()}.json", true, true )
+               .AddUserSecrets<Program>()
+               .Build();
 
-        // Создаем провайдер сервисов
-        await using ServiceProvider serviceProvider = ConfigureServices( configuration );
-
-        // Получаем сервис и запускаем приложение
-        IActionService actionService = serviceProvider.GetRequiredService<IActionService>();
-        await actionService.Initialize();
-        await actionService.Action();
-    }
-
-    private static ServiceProvider ConfigureServices( IConfigurationRoot configuration )
-    {
-        ServiceCollection services = new();
+        // Добавляем сервисы
+        builder.Services.AddEndpointsApiExplorer();
 
         // Логирование
-        services.AddLogging( builder =>
+        builder.Services.AddLogging( loggingBuilder =>
         {
-            builder.AddConsole();
-            builder.AddNLog( configuration );
+            loggingBuilder.AddConsole();
+            loggingBuilder.AddNLog( builder.Configuration );
         } );
 
         // HTTP клиент
-        services.AddHttpClient();
-        string artiactName = "Artiact.Client";
-        // Создаём TracerProvider
-        TracerProvider tracerProvider = Sdk.CreateTracerProviderBuilder()
-                                           .AddSource( artiactName )
-                                           .AddConsoleExporter()
-                                           .Build();
+        builder.Services.AddHttpClient();
 
-        // Регистрируем его в DI
-        services.AddSingleton( tracerProvider );
+        // Телеметрия
+        string artiactName = "Artiact.Client";
+        builder.Services.AddOpenTelemetry()
+               .WithMetrics( metrics => metrics
+                                       .AddMeter( "Artiact.Application" )
+                                       .AddPrometheusExporter() )
+               .WithTracing( tracing => tracing
+                                       .AddSource( artiactName )
+                                       .AddConsoleExporter() );
 
         // Настройки API
-        IConfigurationSection apiSettings = configuration.GetSection( "ApiSettings" );
-        services.Configure<ApiSettings>( apiSettings );
-        services.AddSingleton( resolver => resolver.GetRequiredService<IOptions<ApiSettings>>().Value );
+        IConfigurationSection apiSettings = builder.Configuration.GetSection( "ApiSettings" );
+        builder.Services.Configure<ApiSettings>( apiSettings );
+        builder.Services.AddSingleton( resolver => resolver.GetRequiredService<IOptions<ApiSettings>>().Value );
 
         // Регистрация сервисов
-        services.AddScoped<ICacheService, CacheService>();
-        services.AddScoped<IGameHttpClient, GameHttpClient>();
-        services.AddScoped<IGameClient, GameClient>();
-        services.AddScoped<IGoalService, GoalService>();
-        services.AddScoped<IMapService, MapService>();
-        services.AddScoped<IStepBuilder, StepBuilder>();
-        services.AddScoped<ICharacterService, CharacterService>();
+        builder.Services.AddScoped<ICacheService, CacheService>();
+        builder.Services.AddScoped<IGameHttpClient, GameHttpClient>();
+        builder.Services.AddScoped<IGameClient, GameClient>();
+        builder.Services.AddScoped<IGoalService, GoalService>();
+        builder.Services.AddScoped<IMapService, MapService>();
+        builder.Services.AddScoped<IStepBuilder, StepBuilder>();
+        builder.Services.AddScoped<ICharacterService, CharacterService>();
+        builder.Services.AddScoped<ICraftTargetEvaluator, CraftTargetEvaluator>();
+        builder.Services.AddScoped<ICraftChainBuilder, CraftChainBuilder>();
+        builder.Services.AddScoped<IWearCraftTargetFinder, WearCraftTargetFinder>();
+        builder.Services.AddScoped<IActionService, ActionService>();
+        builder.Services.AddScoped<IGoalDecomposer, GoalDecomposer>();
+        builder.Services.AddSingleton( new ActivitySource( artiactName ) );
 
-        // Регистрация сервисов крафта
-        services.AddScoped<ICraftTargetEvaluator, CraftTargetEvaluator>();
-        services.AddScoped<ICraftChainBuilder, CraftChainBuilder>();
-        services.AddScoped<IWearCraftTargetFinder, WearCraftTargetFinder>();
+        WebApplication app = builder.Build();
 
-        services.AddScoped<IActionService, ActionService>();
-        services.AddScoped<IGoalDecomposer, GoalDecomposer>();
-        services.AddSingleton( new ActivitySource( artiactName ) );
-        return services.BuildServiceProvider();
+        // Добавляем эндпоинт для метрик Prometheus
+        app.UseOpenTelemetryPrometheusScrapingEndpoint();
+
+        // Добавляем эндпоинт для запуска основной логики
+        app.MapGet( "/start", async ( IActionService actionService ) =>
+        {
+            await actionService.Initialize();
+            await actionService.Action();
+            return Results.Ok( "Action completed" );
+        } );
+
+        // Добавляем эндпоинт для информации о состоянии
+        app.MapGet( "/health", () => Results.Ok( new
+        {
+            Status = "Healthy",
+            Timestamp = DateTime.UtcNow
+        } ) );
+
+        await app.RunAsync();
     }
 }
 

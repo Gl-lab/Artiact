@@ -1,0 +1,32 @@
+global:
+  scrape_interval: 15s     # Как часто собирать метрики
+  evaluation_interval: 15s # Как часто вычислять правила
+  scrape_timeout: 10s     # Таймаут для сбора метрик
+
+  # Метки, которые будут добавлены ко всем временным рядам
+  external_labels:
+    monitor: 'artiact-monitor'
+
+# Правила оповещений загружаются здесь
+rule_files:
+  # - "first_rules.yml"
+  # - "second_rules.yml"
+
+# Настройки сбора метрик
+scrape_configs:
+  - job_name: 'artiact'
+    metrics_path: '/metrics'
+    scheme: http
+    static_configs:
+      - targets: ['localhost:5000']
+        labels:
+          environment: 'development'
+          application: 'artiact'
+
+  # Собираем метрики самого Prometheus
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          environment: 'development'
+          service: 'prometheus' 

@@ -5,7 +5,6 @@ using System.Text.Json;
 using Artiact.Contracts.Client;
 using Artiact.Contracts.Models;
 using Artiact.Contracts.Models.Api;
-using Microsoft.Extensions.Logging;
 
 namespace Artiact.Client;
 
