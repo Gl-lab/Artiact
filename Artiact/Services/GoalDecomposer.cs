@@ -1,27 +1,28 @@
-using Artiact.Contracts.Client;
+using System.Diagnostics;
 using Artiact.Contracts.Models;
 using Artiact.Contracts.Models.Api;
+using System.Text.Json;
 
 namespace Artiact.Services;
 
 public class GoalDecomposer : IGoalDecomposer
 {
-    private readonly IGameClient _gameClient;
     private readonly ILogger<GoalDecomposer> _logger;
     private readonly IWearCraftTargetFinder _wearCraftTargetFinder;
+    private readonly ActivitySource _activitySource;
 
     public GoalDecomposer( ILogger<GoalDecomposer> logger,
-                           IGameClient gameClient,
-                           IWearCraftTargetFinder wearCraftTargetFinder )
+                           IWearCraftTargetFinder wearCraftTargetFinder,
+                           ActivitySource activitySource )
     {
         _logger = logger;
-
-        _gameClient = gameClient;
         _wearCraftTargetFinder = wearCraftTargetFinder;
+        _activitySource = activitySource;
     }
 
     public async Task DecomposeGoal( Goal goal, ICharacterService characterService )
     {
+        _logger.LogDebug( "Decomposed goal {GoalType}", goal.Type );
         switch ( goal )
         {
             case GatheringGoal gatheringGoal:
@@ -36,7 +37,11 @@ public class GoalDecomposer : IGoalDecomposer
     private async Task DecomposeGatheringGoal( GatheringGoal gatheringGoal, ICharacterService characterService )
     {
         Character character = characterService.GetCharacter();
-
+        Activity? activity = _activitySource.StartActivity( "DecomposeGatheringGoal" );
+        if ( activity == null )
+        {
+            throw new Exception( "Listener not initialized" );
+        }
         // Проверяем текущее состояние инвентаря
         int currentInventorySpace = character.InventoryMaxItems;
         int usedInventorySpace = character.Inventory.Sum( item => item.Quantity );
@@ -78,6 +83,7 @@ public class GoalDecomposer : IGoalDecomposer
     {
         List<Item> craftResources =
             goal.Resources.Where( x => x.Method == SpendMethod.Craft ).Select( x => x.Item ).ToList();
+        _logger.LogDebug( "Craft resources: {CraftResources}", JsonSerializer.Serialize(craftResources) );
         List<CraftTarget> targets = await _wearCraftTargetFinder.FindTargets( craftResources );
         foreach ( CraftTarget craftTarget in targets )
         {

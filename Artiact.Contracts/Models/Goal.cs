@@ -7,11 +7,9 @@ public abstract class Goal
     protected Goal( GoalType type )
     {
         Type = type;
-        IsCompleted = false;
     }
 
     public GoalType Type { get; set; }
-    public bool IsCompleted { get; set; }
     public List<Goal> SubGoals { get; } = new();
     public Goal? ParentGoal { get; private set; }
 

@@ -18,7 +18,8 @@ internal class Program
 
         // Создаем метрики
         Meter meter = new( "Artiact.Application" );
-        
+        Activity.DefaultIdFormat = ActivityIdFormat.W3C;
+        Activity.ForceDefaultIdFormat = true;
         // Конфигурация
         string environment = builder.Environment.EnvironmentName;
         builder.Configuration
@@ -49,6 +50,8 @@ internal class Program
                                        .AddPrometheusExporter() )
                .WithTracing( tracing => tracing
                                        .AddSource( artiactName )
+                                       .AddAspNetCoreInstrumentation()
+                                       .AddHttpClientInstrumentation()
                                        .AddConsoleExporter() );
 
         // Настройки API
