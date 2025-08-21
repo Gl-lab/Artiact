@@ -57,8 +57,6 @@ public class ActionService : IActionService
                 activity.SetStatus( ActivityStatusCode.Error, e.Message );
                 throw;
             }
-            
-            
         }
     }
 }

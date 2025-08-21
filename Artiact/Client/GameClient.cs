@@ -41,7 +41,7 @@ public class GameClient : IGameClient
             string details = await response.Content.ReadAsStringAsync();
             CharacterResponse? characterResponse = JsonSerializer.Deserialize<CharacterResponse>( details );
 
-            return characterResponse.Data ?? throw new InvalidOperationException();
+            return characterResponse?.Data ?? throw new InvalidOperationException();
         }
 
         throw new Exception( $"Unable to get character: {_characterName}" );
@@ -218,7 +218,7 @@ public class GameClient : IGameClient
     public async Task WarmUpCache()
     {
         _logger.LogInformation( "Начинаем прогрев кеша" );
-        using Activity? activity = _activitySource.StartActivity();
+        using Activity? activity = _activitySource.StartActivity("WarmUpCache");
         try
         {
             await GetMap();

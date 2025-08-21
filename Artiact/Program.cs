@@ -2,11 +2,15 @@
 using System.Diagnostics.Metrics;
 using Artiact.Client;
 using Artiact.Contracts.Client;
+using Artiact.Models;
 using Artiact.Services;
 using Microsoft.Extensions.Options;
 using NLog.Extensions.Logging;
+using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
+using OpenTelemetry.Exporter;
+using OpenTelemetry.Resources;
 
 namespace Artiact;
 
@@ -42,22 +46,40 @@ internal class Program
         // HTTP клиент
         builder.Services.AddHttpClient();
 
+        // Настройки API и Zipkin
+        IConfigurationSection apiSettings = builder.Configuration.GetSection( "ApiSettings" );
+        IConfigurationSection zipkinSettings = builder.Configuration.GetSection( "ZipkinSettings" );
+        builder.Services.Configure<ApiSettings>( apiSettings );
+        builder.Services.Configure<ZipkinSettings>( zipkinSettings );
+        builder.Services.AddSingleton( resolver => resolver.GetRequiredService<IOptions<ApiSettings>>().Value );
+        builder.Services.AddSingleton( resolver => resolver.GetRequiredService<IOptions<ZipkinSettings>>().Value );
+
         // Телеметрия
-        string artiactName = "Artiact.Client";
+        string artiactClientSourceName = "Artiact.Client";
+        string serviceName = "Artiact";
+        string serviceVersion = "1.0.0";
+
         builder.Services.AddOpenTelemetry()
+               .ConfigureResource(resource => resource
+                   .AddService(serviceName: serviceName, serviceVersion: serviceVersion)
+                   .AddTelemetrySdk()
+                   .AddEnvironmentVariableDetector())
                .WithMetrics( metrics => metrics
                                        .AddMeter( "Artiact.Application" )
                                        .AddPrometheusExporter() )
                .WithTracing( tracing => tracing
-                                       .AddSource( artiactName )
+                                       .AddSource( artiactClientSourceName )
                                        .AddAspNetCoreInstrumentation()
                                        .AddHttpClientInstrumentation()
-                                       .AddConsoleExporter() );
-
-        // Настройки API
-        IConfigurationSection apiSettings = builder.Configuration.GetSection( "ApiSettings" );
-        builder.Services.Configure<ApiSettings>( apiSettings );
-        builder.Services.AddSingleton( resolver => resolver.GetRequiredService<IOptions<ApiSettings>>().Value );
+                                       .AddConsoleExporter()
+                                       .AddZipkinExporter( options =>
+                                        {
+                                            ZipkinSettings zipkinConfig = ServiceCollectionContainerBuilderExtensions
+                                                                         .BuildServiceProvider( builder.Services )
+                                                                         .GetRequiredService<ZipkinSettings>();
+                                            options.Endpoint = new Uri( zipkinConfig.Endpoint );
+                                            options.ExportProcessorType = ExportProcessorType.Simple;
+                                        } ) );
 
         // Регистрация сервисов
         builder.Services.AddScoped<ICacheService, CacheService>();
@@ -72,7 +94,7 @@ internal class Program
         builder.Services.AddScoped<IWearCraftTargetFinder, WearCraftTargetFinder>();
         builder.Services.AddScoped<IActionService, ActionService>();
         builder.Services.AddScoped<IGoalDecomposer, GoalDecomposer>();
-        builder.Services.AddSingleton( new ActivitySource( artiactName ) );
+        builder.Services.AddSingleton( new ActivitySource( artiactClientSourceName ) );
 
         // Добавляем фоновый сервис
         builder.Services.AddHostedService<ArtiactBackgroundService>();
@@ -91,12 +113,4 @@ internal class Program
 
         await app.RunAsync();
     }
-}
-
-public class ApiSettings
-{
-    public string BaseUrl { get; set; }
-    public string Username { get; set; }
-    public string Password { get; set; }
-    public string Character { get; set; }
 }

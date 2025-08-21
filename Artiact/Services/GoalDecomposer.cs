@@ -42,6 +42,7 @@ public class GoalDecomposer : IGoalDecomposer
         {
             throw new Exception( "Listener not initialized" );
         }
+
         // Проверяем текущее состояние инвентаря
         int currentInventorySpace = character.InventoryMaxItems;
         int usedInventorySpace = character.Inventory.Sum( item => item.Quantity );
@@ -83,10 +84,11 @@ public class GoalDecomposer : IGoalDecomposer
     {
         List<Item> craftResources =
             goal.Resources.Where( x => x.Method == SpendMethod.Craft ).Select( x => x.Item ).ToList();
-        _logger.LogDebug( "Craft resources: {CraftResources}", JsonSerializer.Serialize(craftResources) );
+        _logger.LogDebug( "Craft resources: {CraftResources}", JsonSerializer.Serialize( craftResources ) );
         List<CraftTarget> targets = await _wearCraftTargetFinder.FindTargets( craftResources );
         foreach ( CraftTarget craftTarget in targets )
         {
+            _logger.LogDebug( "Craft target: {CraftTarget}", JsonSerializer.Serialize( craftTarget ) );
             goal.AddSubGoal( new GearCraftingGoal( craftTarget ) );
         }
 

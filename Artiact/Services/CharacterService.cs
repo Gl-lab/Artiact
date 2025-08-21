@@ -4,11 +4,11 @@ namespace Artiact.Services;
 
 public class CharacterService : ICharacterService
 {
-    private Character _character;
+    private Character? _character;
 
     public Character GetCharacter()
     {
-        return _character;
+        return _character ?? throw new InvalidOperationException("CharacterService Character is null");
     }
 
     public void SaveCharacter( Character character )
