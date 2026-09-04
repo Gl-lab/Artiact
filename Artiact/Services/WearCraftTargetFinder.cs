@@ -53,14 +53,19 @@ public class WearCraftTargetFinder : IWearCraftTargetFinder
                 break;
             }
 
-            CraftTarget bestTarget = _targetEvaluator.SelectBestTarget( possibleTargets, characterService );
-            if ( !CanCraftWithRemainingResources( bestTarget, remainingResources ) )
+            CraftTarget bestTarget = _targetEvaluator.SelectBestTarget( possibleTargets );
+            if ( bestTarget.LootTargets.Any() )
+            {
+                selectedTargets.Add( bestTarget );
+                break;
+            }
+
+            if ( !TryApplyTargetResources( bestTarget, remainingResources ) )
             {
                 break;
             }
 
             selectedTargets.Add( bestTarget );
-            SubtractResources( remainingResources, bestTarget );
         }
 
         return selectedTargets;
@@ -73,11 +78,19 @@ public class WearCraftTargetFinder : IWearCraftTargetFinder
 
         foreach ( ItemDatum item in _allItems.Where( i => _wearableTypes.Contains( i.Type ) && i.Craft != null ) )
         {
-            if ( await CanCraftFinalItem( item, availableResources, characterService ) )
+            List<LootTarget>? lootTargets = await ResolveLootTargets( item, availableResources, characterService );
+            if ( lootTargets != null )
             {
-                CraftTarget? craftTarget = await _chainBuilder.TryCreateCraftChain( item, availableResources );
+                Dictionary<string, int> planningResources = new( availableResources );
+                foreach ( LootTarget lootTarget in lootTargets )
+                {
+                    planningResources[ lootTarget.ItemCode ] = lootTarget.RequiredQuantity;
+                }
+
+                CraftTarget? craftTarget = await _chainBuilder.TryCreateCraftChain( item, planningResources );
                 if ( craftTarget != null )
                 {
+                    craftTarget.LootTargets = lootTargets;
                     targets.Add( craftTarget );
                 }
             }
@@ -86,36 +99,35 @@ public class WearCraftTargetFinder : IWearCraftTargetFinder
         return targets;
     }
 
-    private bool CanCraftWithRemainingResources( CraftTarget target, Dictionary<string, int> resources )
+    private bool TryApplyTargetResources( CraftTarget target, Dictionary<string, int> resources )
     {
         Dictionary<string, int> resourcesCopy = new( resources );
-        return TrySubtractResources( resourcesCopy, target );
-    }
-
-    private void SubtractResources( Dictionary<string, int> resources, CraftTarget target )
-    {
         foreach ( CraftStep step in target.Steps )
         {
             foreach ( Item item in step.RequiredItems )
             {
-                resources[ item.Code ] -= item.Quantity;
-            }
-        }
-    }
-
-    private bool TrySubtractResources( Dictionary<string, int> resources, CraftTarget target )
-    {
-        foreach ( CraftStep step in target.Steps )
-        {
-            foreach ( Item item in step.RequiredItems )
-            {
-                if ( !resources.ContainsKey( item.Code ) || resources[ item.Code ] < item.Quantity )
+                if ( resourcesCopy.GetValueOrDefault( item.Code ) < item.Quantity )
                 {
                     return false;
                 }
 
-                resources[ item.Code ] -= item.Quantity;
+                resourcesCopy[ item.Code ] -= item.Quantity;
             }
+
+            int producedQuantity = step.Quantity * ( step.Item.Craft?.Quantity ?? 1 );
+            resourcesCopy[ step.Item.Code ] = resourcesCopy.GetValueOrDefault( step.Item.Code ) + producedQuantity;
+        }
+
+        bool consumedInventory = resources.Any( resource =>
+            resourcesCopy.GetValueOrDefault( resource.Key ) < resource.Value );
+        if ( !consumedInventory )
+        {
+            return false;
+        }
+
+        foreach ( string code in resources.Keys.ToList() )
+        {
+            resources[ code ] = resourcesCopy.GetValueOrDefault( code );
         }
 
         return true;
@@ -133,37 +145,39 @@ public class WearCraftTargetFinder : IWearCraftTargetFinder
         return resources;
     }
 
-    private async Task<bool> CanCraftFinalItem( ItemDatum targetItem,
-                                                Dictionary<string, int> availableResources,
-                                                ICharacterService characterService )
+    private async Task<List<LootTarget>?> ResolveLootTargets( ItemDatum targetItem,
+                                                              Dictionary<string, int> availableResources,
+                                                              ICharacterService characterService )
     {
         if ( targetItem.Craft == null )
         {
-            return false;
+            return null;
         }
 
+        List<LootTarget> lootTargets = new();
         foreach ( Item craftComponent in targetItem.Craft.Items )
         {
             ItemDatum? informationAboutCraftComponent = _allItems.FirstOrDefault( i => i.Code == craftComponent.Code );
             if ( informationAboutCraftComponent == null )
             {
-                return false;
+                return null;
             }
 
             if ( !HasEnoughResources( craftComponent, availableResources ) &&
-                !CanCraftComponent( informationAboutCraftComponent, craftComponent, availableResources ) &&
-                !await CanLooting( informationAboutCraftComponent, characterService ) )
+                !CanCraftComponent( informationAboutCraftComponent, craftComponent, availableResources ) )
             {
-                return false;
+                LootTarget? lootTarget = await _targetLootingResolver.FindTarget(
+                    informationAboutCraftComponent, craftComponent.Quantity, characterService );
+                if ( lootTarget == null )
+                {
+                    return null;
+                }
+
+                lootTargets.Add( lootTarget );
             }
         }
 
-        return true;
-    }
-
-    public async Task<bool> CanLooting( ItemDatum informationAboutCraftComponent, ICharacterService characterService )
-    {
-        return await _targetLootingResolver.CanLooting( informationAboutCraftComponent, characterService );
+        return lootTargets;
     }
 
     private bool HasEnoughResources( Item requiredItem, Dictionary<string, int> availableResources )

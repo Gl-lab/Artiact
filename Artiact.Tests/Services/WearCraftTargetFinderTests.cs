@@ -12,16 +12,21 @@ public class WearCraftTargetFinderTests
     private readonly WearCraftTargetFinder _finder;
     private readonly Mock<IGameClient> _gameClientMock;
     private readonly Mock<ICraftTargetEvaluator> _targetEvaluatorMock;
+    private readonly Mock<ITargetLootingResolver> _targetLootingResolverMock;
+    private readonly Mock<ICharacterService> _characterServiceMock;
 
     public WearCraftTargetFinderTests()
     {
         _gameClientMock = new Mock<IGameClient>();
         _targetEvaluatorMock = new Mock<ICraftTargetEvaluator>();
         _chainBuilderMock = new Mock<ICraftChainBuilder>();
+        _targetLootingResolverMock = new Mock<ITargetLootingResolver>();
+        _characterServiceMock = new Mock<ICharacterService>();
         _finder = new WearCraftTargetFinder(
             _gameClientMock.Object,
             _targetEvaluatorMock.Object,
-            _chainBuilderMock.Object );
+            _chainBuilderMock.Object,
+            _targetLootingResolverMock.Object );
     }
 
     [Fact]
@@ -130,7 +135,7 @@ public class WearCraftTargetFinderTests
                             .Returns( expectedCraftTarget );
 
         // Act
-        List<CraftTarget> results = await _finder.FindTargets( availableItems );
+        List<CraftTarget> results = await _finder.FindTargets( availableItems, _characterServiceMock.Object );
 
         // Assert
         Assert.NotEmpty( results );
@@ -269,7 +274,7 @@ public class WearCraftTargetFinderTests
                             .Returns( expectedCraftTarget );
 
         // Act
-        List<CraftTarget> results = await _finder.FindTargets( availableItems );
+        List<CraftTarget> results = await _finder.FindTargets( availableItems, _characterServiceMock.Object );
 
         // Assert
         Assert.NotEmpty( results );

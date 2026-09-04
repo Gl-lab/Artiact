@@ -91,6 +91,7 @@ internal class Program
         builder.Services.AddScoped<ICharacterService, CharacterService>();
         builder.Services.AddScoped<ICraftTargetEvaluator, CraftTargetEvaluator>();
         builder.Services.AddScoped<ICraftChainBuilder, CraftChainBuilder>();
+        builder.Services.AddScoped<ITargetLootingResolver, TargetLootingResolver>();
         builder.Services.AddScoped<IWearCraftTargetFinder, WearCraftTargetFinder>();
         builder.Services.AddScoped<IActionService, ActionService>();
         builder.Services.AddScoped<IGoalDecomposer, GoalDecomposer>();

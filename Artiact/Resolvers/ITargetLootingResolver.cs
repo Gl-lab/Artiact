@@ -1,8 +1,10 @@
-﻿using Artiact.Contracts.Models.Api;
+﻿using Artiact.Contracts.Models;
+using Artiact.Contracts.Models.Api;
 
 namespace Artiact.Services;
 
 public interface ITargetLootingResolver
 {
-    Task<bool> CanLooting( ItemDatum informationAboutCraftComponent, ICharacterService characterService );
+    Task<LootTarget?> FindTarget( ItemDatum craftComponent, int requiredQuantity,
+                                  ICharacterService characterService );
 }

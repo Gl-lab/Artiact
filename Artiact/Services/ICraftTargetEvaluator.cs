@@ -4,5 +4,5 @@ namespace Artiact.Services;
 
 public interface ICraftTargetEvaluator
 {
-    CraftTarget SelectBestTarget( List<CraftTarget> targets, ICharacterService characterService );
+    CraftTarget SelectBestTarget( List<CraftTarget> targets );
 }

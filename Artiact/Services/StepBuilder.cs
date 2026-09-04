@@ -124,6 +124,29 @@ public class StepBuilder : IStepBuilder
     private async Task<IStep> BuildCraftingSteps( GearCraftingGoal goal, ICharacterService characterService )
     {
         List<IStep> steps = new();
+        Character character = characterService.GetCharacter();
+        MapPoint plannedPosition = new() { X = character.X, Y = character.Y };
+
+        foreach ( LootTarget lootTarget in goal.Item.LootTargets )
+        {
+            MapPoint? monsterPoint = await _mapService.GetByContentCode( new ContentCode( lootTarget.Monster.Code ) );
+            if ( monsterPoint == null )
+            {
+                throw new InvalidOperationException( $"Monster not found on map: {lootTarget.Monster.Code}" );
+            }
+
+            if ( plannedPosition.X != monsterPoint.X || plannedPosition.Y != monsterPoint.Y )
+            {
+                steps.Add( new MoveStep( monsterPoint, characterService ) );
+            }
+            plannedPosition = monsterPoint;
+
+            Func<ICharacterService, bool> needsLoot = service =>
+                service.GetCharacter().Inventory
+                       .Where( item => item.Code == lootTarget.ItemCode )
+                       .Sum( item => item.Quantity ) < lootTarget.RequiredQuantity;
+            steps.Add( new ActionStep( characterService, client => client.Fight(), needsLoot, needsLoot ) );
+        }
 
         // Группируем шаги крафта по мастерским
         Dictionary<string, List<CraftStep>> stepsByWorkshop = new();
@@ -140,19 +163,22 @@ public class StepBuilder : IStepBuilder
             stepsByWorkshop[ skill ].Add( craftStep );
         }
 
-        // Добавляем финальный шаг крафта
-        string finalSkill = goal.Item.FinalItem.Craft.Skill;
-        if ( !stepsByWorkshop.ContainsKey( finalSkill ) )
+        // Старые CraftTarget могли не включать финальный предмет в Steps.
+        if ( goal.Item.Steps.All( step => step.Item.Code != goal.Item.FinalItem.Code ) )
         {
-            stepsByWorkshop[ finalSkill ] = new List<CraftStep>();
-        }
+            string finalSkill = goal.Item.FinalItem.Craft.Skill;
+            if ( !stepsByWorkshop.ContainsKey( finalSkill ) )
+            {
+                stepsByWorkshop[ finalSkill ] = new List<CraftStep>();
+            }
 
-        stepsByWorkshop[ finalSkill ].Add( new CraftStep
-        {
-            Item = goal.Item.FinalItem,
-            RequiredItems = goal.Item.FinalItem.Craft.Items,
-            Quantity = 1
-        } );
+            stepsByWorkshop[ finalSkill ].Add( new CraftStep
+            {
+                Item = goal.Item.FinalItem,
+                RequiredItems = goal.Item.FinalItem.Craft.Items,
+                Quantity = 1
+            } );
+        }
 
         // Обрабатываем каждую мастерскую
         foreach ( KeyValuePair<string, List<CraftStep>> workshopGroup in stepsByWorkshop )
@@ -165,10 +191,11 @@ public class StepBuilder : IStepBuilder
             }
 
             // Если персонаж не в мастерской, добавляем шаг перемещения
-            if ( characterService.GetCharacter().X != workshop.X || characterService.GetCharacter().Y != workshop.Y )
+            if ( plannedPosition.X != workshop.X || plannedPosition.Y != workshop.Y )
             {
                 steps.Add( new MoveStep( workshop, characterService ) );
             }
+            plannedPosition = workshop;
 
             // Добавляем шаги крафта для текущей мастерской
             foreach ( CraftStep craftStep in workshopGroup.Value )

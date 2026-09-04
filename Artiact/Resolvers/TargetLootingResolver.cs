@@ -1,4 +1,5 @@
 ﻿using Artiact.Contracts.Client;
+using Artiact.Contracts.Models;
 using Artiact.Contracts.Models.Api;
 
 namespace Artiact.Services;
@@ -7,41 +8,34 @@ public class TargetLootingResolver : ITargetLootingResolver
 {
     private readonly IGameClient _gameClient;
 
-    public TargetLootingResolver( List<MonsterDatum> allMonsters, IGameClient gameClient )
+    public TargetLootingResolver( IGameClient gameClient )
     {
         _gameClient = gameClient;
     }
 
-    public async Task<bool> CanLooting( ItemDatum informationAboutCraftComponent, ICharacterService characterService )
+    public async Task<LootTarget?> FindTarget( ItemDatum craftComponent, int requiredQuantity,
+                                               ICharacterService characterService )
     {
-        if ( informationAboutCraftComponent.Subtype != "mob" )
+        if ( craftComponent.Subtype != "mob" || requiredQuantity <= 0 )
         {
-            return false;
+            return null;
         }
 
-        List<MonsterDatum> allMonsters = await _gameClient.GetMonsters();
+        int maximumMonsterLevel = characterService.GetCharacter().Level + 1;
+        MonsterDatum? monster = ( await _gameClient.GetMonsters() )
+            .Where( candidate => candidate.Level <= maximumMonsterLevel )
+            .Where( candidate => candidate.Drops.Any( drop => drop.Code == craftComponent.Code ) )
+            .OrderByDescending( candidate => candidate.Drops
+                .First( drop => drop.Code == craftComponent.Code ).Rate )
+            .FirstOrDefault();
 
-        IOrderedEnumerable<MonsterDatum> targetMonsters = allMonsters
-                                                         .Where( x => x.Drops.Exists( drop =>
-                                                              drop.Code == informationAboutCraftComponent.Code ) )
-                                                         .OrderByDescending( x =>
-                                                              x.Drops.Find( y =>
-                                                                    y.Code == informationAboutCraftComponent.Code )!
-                                                               .Rate );
-        if ( !targetMonsters.Any() )
-        {
-            return false;
-        }
-
-        Character character = characterService.GetCharacter();
-        foreach ( MonsterDatum targetMonster in targetMonsters )
-        {
-            if ( character.Level + 1 <= targetMonster.Level )
+        return monster == null
+            ? null
+            : new LootTarget
             {
-                return true;
-            }
-        }
-
-        return false;
+                Monster = monster,
+                ItemCode = craftComponent.Code,
+                RequiredQuantity = requiredQuantity
+            };
     }
 }
