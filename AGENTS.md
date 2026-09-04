@@ -1,65 +1,49 @@
-# Artiact: контекст проекта
+# Artiact repository instructions
 
-## Назначение и структура
+## Mission and authority
 
-Artiact — приложение на C# / .NET 9 для автоматизации игровых действий через HTTP API: сбор ресурсов, планирование крафта и подбор экипировки.
+Artiact is a .NET 9 automation service for Artifacts MMO-compatible APIs. Source code and tests are authoritative for behavior; `docs/` explains the current system and must be updated when behavior, commands, configuration or contracts change.
 
-- `Artiact/` — ASP.NET Core приложение с фоновым исполнителем. `Program.cs` содержит регистрацию зависимостей, логирование, телеметрию и endpoint `/health`.
-- `Artiact/Services/` — выбор и декомпозиция целей, построение шагов, работа с персонажем и планирование крафта.
-- `Artiact/Resolvers/` — начатая реализация проверки возможности добыть компоненты с монстров. Сейчас использует namespace `Artiact.Services`.
-- `Artiact/Client/` — HTTP-клиент игрового API и кэширование справочников.
-- `Artiact/Models/Steps/` — исполняемые шаги действий.
-- `Artiact.Contracts/` — интерфейс `IGameClient`, модели API, цели и модели крафта.
-- `Artiact.MockService/` — вспомогательный веб-сервис с контроллерами персонажей, действий и токенов, а также кэшем персонажей.
-- `Artiact.Tests/` — тесты на xUnit и Moq для построения шагов и цепочек крафта, выбора экипировки.
-- `Artiact/cache/` — отслеживаемые Git JSON-справочники предметов, карты, монстров и ресурсов.
-- `docker-compose.yml` — Prometheus, Grafana и Zipkin; само приложение в этот compose не включено.
-- `.serena/` — конфигурация Serena; локальный кэш и `project.local.yml` исключены её `.gitignore`.
+Start with [`docs/README.md`](docs/README.md). Use [`docs/external-references.md`](docs/external-references.md) for the official game site, concepts/wiki, OpenAPI specification, Swagger UI and API operational guides. Read the nearest nested `AGENTS.md` before editing a project.
 
-## Как выполняются действия
+## Repository boundaries
 
-`ArtiactBackgroundService` создаёт scope, получает `IActionService`, прогревает кэш и загружает персонажа. Затем циклически вызывает `ActionService.Action()`.
+- `Artiact/`: executable host, application services, steps and API client.
+- `Artiact.Contracts/`: shared interface and data/domain contracts.
+- `Artiact.MockService/`: incomplete deterministic local API substitute.
+- `Artiact.Tests/`: xUnit/Moq tests.
+- `Artiact/cache/`: tracked reference-data snapshots; do not refresh incidentally.
+- `docker-compose.yml`: monitoring services only.
 
-`ActionService` получает цель из `GoalService`, передаёт её в `GoalDecomposer`, строит шаг через `StepBuilder` и выполняет его через `IGameClient`. Сейчас `GoalService` возвращает фиксированную цель `GatheringGoal(20)`.
+## Required workflow
 
-При расходовании ресурсов на крафт `GoalDecomposer` вызывает `WearCraftTargetFinder`. Тот ищет кандидатов, строит цепочки через `CraftChainBuilder`, выбирает результат через `CraftTargetEvaluator` и учитывает расход ресурсов. Оценщик пока выбирает предмет максимального уровня.
+- Preserve the existing C# style and avoid unrelated formatting/refactors.
+- Use tests for behavior changes. Run focused tests first and `dotnet test Artiact.sln --no-restore` before completion.
+- When changing interfaces or constructors, update DI in `Artiact/Program.cs`, all callers and Moq setups.
+- Treat `Artiact.Contracts` changes as cross-project compatibility changes.
+- Keep JSON cache updates separate from logic changes.
+- Do not add secrets, `.env`, logs, `bin/`, `obj/`, certificates or generated artifacts.
+- Do not run the main app merely to test compilation: its hosted worker starts game actions automatically.
 
-Логирование использует NLog; метрики и трассировка — OpenTelemetry, Prometheus и Zipkin.
+## Commands
 
-## Команды разработки
-
-Выполнять из корня репозитория:
+Run from the repository root:
 
 ```text
 dotnet restore Artiact.sln
 dotnet build Artiact.sln --no-restore
 dotnet test Artiact.sln --no-restore
-dotnet test Artiact.Tests/Artiact.Tests.csproj --no-restore --filter FullyQualifiedName~WearCraftTargetFinderTests
 ```
 
-`global.json` задаёт SDK 9.0.0 с `rollForward: latestMinor`. При проверке 2026-09-04 использовался SDK 9.0.203.
+See [`docs/development.md`](docs/development.md) for focused commands and safe run instructions.
 
-Запуск приложения: `dotnet run --project Artiact/Artiact.csproj`. Запуск вспомогательного сервиса: `dotnet run --project Artiact.MockService/Artiact.MockService.csproj`. Мониторинг: `docker compose up -d`.
+## Current high-risk seams
 
-Основное приложение начинает игровые действия автоматически после запуска. Для проверки компиляции и тестов запускать его не требуется. Настройки читаются из `appsettings.json`, файла окружения и user secrets; учитывать секции `ApiSettings` и `ZipkinSettings`.
+- Goal decomposition and recursive step construction.
+- Craft-chain inventory accounting.
+- Loot prerequisite planning versus live execution state.
+- API retries for non-idempotent actions.
+- Shared DTO serialization compatibility.
+- Mock-service divergence from the real API.
 
-## Правила изменений
-
-- Сохранять принятый стиль соседнего C# кода; не переформатировать несвязанные файлы.
-- При изменении интерфейсов и конструкторов обновлять вызывающий код, регистрацию зависимостей в `Program.cs` и соответствующие Moq-настройки в тестах.
-- Проверять изменения алгоритмов на релевантных тестах. Отличать ошибки компиляции от упавших тестов.
-- Не добавлять секреты, `.env`, логи и результаты сборки в коммиты.
-- Изменения JSON-кэша рассматривать отдельно от логики; не обновлять справочники без необходимости.
-
-## Известное состояние на 2026-09-04
-
-Сохранена незавершённая доработка учёта добычи с монстров при подборе крафта. Эти замечания описывают исходное состояние и должны обновляться по мере исправлений:
-
-1. `dotnet test Artiact.sln --no-restore` завершился семью ошибками компиляции CS7036 в `WearCraftTargetFinderTests`: не передаются новые параметры `targetLootingResolver` и `characterService`. Тесты не запускались.
-2. `ITargetLootingResolver` требуется конструктору `WearCraftTargetFinder`, но не зарегистрирован в `Program.cs`. В конструкторе `TargetLootingResolver` также остался неиспользуемый `List<MonsterDatum> allMonsters`.
-3. `TargetLootingResolver.CanLooting` разрешает добычу при `character.Level + 1 <= targetMonster.Level`. Это разрешает более сильных монстров и отклоняет слабых; предполагаемую политику уровней необходимо уточнить при исправлении.
-4. Предварительная проверка в `WearCraftTargetFinder` допускает добычу отсутствующего компонента, но `CraftChainBuilder.ProcessRequiredItem` отклоняет недостающий компонент без рецепта. Шаг добычи в эту цепочку пока не встроен.
-5. `CraftTargetEvaluator` получает персонажа, но не использует его при оценке; выбор остаётся сортировкой по уровню предмета.
-6. Обновлены четыре JSON-кэша: количество предметов изменилось с 370 до 386, монстров — с 32 до 36. Количество записей карты (357) и ресурсов (20) не изменилось.
-
-При первоначальном анализе индекс Git содержал промежуточные версии двух resolver-файлов с дубликатом класса и отсутствующим итоговым возвратом. Рабочие версии уже устраняли именно эти две проблемы; при сохранении ветки индекс обновляется из рабочих файлов. Остальные перечисленные проблемы остаются.
+Document current limitations in [`docs/known-limitations.md`](docs/known-limitations.md); do not silently broaden scope to fix them.

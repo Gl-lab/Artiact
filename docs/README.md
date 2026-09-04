@@ -1,0 +1,38 @@
+# Artiact documentation
+
+This directory is the source-grounded guide for developers and AI agents working on Artiact. The code remains authoritative when documentation and implementation disagree.
+
+## Start here
+
+| Document | Use it for |
+|---|---|
+| [Architecture](architecture.md) | Components, dependencies, startup, background execution, HTTP and observability |
+| [Domain model](domain-model.md) | Goals, steps, crafting, inventory and looting-aware planning |
+| [Mock service](mock-service.md) | Local game-API substitute, endpoints, data and gaps |
+| [Development](development.md) | Setup, configuration, commands, tests and safe change workflow |
+| [Official references](external-references.md) | Game site, wiki/concepts, OpenAPI, Swagger, changelog and operational API guides |
+| [Known limitations](known-limitations.md) | Deliberate limits, incomplete paths and operational risks |
+
+## Repository map
+
+| Path | Responsibility |
+|---|---|
+| `Artiact/` | ASP.NET Core host, background automation, planning, executable steps, API client and JSON cache |
+| `Artiact.Contracts/` | Shared API DTOs, goals, craft models and `IGameClient` boundary |
+| `Artiact.MockService/` | In-memory/local-file substitute for a subset of the game API |
+| `Artiact.Tests/` | xUnit/Moq unit and flow tests |
+| `Artiact/cache/` | Repository JSON snapshots of maps, resources, items and monsters |
+| `docker-compose.yml` | Local Prometheus, Grafana and Zipkin only; it does not run Artiact |
+
+## Current product behavior
+
+Artiact starts a hosted worker automatically. It warms reference data, loads the configured character, repeatedly selects a goal, decomposes it into subgoals, builds executable steps and calls the game API. The current `GoalService` always returns `GatheringGoal(20)`; this is current implementation behavior, not a general-purpose scheduler.
+
+The `codex/looting-craft-wip` branch adds a bounded looting-aware craft path: one missing non-craftable mob drop may be planned, acquired through fights, and then consumed by a craft chain. See [Domain model](domain-model.md#looting-aware-crafting).
+
+## Authority and maintenance
+
+- Use code and tests as primary evidence for current behavior.
+- Use this directory for explanations and constraints, not speculative roadmap items.
+- Update the relevant document and local `AGENTS.md` whenever a change alters a public contract, runtime flow, command, configuration key or known limitation.
+- Never place API credentials or character secrets in tracked Markdown or `appsettings*.json`.
