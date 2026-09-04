@@ -29,7 +29,7 @@ public class GoalDecomposer : IGoalDecomposer
                 await DecomposeGatheringGoal( gatheringGoal, characterService );
                 break;
             case SpendResourcesGoal spendGoal:
-                await DecomposeSpendResourcesGoal( spendGoal );
+                await DecomposeSpendResourcesGoal( spendGoal, characterService );
                 break;
         }
     }
@@ -80,12 +80,12 @@ public class GoalDecomposer : IGoalDecomposer
     }
 
 
-    private async Task DecomposeSpendResourcesGoal( SpendResourcesGoal goal )
+    private async Task DecomposeSpendResourcesGoal( SpendResourcesGoal goal, ICharacterService characterService )
     {
         List<Item> craftResources =
             goal.Resources.Where( x => x.Method == SpendMethod.Craft ).Select( x => x.Item ).ToList();
         _logger.LogDebug( "Craft resources: {CraftResources}", JsonSerializer.Serialize( craftResources ) );
-        List<CraftTarget> targets = await _wearCraftTargetFinder.FindTargets( craftResources );
+        List<CraftTarget> targets = await _wearCraftTargetFinder.FindTargets( craftResources, characterService );
         foreach ( CraftTarget craftTarget in targets )
         {
             _logger.LogDebug( "Craft target: {CraftTarget}", JsonSerializer.Serialize( craftTarget ) );

@@ -5,5 +5,5 @@ namespace Artiact.Services;
 
 public interface IWearCraftTargetFinder
 {
-    Task<List<CraftTarget>> FindTargets( List<Item> items );
+    Task<List<CraftTarget>> FindTargets( List<Item> items, ICharacterService characterService );
 }
