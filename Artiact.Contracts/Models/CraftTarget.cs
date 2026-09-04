@@ -5,6 +5,6 @@ namespace Artiact.Contracts.Models;
 public class CraftTarget
 {
     public ItemDatum FinalItem { get; set; }
+    public LootPrerequisite? LootPrerequisite { get; set; }
     public List<CraftStep> Steps { get; set; } = new();
-    public List<LootTarget> LootTargets { get; set; } = new();
 }

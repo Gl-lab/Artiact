@@ -9,11 +9,11 @@ namespace Artiact.Tests.Services;
 public class WearCraftTargetFinderTests
 {
     private readonly Mock<ICraftChainBuilder> _chainBuilderMock;
+    private readonly Mock<ICharacterService> _characterServiceMock;
     private readonly WearCraftTargetFinder _finder;
     private readonly Mock<IGameClient> _gameClientMock;
     private readonly Mock<ICraftTargetEvaluator> _targetEvaluatorMock;
     private readonly Mock<ITargetLootingResolver> _targetLootingResolverMock;
-    private readonly Mock<ICharacterService> _characterServiceMock;
 
     public WearCraftTargetFinderTests()
     {
@@ -128,10 +128,11 @@ public class WearCraftTargetFinderTests
 
         _gameClientMock.Setup( x => x.GetItems() ).ReturnsAsync( allItems );
         _chainBuilderMock.Setup( x => x.TryCreateCraftChain(
-                              It.Is<ItemDatum>( i => i.Code == "copper_dagger" ),
-                              It.IsAny<Dictionary<string, int>>() ) )
-                         .ReturnsAsync( expectedCraftTarget );
-        _targetEvaluatorMock.Setup( x => x.SelectBestTarget( It.IsAny<List<CraftTarget>>() ) )
+                                              It.Is<ItemDatum>( i => i.Code == "copper_dagger" ),
+                                              It.IsAny<Dictionary<string, int>>() ) )
+                                         .ReturnsAsync( expectedCraftTarget );
+        _targetEvaluatorMock.Setup( x => x.SelectBestTarget( It.IsAny<List<CraftTarget>>(),
+                                      _characterServiceMock.Object ) )
                             .Returns( expectedCraftTarget );
 
         // Act
@@ -164,7 +165,8 @@ public class WearCraftTargetFinderTests
         _chainBuilderMock.Verify( x => x.TryCreateCraftChain(
             It.Is<ItemDatum>( i => i.Code == "copper_dagger" ),
             It.IsAny<Dictionary<string, int>>() ), Times.Once );
-        _targetEvaluatorMock.Verify( x => x.SelectBestTarget( It.IsAny<List<CraftTarget>>() ), Times.Once );
+        _targetEvaluatorMock.Verify( x => x.SelectBestTarget( It.IsAny<List<CraftTarget>>(),
+            _characterServiceMock.Object ), Times.Once );
     }
 
     [Fact]
@@ -267,10 +269,11 @@ public class WearCraftTargetFinderTests
 
         _gameClientMock.Setup( x => x.GetItems() ).ReturnsAsync( allItems );
         _chainBuilderMock.Setup( x => x.TryCreateCraftChain(
-                              It.Is<ItemDatum>( i => i.Code == "copper_dagger" ),
-                              It.IsAny<Dictionary<string, int>>() ) )
-                         .ReturnsAsync( expectedCraftTarget );
-        _targetEvaluatorMock.Setup( x => x.SelectBestTarget( It.IsAny<List<CraftTarget>>() ) )
+                                              It.Is<ItemDatum>( i => i.Code == "copper_dagger" ),
+                                              It.IsAny<Dictionary<string, int>>() ) )
+                                         .ReturnsAsync( expectedCraftTarget );
+        _targetEvaluatorMock.Setup( x => x.SelectBestTarget( It.IsAny<List<CraftTarget>>(),
+                                      _characterServiceMock.Object ) )
                             .Returns( expectedCraftTarget );
 
         // Act
@@ -303,6 +306,7 @@ public class WearCraftTargetFinderTests
         _chainBuilderMock.Verify( x => x.TryCreateCraftChain(
             It.Is<ItemDatum>( i => i.Code == "copper_dagger" ),
             It.IsAny<Dictionary<string, int>>() ), Times.Once );
-        _targetEvaluatorMock.Verify( x => x.SelectBestTarget( It.IsAny<List<CraftTarget>>() ), Times.Once );
+        _targetEvaluatorMock.Verify( x => x.SelectBestTarget( It.IsAny<List<CraftTarget>>(),
+            _characterServiceMock.Object ), Times.Once );
     }
 }

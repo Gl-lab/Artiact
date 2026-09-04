@@ -7,35 +7,46 @@ namespace Artiact.Services;
 public class TargetLootingResolver : ITargetLootingResolver
 {
     private readonly IGameClient _gameClient;
+    private readonly IMapService _mapService;
 
-    public TargetLootingResolver( IGameClient gameClient )
+    public TargetLootingResolver( IGameClient gameClient, IMapService mapService )
     {
         _gameClient = gameClient;
+        _mapService = mapService;
     }
 
-    public async Task<LootTarget?> FindTarget( ItemDatum craftComponent, int requiredQuantity,
-                                               ICharacterService characterService )
+    public async Task<LootPrerequisite?> Resolve( ItemDatum craftComponent,
+                                                  int requiredQuantity,
+                                                  ICharacterService characterService )
     {
-        if ( craftComponent.Subtype != "mob" || requiredQuantity <= 0 )
+        if ( craftComponent.Subtype != "mob" )
         {
             return null;
         }
 
-        int maximumMonsterLevel = characterService.GetCharacter().Level + 1;
-        MonsterDatum? monster = ( await _gameClient.GetMonsters() )
-            .Where( candidate => candidate.Level <= maximumMonsterLevel )
-            .Where( candidate => candidate.Drops.Any( drop => drop.Code == craftComponent.Code ) )
-            .OrderByDescending( candidate => candidate.Drops
-                .First( drop => drop.Code == craftComponent.Code ).Rate )
-            .FirstOrDefault();
+        Character character = characterService.GetCharacter();
+        List<MonsterDatum> allMonsters = await _gameClient.GetMonsters();
+        IEnumerable<MonsterDatum> candidates = allMonsters
+            .Where( monster => monster.Level <= character.Level + 1 )
+            .Where( monster => monster.Drops.Exists( drop => drop.Code == craftComponent.Code ) )
+            .OrderByDescending( monster => monster.Drops.Find( drop => drop.Code == craftComponent.Code )!.Rate );
 
-        return monster == null
-            ? null
-            : new LootTarget
+        foreach ( MonsterDatum monster in candidates )
+        {
+            MapPoint? point = await _mapService.GetByContentCode( new ContentCode( monster.Code ) );
+            if ( point != null )
             {
-                Monster = monster,
-                ItemCode = craftComponent.Code,
-                RequiredQuantity = requiredQuantity
-            };
+                return new LootPrerequisite
+                {
+                    MonsterCode = monster.Code,
+                    MonsterPoint = point,
+                    ItemCode = craftComponent.Code,
+                    RequiredQuantity = requiredQuantity
+                };
+            }
+        }
+
+        return null;
     }
+
 }

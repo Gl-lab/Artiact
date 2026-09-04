@@ -9,10 +9,9 @@ public class WearCraftTargetFinder : IWearCraftTargetFinder
     private readonly ICraftChainBuilder _chainBuilder;
     private readonly IGameClient _gameClient;
     private readonly ICraftTargetEvaluator _targetEvaluator;
-    private readonly HashSet<string> _wearableTypes;
-    private List<ItemDatum> _allItems;
     private readonly ITargetLootingResolver _targetLootingResolver;
-
+    private readonly HashSet<string> _wearableTypes;
+    private List<ItemDatum> _allItems = new();
 
     public WearCraftTargetFinder(
         IGameClient gameClient,
@@ -34,7 +33,6 @@ public class WearCraftTargetFinder : IWearCraftTargetFinder
     public async Task<List<CraftTarget>> FindTargets( List<Item> availableItems, ICharacterService characterService )
     {
         _allItems = await _gameClient.GetItems();
-
         return await FindOptimalTargets( availableItems, characterService );
     }
 
@@ -47,25 +45,24 @@ public class WearCraftTargetFinder : IWearCraftTargetFinder
         while ( true )
         {
             List<CraftTarget> possibleTargets = await FindPossibleTargets( remainingResources, characterService );
-
             if ( !possibleTargets.Any() )
             {
                 break;
             }
 
-            CraftTarget bestTarget = _targetEvaluator.SelectBestTarget( possibleTargets );
-            if ( bestTarget.LootTargets.Any() )
-            {
-                selectedTargets.Add( bestTarget );
-                break;
-            }
-
-            if ( !TryApplyTargetResources( bestTarget, remainingResources ) )
+            CraftTarget bestTarget = _targetEvaluator.SelectBestTarget( possibleTargets, characterService );
+            if ( !TryCalculateConsumption( bestTarget, remainingResources, out Dictionary<string, int> consumption ) )
             {
                 break;
             }
 
             selectedTargets.Add( bestTarget );
+            SubtractResources( remainingResources, consumption );
+
+            if ( consumption.Values.All( quantity => quantity == 0 ) )
+            {
+                break;
+            }
         }
 
         return selectedTargets;
@@ -78,59 +75,158 @@ public class WearCraftTargetFinder : IWearCraftTargetFinder
 
         foreach ( ItemDatum item in _allItems.Where( i => _wearableTypes.Contains( i.Type ) && i.Craft != null ) )
         {
-            List<LootTarget>? lootTargets = await ResolveLootTargets( item, availableResources, characterService );
-            if ( lootTargets != null )
+            ( Dictionary<string, int>? planningResources, LootPrerequisite? prerequisite ) =
+                await CreatePlanningResources( item, availableResources, characterService );
+            if ( planningResources == null )
             {
-                Dictionary<string, int> planningResources = new( availableResources );
-                foreach ( LootTarget lootTarget in lootTargets )
-                {
-                    planningResources[ lootTarget.ItemCode ] = lootTarget.RequiredQuantity;
-                }
+                continue;
+            }
 
-                CraftTarget? craftTarget = await _chainBuilder.TryCreateCraftChain( item, planningResources );
-                if ( craftTarget != null )
-                {
-                    craftTarget.LootTargets = lootTargets;
-                    targets.Add( craftTarget );
-                }
+            CraftTarget? craftTarget = await _chainBuilder.TryCreateCraftChain( item, planningResources );
+            if ( craftTarget != null )
+            {
+                craftTarget.LootPrerequisite = prerequisite;
+                targets.Add( craftTarget );
             }
         }
 
         return targets;
     }
 
-    private bool TryApplyTargetResources( CraftTarget target, Dictionary<string, int> resources )
+    private async Task<( Dictionary<string, int>?, LootPrerequisite? )> CreatePlanningResources(
+        ItemDatum targetItem,
+        Dictionary<string, int> availableResources,
+        ICharacterService characterService )
     {
-        Dictionary<string, int> resourcesCopy = new( resources );
-        foreach ( CraftStep step in target.Steps )
+        Dictionary<string, int> planningResources = new( availableResources );
+        Dictionary<string, int> missingLeaves = new();
+        if ( !TryCollectMissingLeaves( targetItem, 1, new Dictionary<string, int>( availableResources ),
+                missingLeaves, new HashSet<string>() ) )
         {
-            foreach ( Item item in step.RequiredItems )
-            {
-                if ( resourcesCopy.GetValueOrDefault( item.Code ) < item.Quantity )
-                {
-                    return false;
-                }
-
-                resourcesCopy[ item.Code ] -= item.Quantity;
-            }
-
-            int producedQuantity = step.Quantity * ( step.Item.Craft?.Quantity ?? 1 );
-            resourcesCopy[ step.Item.Code ] = resourcesCopy.GetValueOrDefault( step.Item.Code ) + producedQuantity;
+            return ( null, null );
         }
 
-        bool consumedInventory = resources.Any( resource =>
-            resourcesCopy.GetValueOrDefault( resource.Key ) < resource.Value );
-        if ( !consumedInventory )
+        if ( missingLeaves.Count == 0 )
+        {
+            return ( planningResources, null );
+        }
+
+        // The planner intentionally supports one distinct loot prerequisite per craft target.
+        if ( missingLeaves.Count != 1 )
+        {
+            return ( null, null );
+        }
+
+        KeyValuePair<string, int> missingLeaf = missingLeaves.Single();
+        ItemDatum? leafData = _allItems.FirstOrDefault( item => item.Code == missingLeaf.Key );
+        if ( leafData == null )
+        {
+            return ( null, null );
+        }
+
+        int requiredInventoryQuantity = availableResources.GetValueOrDefault( missingLeaf.Key ) + missingLeaf.Value;
+        LootPrerequisite? prerequisite = await _targetLootingResolver.Resolve(
+            leafData,
+            requiredInventoryQuantity,
+            characterService );
+        if ( prerequisite == null )
+        {
+            return ( null, null );
+        }
+
+        planningResources[ missingLeaf.Key ] = requiredInventoryQuantity;
+        return ( planningResources, prerequisite );
+    }
+
+    private bool TryCollectMissingLeaves( ItemDatum item,
+                                          int requiredQuantity,
+                                          Dictionary<string, int> stock,
+                                          Dictionary<string, int> missingLeaves,
+                                          HashSet<string> path )
+    {
+        if ( !path.Add( item.Code ) )
         {
             return false;
         }
 
-        foreach ( string code in resources.Keys.ToList() )
+        int fromStock = Math.Min( requiredQuantity, stock.GetValueOrDefault( item.Code ) );
+        stock[ item.Code ] = stock.GetValueOrDefault( item.Code ) - fromStock;
+        int remainingQuantity = requiredQuantity - fromStock;
+        if ( remainingQuantity == 0 )
         {
-            resources[ code ] = resourcesCopy.GetValueOrDefault( code );
+            path.Remove( item.Code );
+            return true;
         }
 
+        if ( item.Craft == null )
+        {
+            missingLeaves[ item.Code ] = missingLeaves.GetValueOrDefault( item.Code ) + remainingQuantity;
+            path.Remove( item.Code );
+            return true;
+        }
+
+        int craftsNeeded = ( remainingQuantity + item.Craft.Quantity - 1 ) / item.Craft.Quantity;
+        foreach ( Item requiredItem in item.Craft.Items )
+        {
+            ItemDatum? requiredItemData = _allItems.FirstOrDefault( candidate => candidate.Code == requiredItem.Code );
+            if ( requiredItemData == null ||
+                 !TryCollectMissingLeaves( requiredItemData, requiredItem.Quantity * craftsNeeded, stock,
+                     missingLeaves, path ) )
+            {
+                path.Remove( item.Code );
+                return false;
+            }
+        }
+
+        int surplus = craftsNeeded * item.Craft.Quantity - remainingQuantity;
+        stock[ item.Code ] = stock.GetValueOrDefault( item.Code ) + surplus;
+        path.Remove( item.Code );
         return true;
+    }
+
+    private bool TryCalculateConsumption( CraftTarget target,
+                                          Dictionary<string, int> resources,
+                                          out Dictionary<string, int> consumption )
+    {
+        Dictionary<string, int> stock = new( resources );
+        if ( target.LootPrerequisite != null )
+        {
+            stock[ target.LootPrerequisite.ItemCode ] = Math.Max(
+                stock.GetValueOrDefault( target.LootPrerequisite.ItemCode ),
+                target.LootPrerequisite.RequiredQuantity );
+        }
+
+        Dictionary<string, int> initialStock = new( stock );
+        foreach ( CraftStep step in target.Steps )
+        {
+            foreach ( Item requiredItem in step.RequiredItems )
+            {
+                if ( stock.GetValueOrDefault( requiredItem.Code ) < requiredItem.Quantity )
+                {
+                    consumption = new Dictionary<string, int>();
+                    return false;
+                }
+
+                stock[ requiredItem.Code ] -= requiredItem.Quantity;
+            }
+
+            int producedQuantity = step.Quantity * ( step.Item.Craft?.Quantity ?? 1 );
+            stock[ step.Item.Code ] = stock.GetValueOrDefault( step.Item.Code ) + producedQuantity;
+        }
+
+        consumption = resources.ToDictionary(
+            resource => resource.Key,
+            resource => Math.Min( resource.Value,
+                Math.Max( 0, initialStock.GetValueOrDefault( resource.Key ) - stock.GetValueOrDefault( resource.Key ) ) ) );
+        return true;
+    }
+
+    private void SubtractResources( Dictionary<string, int> resources, Dictionary<string, int> consumption )
+    {
+        foreach ( KeyValuePair<string, int> resource in consumption )
+        {
+            resources[ resource.Key ] -= resource.Value;
+        }
     }
 
     private Dictionary<string, int> CalculateAvailableResources( List<Item> items )
@@ -145,75 +241,4 @@ public class WearCraftTargetFinder : IWearCraftTargetFinder
         return resources;
     }
 
-    private async Task<List<LootTarget>?> ResolveLootTargets( ItemDatum targetItem,
-                                                              Dictionary<string, int> availableResources,
-                                                              ICharacterService characterService )
-    {
-        if ( targetItem.Craft == null )
-        {
-            return null;
-        }
-
-        List<LootTarget> lootTargets = new();
-        foreach ( Item craftComponent in targetItem.Craft.Items )
-        {
-            ItemDatum? informationAboutCraftComponent = _allItems.FirstOrDefault( i => i.Code == craftComponent.Code );
-            if ( informationAboutCraftComponent == null )
-            {
-                return null;
-            }
-
-            if ( !HasEnoughResources( craftComponent, availableResources ) &&
-                !CanCraftComponent( informationAboutCraftComponent, craftComponent, availableResources ) )
-            {
-                LootTarget? lootTarget = await _targetLootingResolver.FindTarget(
-                    informationAboutCraftComponent, craftComponent.Quantity, characterService );
-                if ( lootTarget == null )
-                {
-                    return null;
-                }
-
-                lootTargets.Add( lootTarget );
-            }
-        }
-
-        return lootTargets;
-    }
-
-    private bool HasEnoughResources( Item requiredItem, Dictionary<string, int> availableResources )
-    {
-        return availableResources.ContainsKey( requiredItem.Code ) &&
-            availableResources[ requiredItem.Code ] >= requiredItem.Quantity;
-    }
-
-    private bool CanCraftComponent( ItemDatum informationAboutCraftComponent,
-                                    Item craftComponent,
-                                    Dictionary<string, int> availableResources )
-    {
-        if ( informationAboutCraftComponent.Craft == null )
-        {
-            return false;
-        }
-
-        int existingQuantity = availableResources.ContainsKey( craftComponent.Code )
-            ? availableResources[ craftComponent.Code ]
-            : 0;
-
-        int remainingNeeded = craftComponent.Quantity - existingQuantity;
-        if ( remainingNeeded <= 0 )
-        {
-            return true;
-        }
-
-        foreach ( Item craftItem in informationAboutCraftComponent.Craft.Items )
-        {
-            if ( !availableResources.ContainsKey( craftItem.Code ) ||
-                availableResources[ craftItem.Code ] < craftItem.Quantity * remainingNeeded )
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
 }

@@ -7,6 +7,7 @@ namespace Artiact.Services;
 
 public class StepBuilder : IStepBuilder
 {
+    private const int MaxLootFightAttempts = 10;
     private readonly IGameClient _gameClient;
     private readonly IMapService _mapService;
 
@@ -124,88 +125,46 @@ public class StepBuilder : IStepBuilder
     private async Task<IStep> BuildCraftingSteps( GearCraftingGoal goal, ICharacterService characterService )
     {
         List<IStep> steps = new();
-        Character character = characterService.GetCharacter();
-        MapPoint plannedPosition = new() { X = character.X, Y = character.Y };
+        bool performsLooting = false;
 
-        foreach ( LootTarget lootTarget in goal.Item.LootTargets )
+        if ( goal.Item.LootPrerequisite != null )
         {
-            MapPoint? monsterPoint = await _mapService.GetByContentCode( new ContentCode( lootTarget.Monster.Code ) );
-            if ( monsterPoint == null )
-            {
-                throw new InvalidOperationException( $"Monster not found on map: {lootTarget.Monster.Code}" );
-            }
-
-            if ( plannedPosition.X != monsterPoint.X || plannedPosition.Y != monsterPoint.Y )
-            {
-                steps.Add( new MoveStep( monsterPoint, characterService ) );
-            }
-            plannedPosition = monsterPoint;
-
-            Func<ICharacterService, bool> needsLoot = service =>
-                service.GetCharacter().Inventory
-                       .Where( item => item.Code == lootTarget.ItemCode )
-                       .Sum( item => item.Quantity ) < lootTarget.RequiredQuantity;
-            steps.Add( new ActionStep( characterService, client => client.Fight(), needsLoot, needsLoot ) );
+            List<IStep> lootingSteps = BuildLootingSteps( goal.Item.LootPrerequisite, characterService );
+            performsLooting = true;
+            steps.AddRange( lootingSteps );
         }
 
-        // Группируем шаги крафта по мастерским
-        Dictionary<string, List<CraftStep>> stepsByWorkshop = new();
+        Character character = characterService.GetCharacter();
+        int plannedX = character.X;
+        int plannedY = character.Y;
+        bool isFirstCraft = true;
 
-        // Добавляем промежуточные шаги
         foreach ( CraftStep craftStep in goal.Item.Steps )
         {
             string skill = craftStep.Item.Craft.Skill;
-            if ( !stepsByWorkshop.ContainsKey( skill ) )
-            {
-                stepsByWorkshop[ skill ] = new List<CraftStep>();
-            }
-
-            stepsByWorkshop[ skill ].Add( craftStep );
-        }
-
-        // Старые CraftTarget могли не включать финальный предмет в Steps.
-        if ( goal.Item.Steps.All( step => step.Item.Code != goal.Item.FinalItem.Code ) )
-        {
-            string finalSkill = goal.Item.FinalItem.Craft.Skill;
-            if ( !stepsByWorkshop.ContainsKey( finalSkill ) )
-            {
-                stepsByWorkshop[ finalSkill ] = new List<CraftStep>();
-            }
-
-            stepsByWorkshop[ finalSkill ].Add( new CraftStep
-            {
-                Item = goal.Item.FinalItem,
-                RequiredItems = goal.Item.FinalItem.Craft.Items,
-                Quantity = 1
-            } );
-        }
-
-        // Обрабатываем каждую мастерскую
-        foreach ( KeyValuePair<string, List<CraftStep>> workshopGroup in stepsByWorkshop )
-        {
-            // Находим мастерскую для текущего навыка
-            MapPoint? workshop = await _mapService.GetWorkshopBySkillCode( new ContentCode( workshopGroup.Key ) );
+            MapPoint? workshop = await _mapService.GetWorkshopBySkillCode( new ContentCode( skill ) );
             if ( workshop == null )
             {
-                throw new InvalidOperationException( $"Workshop not found for skill {workshopGroup.Key}" );
+                throw new InvalidOperationException( $"Workshop not found for skill {skill}" );
             }
 
-            // Если персонаж не в мастерской, добавляем шаг перемещения
-            if ( plannedPosition.X != workshop.X || plannedPosition.Y != workshop.Y )
+            if ( performsLooting && isFirstCraft || plannedX != workshop.X || plannedY != workshop.Y )
             {
-                steps.Add( new MoveStep( workshop, characterService ) );
+                steps.Add( new ConditionalStep(
+                    new MoveStep( workshop, characterService ),
+                    service => !IsAt( service.GetCharacter(), workshop ),
+                    characterService ) );
             }
-            plannedPosition = workshop;
 
-            // Добавляем шаги крафта для текущей мастерской
-            foreach ( CraftStep craftStep in workshopGroup.Value )
+            plannedX = workshop.X;
+            plannedY = workshop.Y;
+            isFirstCraft = false;
+
+            steps.Add( new ActionStep( characterService, client => client.Crafting( new Item
             {
-                steps.Add( new ActionStep( characterService, client => client.Crafting( new Item
-                {
-                    Code = craftStep.Item.Code,
-                    Quantity = craftStep.Quantity
-                } ) ) );
-            }
+                Code = craftStep.Item.Code,
+                Quantity = craftStep.Quantity
+            } ) ) );
         }
 
         if ( steps.Count > 1 )
@@ -214,5 +173,41 @@ public class StepBuilder : IStepBuilder
         }
 
         return steps.First();
+    }
+
+    private List<IStep> BuildLootingSteps( LootPrerequisite prerequisite,
+                                           ICharacterService characterService )
+    {
+        MapPoint monsterPoint = prerequisite.MonsterPoint;
+        MixedStep looting = new( characterService );
+        looting.AddStep( new ConditionalStep(
+            new MoveStep( monsterPoint, characterService ),
+            service => !IsAt( service.GetCharacter(), monsterPoint ),
+            characterService ) );
+        looting.AddStep( new ActionStep(
+            characterService,
+            client => client.Fight(),
+            service => GetInventoryQuantity( service.GetCharacter(), prerequisite.ItemCode ) <
+                       prerequisite.RequiredQuantity,
+            maxAttempts: MaxLootFightAttempts ) );
+
+        return new List<IStep>
+        {
+            new ConditionalStep(
+                looting,
+                service => GetInventoryQuantity( service.GetCharacter(), prerequisite.ItemCode ) <
+                           prerequisite.RequiredQuantity,
+                characterService )
+        };
+    }
+
+    private static bool IsAt( Character character, MapPoint point )
+    {
+        return character.X == point.X && character.Y == point.Y;
+    }
+
+    private int GetInventoryQuantity( Character character, string itemCode )
+    {
+        return character.Inventory?.Where( item => item.Code == itemCode ).Sum( item => item.Quantity ) ?? 0;
     }
 }
