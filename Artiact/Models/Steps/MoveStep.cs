@@ -14,10 +14,11 @@ public class MoveStep : BaseStep, IStep
 
     public MapPoint Point { get; }
 
-    public async Task Execute( IGameClient client )
+    public async Task Execute( IGameClient client, CancellationToken cancellationToken )
     {
+        cancellationToken.ThrowIfCancellationRequested();
         ActionResponse actionResponse = await client.Move( Point );
-        await Delay( actionResponse.Data.Cooldown.TotalSeconds );
         CharacterService.SaveCharacter( actionResponse.Data.Character );
+        await Delay( actionResponse.Data.Cooldown.TotalSeconds, cancellationToken );
     }
 }

@@ -20,11 +20,12 @@ public class MixedStep : BaseStep, IStep
     public IReadOnlyList<IStep> Steps => _steps;
 
 
-    public async Task Execute( IGameClient client )
+    public async Task Execute( IGameClient client, CancellationToken cancellationToken )
     {
         foreach ( IStep step in _steps )
         {
-            await step.Execute( client );
+            cancellationToken.ThrowIfCancellationRequested();
+            await step.Execute( client, cancellationToken );
         }
     }
 

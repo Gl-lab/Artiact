@@ -37,11 +37,7 @@ public class GoalDecomposer : IGoalDecomposer
     private async Task DecomposeGatheringGoal( GatheringGoal gatheringGoal, ICharacterService characterService )
     {
         Character character = characterService.GetCharacter();
-        Activity? activity = _activitySource.StartActivity( "DecomposeGatheringGoal" );
-        if ( activity == null )
-        {
-            throw new Exception( "Listener not initialized" );
-        }
+        using Activity? activity = _activitySource.StartActivity( "DecomposeGatheringGoal" );
 
         // Проверяем текущее состояние инвентаря
         int currentInventorySpace = character.InventoryMaxItems;

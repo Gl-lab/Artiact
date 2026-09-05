@@ -53,6 +53,24 @@ dotnet user-secrets --project Artiact/Artiact.csproj set "ApiSettings:Character"
 
 Do not commit the substituted values.
 
+### Isolated read-only real API verification
+
+`Artiact.RealApiTests` is intentionally excluded from `Artiact.sln`. The default build and test commands never load the repository-root `.env` and never contact the real API.
+
+Run its parser, destination, redirect, allowlist and sanitization checks offline:
+
+```text
+dotnet test Artiact.RealApiTests/Artiact.RealApiTests.csproj --no-restore --filter Category=RealApiOffline
+```
+
+The live smoke is a separate explicit command. In Git Bash:
+
+```text
+ARTIACT_REAL_API_READONLY=1 dotnet test Artiact.RealApiTests/Artiact.RealApiTests.csproj --no-build --filter Category=RealApiLive
+```
+
+The live command reads the ignored root `.env` only after the exact opt-in guard passes. It accepts the `ApiSettings__*` keys or their documented `API_*` aliases, pins credentials to `https://api.artifactsmmo.com` with redirects disabled, performs only `POST /token` followed by GET requests for the character and one page each of maps, resources, items and monsters, and emits only status/count evidence. Any `/action/` request is prohibited. Running the normal `Artiact` host is not a read-only smoke test because its worker performs game actions.
+
 ## Running
 
 ### Against the real API
@@ -106,8 +124,12 @@ The current `Artiact/Dockerfile` does not have a working obvious build context f
 | `TargetLootingResolverTests` | Mob subtype, level policy, drop rate and reachable map selection |
 | `LootingCraftPlanningTests` | Missing mob leaves, nested recipes, resource accounting and fail-closed multiple leaves |
 | `StepBuilderTests` | Craft order, workshop movement, live loot predicates and ten-fight bound |
+| `ActionServiceTests` | Single-cycle orchestration, initialization cancellation and optional tracing |
+| `GoalDecomposerTests` | Gathering decomposition without a trace listener |
+| `ArtiactBackgroundServiceTests` | Worker repetition, recovery delay and normal cancellation |
+| `StepCancellationTests` | Pre-action cancellation, cooldown cancellation and authoritative-state reconciliation |
 
-There are 21 active facts. The suite is unit-focused; it has no controller, HTTP/authentication, hosted-service, configuration, telemetry, Docker or end-to-end coverage. Coverlet is installed as a collector, with no enforced threshold:
+There are 39 active default-suite tests. The separate `Artiact.RealApiTests` project adds offline configuration/HTTP-boundary tests and one explicit live smoke, but it is not part of the solution. The default suite remains unit-focused and has no controller, production HTTP/authentication, Docker or end-to-end coverage. Coverlet is installed as a collector, with no enforced threshold:
 
 ```text
 dotnet test Artiact.Tests/Artiact.Tests.csproj --no-restore --collect:"XPlat Code Coverage"

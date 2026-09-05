@@ -2,6 +2,6 @@
 
 public interface IActionService
 {
-    Task Initialize();
-    Task Action();
+    Task InitializeAsync( CancellationToken cancellationToken );
+    Task ExecuteCycleAsync( CancellationToken cancellationToken );
 }

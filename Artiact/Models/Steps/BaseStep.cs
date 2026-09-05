@@ -11,8 +11,8 @@ public abstract class BaseStep
         CharacterService = characterService;
     }
 
-    protected Task Delay( int seconds )
+    protected Task Delay( int seconds, CancellationToken cancellationToken )
     {
-        return Task.Delay( TimeSpan.FromSeconds( seconds ) );
+        return Task.Delay( TimeSpan.FromSeconds( seconds ), cancellationToken );
     }
 }

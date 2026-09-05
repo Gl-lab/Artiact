@@ -7,13 +7,16 @@ public class ArtiactBackgroundService : BackgroundService
 {
     private readonly ILogger<ArtiactBackgroundService> _logger;
     private readonly IServiceProvider _serviceProvider;
+    private readonly Func<TimeSpan, CancellationToken, Task> _recoveryDelay;
 
     public ArtiactBackgroundService(
         ILogger<ArtiactBackgroundService> logger,
-        IServiceProvider serviceProvider)
+        IServiceProvider serviceProvider,
+        Func<TimeSpan, CancellationToken, Task>? recoveryDelay = null)
     {
         _logger = logger;
         _serviceProvider = serviceProvider;
+        _recoveryDelay = recoveryDelay ?? Task.Delay;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -26,22 +29,30 @@ public class ArtiactBackgroundService : BackgroundService
             using var scope = _serviceProvider.CreateScope();
             var actionService = scope.ServiceProvider.GetRequiredService<IActionService>();
             
-            await actionService.Initialize();
+            await actionService.InitializeAsync(stoppingToken);
             _logger.LogInformation("Initialization completed");
             
             while (!stoppingToken.IsCancellationRequested)
             {
                 try
                 {
-                    await actionService.Action();
+                    await actionService.ExecuteCycleAsync(stoppingToken);
+                }
+                catch (Exception) when (stoppingToken.IsCancellationRequested)
+                {
+                    break;
                 }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Error during action execution");
                     // Ждем некоторое время перед следующей попыткой
-                    await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
+                    await _recoveryDelay(TimeSpan.FromSeconds(30), stoppingToken);
                 }
             }
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            _logger.LogInformation("Stopping Artiact background service");
         }
         catch (Exception ex)
         {

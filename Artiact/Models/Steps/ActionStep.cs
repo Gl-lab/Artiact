@@ -20,14 +20,15 @@ public class ActionStep : BaseStep, IStep
         _maxAttempts = maxAttempts;
     }
 
-    public async Task Execute( IGameClient client )
+    public async Task Execute( IGameClient client, CancellationToken cancellationToken )
     {
         int attempts = 0;
         do
         {
+            cancellationToken.ThrowIfCancellationRequested();
             ActionResponse actionResponse = await _action( client );
             CharacterService.SaveCharacter( actionResponse.Data.Character );
-            await Delay( actionResponse.Data.Cooldown.TotalSeconds );
+            await Delay( actionResponse.Data.Cooldown.TotalSeconds, cancellationToken );
             attempts++;
 
             if ( _needRepeat?.Invoke( CharacterService ) != true )

@@ -29,34 +29,30 @@ public class ActionService : IActionService
         _activitySource = activitySource;
     }
 
-    public async Task Initialize()
+    public async Task InitializeAsync( CancellationToken cancellationToken )
     {
+        cancellationToken.ThrowIfCancellationRequested();
         await _client.WarmUpCache();
+        cancellationToken.ThrowIfCancellationRequested();
         _characterService.SaveCharacter( await _client.GetCharacter() );
     }
 
-    public async Task Action()
+    public async Task ExecuteCycleAsync( CancellationToken cancellationToken )
     {
-        for ( int i = 0; i < 5; i++ )
+        cancellationToken.ThrowIfCancellationRequested();
+        using Activity? activity = _activitySource.StartActivity( "StartAction" );
+        activity?.AddTag( "characterName", _characterService.GetCharacter().Name );
+        try
         {
-            using Activity? activity = _activitySource.StartActivity( "StartAction" );
-            if ( activity == null )
-            {
-                throw new Exception( "Listener not initialized" );
-            }
-            activity.AddTag( "characterName", _characterService.GetCharacter().Name );
-            try
-            {
-                Goal goal = _goalService.GetGoal( _characterService );
-                await _goalDecomposer.DecomposeGoal( goal, _characterService );
-                IStep step = await _stepBuilder.BuildStep( goal, _characterService );
-                await step.Execute( _client );
-            }
-            catch ( Exception e )
-            {
-                activity.SetStatus( ActivityStatusCode.Error, e.Message );
-                throw;
-            }
+            Goal goal = _goalService.GetGoal( _characterService );
+            await _goalDecomposer.DecomposeGoal( goal, _characterService );
+            IStep step = await _stepBuilder.BuildStep( goal, _characterService );
+            await step.Execute( _client, cancellationToken );
+        }
+        catch ( Exception e )
+        {
+            activity?.SetStatus( ActivityStatusCode.Error, e.Message );
+            throw;
         }
     }
 }

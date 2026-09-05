@@ -10,10 +10,11 @@ public class GatheringStep : BaseStep, IStep
     {
     }
 
-    public async Task Execute( IGameClient client )
+    public async Task Execute( IGameClient client, CancellationToken cancellationToken )
     {
+        cancellationToken.ThrowIfCancellationRequested();
         ActionResponse actionResponse = await client.Gathering();
         CharacterService.SaveCharacter( actionResponse.Data.Character );
-        await Delay( actionResponse.Data.Cooldown.TotalSeconds );
+        await Delay( actionResponse.Data.Cooldown.TotalSeconds, cancellationToken );
     }
 }

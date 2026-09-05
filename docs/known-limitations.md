@@ -25,13 +25,13 @@ This list records behavior visible in the current source. It is not a roadmap an
 ## Runtime and resilience
 
 - The background service uses one DI scope for its full lifetime.
-- `ActionService.Action()` performs five actions per call, and the worker immediately starts another batch on success.
-- Worker cancellation is not propagated into API calls, retry delays or step cooldown delays.
+- The worker invokes one explicit orchestration cycle at a time, but an existing step graph can still contain several bounded or repeated game actions; this is not yet the later atomic-command state machine.
+- Cancellation reaches orchestration, worker recovery and step cooldown delays, but current `IGameClient` methods remain tokenless and cannot abort an already-started HTTP call. A successful in-flight action response is saved before cancellation prevents its cooldown wait, repeat or following child.
 - The action client retries operations that may be non-idempotent after network failures; the server may have completed an action before a retry.
 - Token retrieval does not throw on a non-success response at the point of authentication; the later request proceeds with the previous Basic header.
 - Cache freshness and location rely on local file timestamps and process working directory.
 - `/health` reports a static healthy payload and does not reflect worker/API/cache status.
-- `StartActivity()` returning `null` is treated as a fatal error, coupling action execution to an active trace listener.
+- Tracing is optional for action execution and gathering decomposition; a missing activity listener does not block game behavior.
 - Character state is loaded once and then refreshed only from action responses; unrelated external character changes are not polled.
 - Several mining and crafting paths assume non-empty lookup results and may throw through null dereferences, `Max`, or `First`.
 
@@ -50,7 +50,7 @@ This list records behavior visible in the current source. It is not a roadmap an
 - Prometheus runs in a container but scrapes `localhost:5000`, which points back into that container rather than to a host-run Artiact process. Port 5000 is also the documented mock-service port.
 - `Artiact/Dockerfile` has no dependable build context for the current multi-project layout: the repository root has no matching root project file, while an `Artiact/` context omits `Artiact.Contracts`.
 - No repository CI workflow was discovered.
-- Existing tests do not cover controllers, HTTP authentication/token refresh, retry behavior, cache filesystem behavior, hosted-service cancellation, configuration binding, telemetry, Docker or end-to-end execution.
+- Default tests now cover bounded orchestration, hosted-worker cancellation/recovery, optional tracing and step cancellation/reconciliation. They still do not cover controllers, production HTTP authentication/token refresh, retry behavior, cache filesystem behavior, Docker or end-to-end execution.
 
 ## Documentation maintenance
 

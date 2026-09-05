@@ -16,11 +16,12 @@ public class ConditionalStep : BaseStep, IStep
         _condition = condition;
     }
 
-    public async Task Execute( IGameClient client )
+    public async Task Execute( IGameClient client, CancellationToken cancellationToken )
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if ( _condition( CharacterService ) )
         {
-            await _step.Execute( client );
+            await _step.Execute( client, cancellationToken );
         }
     }
 }

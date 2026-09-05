@@ -4,5 +4,5 @@ namespace Artiact.Models.Steps;
 
 public interface IStep
 {
-    Task Execute( IGameClient client );
+    Task Execute( IGameClient client, CancellationToken cancellationToken );
 }

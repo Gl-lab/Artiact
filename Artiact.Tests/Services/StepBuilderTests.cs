@@ -151,7 +151,7 @@ public class StepBuilderTests
         IStep result = await _stepBuilder.BuildStep( new GearCraftingGoal( craftTarget ),
             _characterServiceMock.Object );
         await Assert.IsType<MixedStep>( Assert.Single( Assert.IsType<MixedStep>( result ).Steps ) )
-                    .Execute( client.Object );
+                    .Execute( client.Object, CancellationToken.None );
 
         Assert.Equal( new[]
         {
@@ -196,7 +196,7 @@ public class StepBuilderTests
         IStep result = await _stepBuilder.BuildStep( new GearCraftingGoal( craftTarget ),
             _characterServiceMock.Object );
         await Assert.IsType<MixedStep>( Assert.Single( Assert.IsType<MixedStep>( result ).Steps ) )
-                    .Execute( client.Object );
+                    .Execute( client.Object, CancellationToken.None );
 
         Assert.Equal( new[]
         {
@@ -269,7 +269,7 @@ public class StepBuilderTests
             _characterServiceMock.Object );
         MixedStep outerStep = Assert.IsType<MixedStep>( result );
         MixedStep craftingStep = Assert.IsType<MixedStep>( Assert.Single( outerStep.Steps ) );
-        await craftingStep.Execute( client.Object );
+        await craftingStep.Execute( client.Object, CancellationToken.None );
 
         Assert.Equal( new[]
         {
@@ -306,7 +306,7 @@ public class StepBuilderTests
         MixedStep craftingStep = Assert.IsType<MixedStep>( Assert.Single( Assert.IsType<MixedStep>( result ).Steps ) );
 
         InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => craftingStep.Execute( client.Object ) );
+            () => craftingStep.Execute( client.Object, CancellationToken.None ) );
 
         Assert.Contains( "10 attempts", exception.Message );
         client.Verify( x => x.Fight(), Times.Exactly( 10 ) );
@@ -343,7 +343,7 @@ public class StepBuilderTests
             _characterServiceMock.Object );
         currentCharacter = new Character { X = 3, Y = 3, Inventory = new List<Inventory>() };
         await Assert.IsType<MixedStep>( Assert.Single( Assert.IsType<MixedStep>( result ).Steps ) )
-                    .Execute( client.Object );
+                    .Execute( client.Object, CancellationToken.None );
 
         Assert.Equal( new[]
         {
@@ -381,7 +381,7 @@ public class StepBuilderTests
             _characterServiceMock.Object );
         currentCharacter = new Character { X = 2, Y = 2, Inventory = new List<Inventory>() };
         await Assert.IsType<MixedStep>( Assert.Single( Assert.IsType<MixedStep>( result ).Steps ) )
-                    .Execute( client.Object );
+                    .Execute( client.Object, CancellationToken.None );
 
         Assert.Equal( new[] { "fight", "move:3,3", "craft:wolf_sword" }, actions );
     }
@@ -407,7 +407,7 @@ public class StepBuilderTests
         currentCharacter.X = 3;
         currentCharacter.Y = 3;
         await Assert.IsType<MixedStep>( Assert.Single( Assert.IsType<MixedStep>( result ).Steps ) )
-                    .Execute( client.Object );
+                    .Execute( client.Object, CancellationToken.None );
 
         client.Verify( x => x.Move( It.IsAny<MapPoint>() ), Times.Never );
         client.Verify( x => x.Fight(), Times.Never );

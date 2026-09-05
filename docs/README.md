@@ -21,6 +21,7 @@ This directory is the source-grounded guide for developers and AI agents working
 | `Artiact.Contracts/` | Shared API DTOs, goals, craft models and `IGameClient` boundary |
 | `Artiact.MockService/` | In-memory/local-file substitute for a subset of the game API |
 | `Artiact.Tests/` | xUnit/Moq unit and flow tests |
+| `Artiact.RealApiTests/` | Explicit offline checks and opt-in read-only smoke against the official API; excluded from `Artiact.sln` |
 | `Artiact/cache/` | Repository JSON snapshots of maps, resources, items and monsters |
 | `docker-compose.yml` | Local Prometheus, Grafana and Zipkin only; it does not run Artiact |
 
@@ -28,7 +29,7 @@ This directory is the source-grounded guide for developers and AI agents working
 
 Artiact starts a hosted worker automatically. It warms reference data, loads the configured character, repeatedly selects a goal, decomposes it into subgoals, builds executable steps and calls the game API. The current `GoalService` always returns `GatheringGoal(20)`; this is current implementation behavior, not a general-purpose scheduler.
 
-The `codex/looting-craft-wip` branch adds a bounded looting-aware craft path: one missing non-craftable mob drop may be planned, acquired through fights, and then consumed by a craft chain. See [Domain model](domain-model.md#looting-aware-crafting).
+The bounded looting-aware craft path can plan one missing non-craftable mob drop, acquire it through fights, and then consume it through a craft chain. See [Domain model](domain-model.md#looting-aware-crafting).
 
 ## Authority and maintenance
 
