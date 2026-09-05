@@ -5,7 +5,7 @@ This project uses xUnit and Moq to specify planning and step behavior. Parent in
 ## Test rules
 
 - Name tests as behavior and expected result.
-- For behavior changes, run the new/changed test in RED before production edits.
+- For behavior changes, run the new/changed test before production edits and confirm a relevant RED failure. A compile or harness error is not evidence of the intended behavioral defect. If the test is already GREEN, record that result and reassess the need for a production change; never manufacture RED.
 - Test observable plans, API calls, execution order and resulting character state rather than private implementation details.
 - Use Moq only at external/service boundaries; keep domain calculation real where practical.
 - Cover bounded failure behavior for recursion, repeated actions and missing data.

@@ -67,8 +67,11 @@ Do not commit the substituted values.
 Run its parser, destination, redirect, allowlist and sanitization checks offline:
 
 ```text
+dotnet restore Artiact.RealApiTests/Artiact.RealApiTests.csproj
 dotnet test Artiact.RealApiTests/Artiact.RealApiTests.csproj --no-restore --filter Category=RealApiOffline
 ```
+
+The separate restore is necessary on a fresh checkout because solution restore excludes this project. Run these offline checks whenever its code or the shared DTOs it consumes change; do not run the project without a category filter.
 
 The live smoke is a separate explicit command. In Git Bash:
 
@@ -137,7 +140,7 @@ The current `Artiact/Dockerfile` does not have a working obvious build context f
 | `StepCancellationTests` | Pre-action cancellation, cooldown cancellation and authoritative-state reconciliation |
 | `Artiact.MockService.Tests` | Deterministic reset/catalog/character/move/gather behavior, replay, concurrency, route allowlist and real-client TestServer compatibility |
 
-There are 85 active solution tests: 39 application tests and 46 socket-free MockService tests. The separate `Artiact.RealApiTests` project adds 36 offline configuration/HTTP-boundary tests and one explicit live smoke, but it is not part of the solution. The default solution performs no production network access. Coverlet is installed as a collector, with no enforced threshold:
+The solution runs application tests and socket-free MockService tests. The separate `Artiact.RealApiTests` project contains offline configuration/HTTP-boundary checks and an explicit live smoke, but is not part of the solution. Record exact totals with the tested revision in change evidence; do not use a static test count as a completion gate. The default solution performs no production network access. Coverlet is installed as a collector, with no enforced threshold:
 
 ```text
 dotnet test Artiact.Tests/Artiact.Tests.csproj --no-restore --collect:"XPlat Code Coverage"
@@ -147,15 +150,42 @@ dotnet test Artiact.Tests/Artiact.Tests.csproj --no-restore --collect:"XPlat Cod
 
 1. Read the nearest `AGENTS.md`, the relevant document in this directory and [Official references](external-references.md) for compatibility or game-mechanics work.
 2. Confirm current behavior in code and tests; documentation is a guide, not a substitute for source inspection.
-3. Write or update a failing test before behavior changes.
+3. Define observable acceptance criteria and relevant failure cases before implementation. Run the new/changed behavior test before production edits; confirm that RED exposes the intended defect. If it is already GREEN, record that and reassess the change instead of manufacturing a failure.
 4. Keep changes within the owning project and update contracts/DI/callers together when signatures move.
 5. Run focused tests, then the full solution test command.
 6. Review `git diff` and `git status`; exclude secrets, cache refreshes, logs and `bin`/`obj` output.
 7. Update documentation when runtime flow, commands, config keys, public contracts or limitations change.
+
+### Scope and planning
+
+For a small fix, a short problem/acceptance/test note in the task or PR is enough. For a new capability, cross-project contract change, or risky execution change, use the existing `openspec/changes/<change>/` structure: proposal for scope and non-goals, design for decisions, specs for observable behavior, tasks for implementation and verification. Read the relevant artifacts before editing. Keep permanent behavior in `docs/`; avoid copying the entire specification into instructions.
+
+Choose independently testable slices, with code, tests and affected documentation together. Separate unrelated capabilities (for example, orchestration and a real-API verifier) when they can be delivered independently. Keep shared signature migrations atomic across callers. WIP checkpoints must be clearly marked and must not be treated as verified completion. Keep cache refreshes and local tooling configuration separate.
+
+### Review and completion evidence
+
+Review acceptance criteria, changed contracts and relevant failure paths before style. For craft planning, consider shared/nested ingredients and execution order; for actions, consider cancellation and authoritative response state; for mock changes, consider replay, non-mutation on rejection and real-client compatibility. Use independent expected values for contract tests, and avoid deriving the expected result from the same fixture or algorithm under test.
+
+Classify findings as reproducible blockers, missing acceptance coverage, or optional improvements. A blocker needs a concrete trigger and expected/actual behavior; test a reviewer's prediction before changing production code. Rerun affected checks after fixes and the solution gate on the final code. Reopen settled review only for a new defect, changed contract, or invalidated evidence; track unrelated improvements separately. An independent review, when requested, must identify the reviewed diff and must not be claimed when only self-review occurred.
+
+Record a compact result in the PR, final handoff, or an existing change's verification section:
+
+```text
+Scope and acceptance criteria: ...
+Tested base/revision and local diff: ...
+Commands and results: <exact command>, <passed/failed/skipped>, <relevant warnings>
+Review: <self/independent>, <reviewed revision or diff identity>, <blockers resolved/open>
+Not verified: <live/API/other scope and reason>
+Documentation and remaining tasks: ...
+```
+
+Do not equate `[verified]`, checked task boxes or a GREEN unit suite with live compatibility. Keep offline completion and external verification status distinct. Close or archive an OpenSpec change only when its required tasks are actually resolved; explain deferred work explicitly. Historical publication tasks are separate from implementation evidence. Use actual newlines in commit bodies.
+
+When behavior changes, search related prose, diagrams, root/nested `AGENTS.md` and limitations for old method names, deleted fixtures and removed configuration. Fix impacted statements in the same slice; add a new instruction only when it prevents a concrete recurring mistake.
 
 ## Repository hygiene
 
 - `bin/`, `obj/`, logs, IDE state, `.env`, certificates and package artifacts are ignored.
 - JSON reference-cache changes are data changes and should be reviewed separately from logic.
 - The `.hermes/` planning directory is locally excluded through `.git/info/exclude` in this checkout.
-- There is no discovered CI workflow in the repository; local verification is therefore the available gate unless one is added.
+- GitHub Actions workflow `.github/workflows/ci.yml` runs the solution build/tests and the separately restored `Category=RealApiOffline` boundary suite as independent credential-free jobs on pushes and pull requests to `master`. It does not start the main host or opt into live API tests.

@@ -97,7 +97,7 @@ The smoke test reports operation names, pass/fail, response status, and non-sens
 - [One step graph can still contain several bounded/repeated game actions] -> Do not use this cycle for real mutating smoke tests; the later atomic-command state machine remains the target architecture.
 - [Changing `IStep.Execute` touches many tests and implementations] -> Apply mechanical signature propagation only after RED tests define cancellation behavior; preserve all existing step semantics.
 - [Worker behavior can accidentally double-run or log normal shutdown as fatal] -> Characterize invocation counts and cancellation before modifying the worker.
-- [A separate real-test project can drift because it is not in the solution] -> Document and run its build/unit tests explicitly in its own verification command; CI inclusion requires a later decision and secret-capable environment.
+- [A separate real-test project can drift because it is not in the solution] -> Document and run its build/unit tests explicitly in its own verification command. Credential-free `Category=RealApiOffline` checks run in CI; the opt-in live smoke remains outside CI and requires a separately approved secret-capable environment.
 - [Official response schemas may have drifted] -> Deserialize only the selected response contracts and report incompatibility without dumping payloads; OpenAPI subset synchronization remains a separate epic.
 - [Real credentials could be sent through a redirect] -> Disable automatic redirects and pin the normalized destination before authentication.
 - [The host environment disables TLS validation globally for Node] -> The .NET verifier must never disable certificate validation; OpenSpec tooling uses cached offline execution with TLS validation explicitly enabled.

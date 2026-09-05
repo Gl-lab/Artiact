@@ -12,16 +12,22 @@ Start with [`docs/README.md`](docs/README.md). Use [`docs/external-references.md
 - `Artiact.Contracts/`: shared interface and data/domain contracts.
 - `Artiact.MockService/`: incomplete deterministic local API substitute.
 - `Artiact.Tests/`: xUnit/Moq tests.
+- `Artiact.MockService.Tests/`: socket-free deterministic scenario and real-client compatibility tests.
+- `Artiact.RealApiTests/`: separate offline boundary checks and opt-in live smoke; excluded from the solution.
 - `Artiact/cache/`: tracked reference-data snapshots; do not refresh incidentally.
 - `docker-compose.yml`: monitoring services only.
 
 ## Required workflow
 
+- Follow the proportional change and completion workflow in [`docs/development.md`](docs/development.md#change-workflow). Use existing OpenSpec artifacts for planned changes; small fixes do not need a new specification ceremony.
+- Before implementation, identify observable acceptance criteria, affected projects and relevant failure cases. Keep each reviewable slice buildable, with its behavior tests and documentation together.
 - Preserve the existing C# style and avoid unrelated formatting/refactors.
 - Use tests for behavior changes. Run focused tests first and `dotnet test Artiact.sln --no-restore` before completion.
 - When changing interfaces or constructors, update DI in `Artiact/Program.cs`, all callers and Moq setups.
 - Treat `Artiact.Contracts` changes as cross-project compatibility changes.
 - Keep JSON cache updates separate from logic changes.
+- Record exact verification commands, results, reviewed revision/diff and unverified scope in the change evidence or final handoff; `[verified]` alone is not evidence.
+- Check affected diagrams, nested instructions and known limitations against the final code. Store changing test totals in dated evidence rather than duplicating them across guides.
 - Do not add secrets, `.env`, logs, `bin/`, `obj/`, certificates or generated artifacts.
 - Do not run the main app merely to test compilation: its hosted worker starts game actions automatically.
 

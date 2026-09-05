@@ -10,6 +10,7 @@ This directory is the source-grounded guide for developers and AI agents working
 | [Domain model](domain-model.md) | Goals, steps, crafting, inventory and looting-aware planning |
 | [Mock service](mock-service.md) | Local game-API substitute, endpoints, data and gaps |
 | [Development](development.md) | Setup, configuration, commands, tests and safe change workflow |
+| [Development review, 2026-09-05](reviews/2026-09-05-development-process.md) | Evidence from September 4–5 commits and prioritized process improvements |
 | [Official references](external-references.md) | Game site, wiki/concepts, OpenAPI, Swagger, changelog and operational API guides |
 | [Known limitations](known-limitations.md) | Deliberate limits, incomplete paths and operational risks |
 
@@ -21,6 +22,7 @@ This directory is the source-grounded guide for developers and AI agents working
 | `Artiact.Contracts/` | Shared API DTOs, goals, craft models and `IGameClient` boundary |
 | `Artiact.MockService/` | In-memory/local-file substitute for a subset of the game API |
 | `Artiact.Tests/` | xUnit/Moq unit and flow tests |
+| `Artiact.MockService.Tests/` | Socket-free deterministic scenario and real-client compatibility tests |
 | `Artiact.RealApiTests/` | Explicit offline checks and opt-in read-only smoke against the official API; excluded from `Artiact.sln` |
 | `Artiact/cache/` | Repository JSON snapshots of maps, resources, items and monsters |
 | `docker-compose.yml` | Local Prometheus, Grafana and Zipkin only; it does not run Artiact |

@@ -55,7 +55,7 @@ Unit and flow-oriented tests using xUnit and Moq. Tests focus on craft-chain con
 4. Registers `ArtiactBackgroundService`.
 5. Maps `/metrics` and `/health`, then starts the web host.
 
-`ArtiactBackgroundService.ExecuteAsync` creates one dependency-injection scope for its lifetime. It calls `IActionService.Initialize()`, then continuously calls `Action()` until cancellation. An exception from one action batch is logged and delayed for 30 seconds before retry. Initialization failures are critical and terminate the hosted service.
+`ArtiactBackgroundService.ExecuteAsync` creates one dependency-injection scope for its lifetime. It calls `IActionService.InitializeAsync(stoppingToken)` once, then continuously calls `ExecuteCycleAsync(stoppingToken)` until cancellation. Each call selects and executes one top-level goal; its step graph may contain multiple actions. A cycle failure is logged and followed by a cancellable 30-second recovery delay. Shutdown cancellation exits normally; other initialization failures are critical and terminate the hosted service.
 
 > Running the main application is a side effect: the worker begins issuing game actions immediately after initialization.
 
@@ -70,19 +70,17 @@ sequenceDiagram
     participant S as StepBuilder
     participant C as IGameClient
 
-    B->>A: Initialize()
+    B->>A: InitializeAsync(stoppingToken)
     A->>C: WarmUpCache()
     A->>C: GetCharacter()
     loop continuous worker
-        B->>A: Action()
-        loop five actions per call
-            A->>G: GetGoal(character)
-            G-->>A: Goal
-            A->>D: DecomposeGoal(goal)
-            A->>S: BuildStep(goal)
-            S-->>A: IStep graph
-            A->>C: Execute step graph
-        end
+        B->>A: ExecuteCycleAsync(stoppingToken)
+        A->>G: GetGoal(character)
+        G-->>A: Goal
+        A->>D: DecomposeGoal(goal)
+        A->>S: BuildStep(goal)
+        S-->>A: IStep graph
+        A->>C: Execute step graph with cancellation checks
     end
 ```
 

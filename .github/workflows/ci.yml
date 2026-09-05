@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+jobs:
+  solution:
+    name: Solution build and tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore solution
+        run: dotnet restore Artiact.sln
+
+      - name: Build solution
+        run: dotnet build Artiact.sln --no-restore
+
+      - name: Test solution
+        run: dotnet test Artiact.sln --no-build --no-restore
+
+  real-api-offline:
+    name: Real API boundary tests (offline)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore offline test project
+        run: dotnet restore Artiact.RealApiTests/Artiact.RealApiTests.csproj
+
+      - name: Test offline API boundary
+        run: >-
+          dotnet test Artiact.RealApiTests/Artiact.RealApiTests.csproj
+          --no-restore
+          --filter Category=RealApiOffline

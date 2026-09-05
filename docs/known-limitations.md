@@ -37,7 +37,7 @@ This list records behavior visible in the current source. It is not a roadmap an
 
 ## Build and dependency baseline
 
-- The full test run passes 21 tests, but the solution currently builds with many nullable-initialization warnings in API DTOs and several warnings in `StepBuilder`.
+- The solution builds with many nullable-initialization warnings in API DTOs and several warnings in `StepBuilder`. Test totals belong in dated verification evidence, not in this limitations list.
 - `Program.cs` triggers ASP.NET analyzer warning `ASP0000` because it calls `BuildServiceProvider` while configuring the Zipkin exporter.
 - NuGet reports `NU1902` for `OpenTelemetry.Exporter.Zipkin` 1.12.0 and advisory `GHSA-88hf-wf7h-7w4m` (moderate severity).
 - These warnings predate this documentation and should not be hidden when evaluating future build output.
@@ -45,11 +45,11 @@ This list records behavior visible in the current source. It is not a roadmap an
 ## Mock and operations
 
 - `Artiact.MockService` is incomplete and cannot execute the looting-aware fight path.
-- Swagger and YARP packages/configuration are present but their middleware is not active.
+- The mock supports only the reset/load/move/gather `basic-mining` scenario; unsupported routes return a local 404. Legacy Swagger/YARP dependencies and configuration were removed in `8171c6e`.
 - Compose uses mutable image tags and development credentials; no production deployment definition is present.
 - Prometheus runs in a container but scrapes `localhost:5000`, which points back into that container rather than to a host-run Artiact process. Port 5000 is also the documented mock-service port.
 - `Artiact/Dockerfile` has no dependable build context for the current multi-project layout: the repository root has no matching root project file, while an `Artiact/` context omits `Artiact.Contracts`.
-- No repository CI workflow was discovered.
+- CI now runs the solution and the separate `Category=RealApiOffline` suite, but branch protection is not documented or enforced by this repository.
 - Default tests now cover bounded orchestration, hosted-worker cancellation/recovery, optional tracing and step cancellation/reconciliation. They still do not cover controllers, production HTTP authentication/token refresh, retry behavior, cache filesystem behavior, Docker or end-to-end execution.
 
 ## Documentation maintenance
