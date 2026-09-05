@@ -2,11 +2,13 @@
 
 ## Purpose
 
-`Artiact.MockService` is a standalone ASP.NET Core service that provides a deterministic local substitute for a small subset of the Artifacts MMO API. It supports development of character loading, movement, gathering and crafting without changing a real character.
+`Artiact.MockService` is a process-local deterministic strategy simulator for the smallest supported Artifacts MMO client slice:
 
-It is not a complete API emulator. The project name says `MockService`, while its root namespace and namespaces remain `Artiact.SmartProxy` from an earlier reverse-proxy design.
+`reset → load character/catalog → move → gather`
 
-## Running
+It is not a production proxy and not a complete MMO API emulator. It has no production URL, outbound HTTP client, credentials loader, persistent database, broker, real-time cooldown, random behavior, or production worker.
+
+## Running manually
 
 From the repository root:
 
@@ -14,63 +16,112 @@ From the repository root:
 dotnet run --project Artiact.MockService/Artiact.MockService.csproj --launch-profile http
 ```
 
-The `http` launch profile listens on `http://localhost:5000`, which matches `Artiact/appsettings.dev.json`. Set the main app environment to `Dev` for that file name to be loaded by `Program.cs`.
+The only manual listener is `http://localhost:5000`, configured with `ListenLocalhost(5000)`. There is no HTTPS or IIS Express profile and no environment-based non-loopback fallback.
 
-The mock host calls `UseHttpsRedirection`; verify requests are not redirected unexpectedly when using the HTTP-only profile.
+## Deterministic scenario
 
-## Implemented endpoints
+The only accepted scenario is `basic-mining`. Its content-root fixture is `Artiact.MockService/BasicMiningScenario.json`.
+
+1. `POST /__mock/reset` with exactly `{ "scenario": "basic-mining" }` atomically clears character state and trace, sets phase `Ready`, increments `generation`, and resets virtual time to `2000-01-01T00:00:00.0000000Z`.
+2. Load page 1 of maps, resources, items, and monsters.
+3. `GET /characters/MockHero` initializes the canonical character once. Matching is ordinal-ignore-case; responses retain `MockHero`.
+4. `POST /my/MockHero/action/move` with exactly `{ "x": 2, "y": 0 }` moves to Copper Rocks and advances virtual time by seven seconds.
+5. `POST /my/MockHero/action/gathering` advances virtual time by five seconds, adds 6 mining XP, and puts one `copper_ore` in inventory slot 1.
+
+Repeated reset of the same scenario reproduces the same normalized state and ordered trace. State transitions are serialized under one synchronization boundary.
+
+## Endpoints
 
 | Method and route | Behavior |
 |---|---|
-| `POST /token` | Returns a fixed placeholder token; it does not validate Basic credentials |
-| `GET /characters/{name}` | Loads matching character from `MockCharacters.json`; falls back to `NewCharacter`; seeds the in-memory cache under the requested name |
-| `POST /my/{name}/action/move` | Updates cached coordinates from `MoveRequest` |
-| `POST /my/{name}/action/gathering` | Applies a matching `gathering` scenario at the character's current coordinates |
-| `POST /my/{name}/action/crafting` | Applies a matching `crafting` scenario for coordinates and item code, multiplied by requested quantity |
+| `POST /token` | Returns fixed test token `mock-token`; supplied Basic credentials are ignored |
+| `POST /__mock/reset` | Explicitly selects and resets `basic-mining` |
+| `GET /__mock/state/{name}` | Returns scenario, generation, phase, virtual time, and deep character snapshot |
+| `GET /__mock/trace` | Returns immutable committed move/gather entries in sequence order |
+| `GET /characters/{name}` | Initializes once and returns the canonical character snapshot |
+| `GET /maps?page=1` | Returns Origin and Copper Rocks |
+| `GET /resources?page=1` | Returns the copper-rock resource definition |
+| `GET /items?page=1` | Returns the copper-ore item definition |
+| `GET /monsters?page=1` | Returns the normative empty monster page |
+| `POST /my/{name}/action/move` | Supports only `(2,0)` from phase `Ready` |
+| `POST /my/{name}/action/gathering` | Supports only the transition from `Moved` at `(2,0)` |
 
-Action responses contain the updated character and an empty `Cooldown` object.
+Every other route, including the former crafting route, returns HTTP 404 `application/problem+json` with top-level code `unsupported_route`.
 
-## Data and state
+## State and trace schemas
 
-- `MockCharacters.json` supplies initial character snapshots.
-- `MockData.json` supplies position/action/target scenarios and inventory or skill-XP changes.
-- `CharacterCache` is a singleton dictionary. State is process-local and lost on restart.
-- A character is not available to action endpoints until `GET /characters/{name}` has initialized it.
-- JSON files are loaded from the service content root or current working directory as implemented; run through `dotnet run --project` to preserve the expected layout.
+`GET /__mock/state/{name}` returns exactly:
 
-## Unsupported main-client actions
+| Field | Type | Meaning |
+|---|---|---|
+| `scenario` | string | Always `basic-mining` |
+| `generation` | integer | Starts at 0 before initialization and increments once for each successful reset; rejected resets do not increment it |
+| `phase` | string | One of `Ready`, `Moved`, or `Gathered` after reset (`Uninitialized` is internal and causes 409 rather than a state envelope) |
+| `virtual_time` | round-trip UTC string | Fixed epoch plus committed virtual action durations |
+| `character` | object | Deep snapshot using the existing `Character` DTO and fixture inventory order |
 
-The main `IGameClient` supports more operations than the mock service. These routes are currently absent:
+`GET /__mock/trace` returns a top-level array. Each entry contains exactly:
 
-- fight;
-- rest;
-- equip and unequip;
-- use item;
-- recycling;
-- delete item;
-- paginated maps, resources, items and monsters endpoints.
+| Field | Type / nullability | Move delta | Gathering delta |
+|---|---|---:|---:|
+| `sequence` | integer | 1 | 2 |
+| `generation` | integer | current generation | current generation |
+| `action` | string | `move` | `gathering` |
+| `character` | string | `MockHero` | `MockHero` |
+| `virtual_started_at` | round-trip UTC string | epoch | epoch + 7 s |
+| `virtual_completed_at` | round-trip UTC string | epoch + 7 s | epoch + 12 s |
+| `duration_seconds` | integer | 7 | 5 |
+| `from_x`, `from_y` | integers | `0`, `0` | `2`, `0` |
+| `to_x`, `to_y` | integers | `2`, `0` | `2`, `0` |
+| `mining_xp_delta` | integer | 0 | 6 |
+| `item_code` | nullable string | `null` | `copper_ore` |
+| `item_quantity_delta` | integer | 0 | 1 |
 
-Because `/action/fight` is absent, the looting-aware craft scenario cannot be exercised end-to-end against `MockService` without extending it. Reference data may still come from fresh JSON cache files; an expired/missing cache would make the main app request endpoints the mock does not implement.
+Reset atomically empties the trace. Character/catalog/state/trace reads do not append entries or advance virtual time. Returned state, catalog, character, and trace values are deep snapshots rather than mutable store references.
 
-## Known implementation caveats
+## Virtual cooldown divergence
 
-- Swagger services are registered, but Swagger middleware/endpoints are not enabled in `Program.cs`; the HTTPS launch profile's `swagger` launch URL is therefore misleading.
-- YARP is referenced by the project, but all reverse-proxy registration and mapping is commented out.
-- Exceptions are used for expected invalid states and are not mapped to stable game-compatible error responses.
-- Crafting rejects non-positive quantity with a generic exception.
-- Inventory removal can reduce an item below zero before removing it; availability validation is commented out.
-- The XP expressions use `changes.Xp.Difference ?? 0 * multiplier`; due operator precedence, a non-null XP difference is not multiplied for multi-item crafting.
-- `CharacterExtension` level rollover subtracts the threshold from the incoming XP difference instead of accumulated XP and handles only one level, so existing XP can be lost or become negative.
-- Character cache keys are case-sensitive, mutable and unsynchronized. A repeated character GET reloads the fixture and overwrites accumulated mock state.
-- `MockData.json` uses a relative process-working-directory path, unlike `MockCharacters.json`, which uses `ContentRootPath`.
-- The fixed token is test data only and must never be treated as authentication evidence.
+Action responses keep the production `ActionResponse` DTO shape but cooldown completion is logical rather than wall-clock based:
 
-## Safe extension checklist
+- move: `total_seconds=7`;
+- gather: `total_seconds=5`;
+- both: `remaining_seconds=0`, reason `mock_virtual_elapsed`;
+- timestamps come from the fixed virtual clock;
+- no `Task.Delay`, timer, sleep, random source, `DateTime.Now`, or `DateTime.UtcNow` is used.
 
-When adding a mock endpoint:
+The embedded `Character.cooldown` and `Character.cooldown_expiration` remain the fixture values; the action-level cooldown records the virtual transition.
 
-1. Match the route, request DTO and response DTO used by `GameClient`.
-2. Apply state changes through `ICharacterCache`.
-3. Add controller/service tests or an integration test before relying on it for a main-app smoke test.
-4. Keep behavior deterministic; encode scenarios in mock data rather than calling the real API.
-5. Document any deliberate difference from the real API.
+## Stable local errors
+
+Expected failures use HTTP `application/problem+json` with a top-level `code`. Codes include:
+
+- `invalid_reset_request` (400);
+- `scenario_not_found` (404);
+- `scenario_not_initialized` (409);
+- `character_not_found` (404);
+- `character_not_initialized` (409);
+- `invalid_page` (400);
+- `invalid_move_request` (400);
+- `destination_not_found` (422);
+- `gathering_not_available` (422);
+- `invalid_transition` (409);
+- `unsupported_route` (404).
+
+Rejected operations do not alter generation, character state, virtual time, or trace.
+
+## Test boundary
+
+`Artiact.MockService.Tests` uses `WebApplicationFactory`/`TestServer`. The factory clears ambient configuration and adds only explicit in-memory test settings. Compatibility construction accepts only exact authority `http://localhost`; requests are recorded and delivered through the TestServer handler, so no TCP socket is opened.
+
+The real `GameHttpClient` and `GameClient` are exercised with sentinel credentials and an in-memory `ICacheService`. The second `WarmUpCache()` performs no catalog HTTP requests and no tracked `Artiact/cache` file is used.
+
+Run:
+
+```text
+dotnet test Artiact.MockService.Tests/Artiact.MockService.Tests.csproj --no-restore
+dotnet test Artiact.sln --no-restore
+```
+
+## Deliberate non-goals
+
+Unsupported: combat, rest, crafting, equipment, item use, recycling, deletion, bank, tasks, marketplace, multi-character simulation, real authentication, production networking, persistence, full economy/world simulation, and scheduler-independent ordering for overlapping requests.

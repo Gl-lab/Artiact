@@ -1,6 +1,4 @@
-using System.Text.Json;
 using Artiact.Contracts.Models.Api;
-using Artiact.SmartProxy.Models;
 using Artiact.SmartProxy.Services;
 using Microsoft.AspNetCore.Mvc;
 
@@ -8,37 +6,23 @@ namespace Artiact.SmartProxy.Controllers;
 
 [ApiController]
 [Route( "characters" )]
-public class CharactersController : ControllerBase
+public sealed class CharactersController( IMockScenarioStore store ) : ControllerBase
 {
-    private readonly ICharacterCache _characterCache;
-    private readonly IWebHostEnvironment _environment;
-
-    public CharactersController( ICharacterCache characterCache, IWebHostEnvironment environment )
-    {
-        _characterCache = characterCache;
-        _environment = environment;
-    }
-
     [HttpGet( "{name}" )]
     public ActionResult<CharacterResponse> GetCharacter( string name )
     {
-        string jsonPath = Path.Combine( _environment.ContentRootPath, "MockCharacters.json" );
-        string jsonContent = System.IO.File.ReadAllText( jsonPath );
-        List<CharacterExtension>? characters = JsonSerializer.Deserialize<List<CharacterExtension>>( jsonContent );
-
-        CharacterExtension? character =
-            characters.FirstOrDefault( c => c.Name.Equals( name, StringComparison.OrdinalIgnoreCase ) )
-         ?? characters.FirstOrDefault( c => c.Name.Equals( "NewCharacter", StringComparison.OrdinalIgnoreCase ) );
-
-        if ( character == null )
+        var result = store.GetCharacter( name );
+        if ( result.Value == null )
         {
-            return NotFound();
+            ProblemDetails details = new() { Status = result.Status };
+            details.Extensions[ "code" ] = result.Code;
+            return new ObjectResult( details )
+            {
+                StatusCode = result.Status,
+                ContentTypes = { "application/problem+json" }
+            };
         }
 
-        _characterCache.UpdateCharacter( name, character );
-        return new CharacterResponse
-        {
-            Data = character
-        };
+        return Ok( new CharacterResponse { Data = result.Value } );
     }
 }

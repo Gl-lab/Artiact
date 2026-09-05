@@ -26,6 +26,13 @@ dotnet test Artiact.Tests/Artiact.Tests.csproj --no-restore --filter FullyQualif
 dotnet test Artiact.Tests/Artiact.Tests.csproj --no-restore --filter FullyQualifiedName~CraftChainBuilderTests
 ```
 
+Deterministic MockService checks (socket-free `TestServer`; no credentials or production API):
+
+```text
+dotnet test Artiact.MockService.Tests/Artiact.MockService.Tests.csproj --no-restore
+dotnet test Artiact.MockService.Tests/Artiact.MockService.Tests.csproj --no-restore --filter FullyQualifiedName~GameClientCompatibilityTests
+```
+
 ## Configuration
 
 `Artiact/Program.cs` loads configuration from the build output directory in this order:
@@ -94,7 +101,7 @@ set ASPNETCORE_ENVIRONMENT=Dev
 dotnet run --project Artiact/Artiact.csproj
 ```
 
-On Bash/Git Bash, use `export ASPNETCORE_ENVIRONMENT=Dev` instead of `set`. The mock currently lacks several endpoints required by startup or looting; read [Mock service](mock-service.md) before treating this as an end-to-end check.
+On Bash/Git Bash, use `export ASPNETCORE_ENVIRONMENT=Dev` instead of `set`. The mock implements only the deterministic `basic-mining` slice. The autonomous worker can still select an unsupported goal/action, so use the TestServer compatibility suite rather than starting the main host as a general smoke test. See [Mock service](mock-service.md).
 
 ### Monitoring
 
@@ -128,8 +135,9 @@ The current `Artiact/Dockerfile` does not have a working obvious build context f
 | `GoalDecomposerTests` | Gathering decomposition without a trace listener |
 | `ArtiactBackgroundServiceTests` | Worker repetition, recovery delay and normal cancellation |
 | `StepCancellationTests` | Pre-action cancellation, cooldown cancellation and authoritative-state reconciliation |
+| `Artiact.MockService.Tests` | Deterministic reset/catalog/character/move/gather behavior, replay, concurrency, route allowlist and real-client TestServer compatibility |
 
-There are 39 active default-suite tests. The separate `Artiact.RealApiTests` project adds offline configuration/HTTP-boundary tests and one explicit live smoke, but it is not part of the solution. The default suite remains unit-focused and has no controller, production HTTP/authentication, Docker or end-to-end coverage. Coverlet is installed as a collector, with no enforced threshold:
+There are 85 active solution tests: 39 application tests and 46 socket-free MockService tests. The separate `Artiact.RealApiTests` project adds 36 offline configuration/HTTP-boundary tests and one explicit live smoke, but it is not part of the solution. The default solution performs no production network access. Coverlet is installed as a collector, with no enforced threshold:
 
 ```text
 dotnet test Artiact.Tests/Artiact.Tests.csproj --no-restore --collect:"XPlat Code Coverage"

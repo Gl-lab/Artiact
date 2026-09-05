@@ -12,7 +12,7 @@ public class TokenController
     {
         return new TokenContainer
         {
-            Token = "dsdsad"
+            Token = "mock-token"
         };
     }
 }
