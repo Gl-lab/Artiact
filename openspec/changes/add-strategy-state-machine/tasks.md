@@ -8,4 +8,4 @@
 - [x] 3.2 Deterministic complete HTTP acceptance and replay; preserve legacy regression suites.
 ## 4. Completion
 - [x] 4.1 Independent final diff review, resolve blockers, broad gates and docs/evidence.
-- [ ] 4.2 Commit/push Epic 7 and start Epic 8 specification.
+- [x] 4.2 Commit/push Epic 7 and start Epic 8 specification.
