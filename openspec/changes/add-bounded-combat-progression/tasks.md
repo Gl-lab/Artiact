@@ -26,4 +26,4 @@
 
 - [x] 5.1 Review final implementation against every acceptance scenario; resolve blockers and rerun affected gates.
 - [x] 5.2 Record exact commands, revisions, diff review, warnings and unverified live scope; validate all specs and update roadmap evidence.
-- [ ] 5.3 Commit/push completed epic; begin Epic 7 specification.
+- [x] 5.3 Commit/push completed epic; begin Epic 7 specification.

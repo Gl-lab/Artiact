@@ -70,4 +70,4 @@ Final commands:
 - `git diff --check`: passed.
 
 Independent re-review against `3d300c5` confirmed every reported blocker resolved and found no remaining concrete Epic 6 acceptance blocker. Reviewer independently reran the 4 boundary and 27 CombatProgressionFlowTests. Reviewed blobs: CombatRun `fa6665f`, CombatSessionFactory `0019770`, WearCraftTargetFinder `5be90a3`, boundary tests `a605cd0`, flow tests `fd611bd`. Parent owns broad gates and documentation. Existing NU1902 warning remains for Epic 8 remediation. Live compatibility, production combat safety and optional systems remain unverified; ADR live no-go still applies. User tooling edit `.serena/project.yml` excluded.
-`nFinal `npx -y @fission-ai/openspec@1.12.0 validate --all --strict`: 9 passed, zero failed; existing long-requirement notices and environment TLS warning.
+Final `npx -y @fission-ai/openspec@1.12.0 validate --all --strict`: 9 passed, zero failed; existing long-requirement notices and environment TLS warning.
