@@ -2,15 +2,16 @@ namespace Artiact.Services.Combat;
 
 public sealed record CombatLevelGoal(int TargetLevel);
 public sealed record CombatLimits(int Decisions = 20, int Fights = 4, int Rests = 2, int NoProgress = 3);
-public enum CombatCommand { Move, Fight, Rest, Unequip, Equip }
+public enum CombatCommand { Move, Fight, Rest, Unequip, Equip, Craft }
 public enum CombatStatus { Selected, Completed, Blocked }
 public enum CombatReason
 {
     CommandSelected, TargetReached, InvalidTarget, InvalidLimits, InvalidState, InventoryPressure,
     NoProgress, DecisionLimit, FightLimit, RestLimit, UnsupportedAccess, UnknownCombat, UnsafeCombat,
-    EquipmentUnavailable, InvalidPostcondition, RecoveryNoProgress, Defeat, Rejected, UnknownOutcome, Cancelled
+    EquipmentUnavailable, CraftUnavailable, InvalidPostcondition, RecoveryNoProgress, Defeat, Rejected, UnknownOutcome, Cancelled
 }
-public sealed record CombatDestination(int MapId, string Layer, string MonsterCode, CombatStats Monster, bool Accessible);
+public sealed record CombatDestination(int MapId, string Layer, string MonsterCode, CombatStats Monster, bool Accessible,
+    CombatCraftCommand? CraftCommand = null);
 public sealed record CombatGear(string Code, CombatStats ProjectedStats, bool ConditionsMet = true);
 public sealed record CombatReply(CombatObservation? State, int Cooldown, bool Defeat = false, bool ContractValid = true);
 public sealed record CombatDecision(CombatStatus Status, CombatReason Reason, CombatCommand? Command,
@@ -23,13 +24,15 @@ public interface ICombatActionPort
 }
 
 public sealed class CombatRun(CombatLevelGoal goal, CombatObservation? initial, CombatDestination destination,
-    ICombatActionPort port, IMiningCooldownDelay cooldown, CombatLimits? limits = null, CombatGear? gear = null)
+    ICombatActionPort port, IMiningCooldownDelay cooldown, CombatLimits? limits = null, CombatGear? gear = null,
+    CombatCraftPlan? craftPlan = null)
 {
     private readonly CombatLimits _limits = limits ?? new();
     private readonly SemaphoreSlim _cycle = new(1, 1);
     private int _decisions, _fights, _rests, _noProgress;
     private long _seconds;
     private CombatDecision? _terminal;
+    private int _craftIndex;
     public CombatObservation? State { get; private set; } = initial;
     public async Task<CombatDecision> ExecuteCycleAsync(CancellationToken cancellationToken = default)
     {
@@ -50,8 +53,12 @@ public sealed class CombatRun(CombatLevelGoal goal, CombatObservation? initial, 
         var state = State!;
         if (state.Level >= goal.TargetLevel)
             return _terminal = Decision(CombatStatus.Completed, CombatReason.TargetReached);
-        bool canFinishSwap = gear is not null && state.Weapon.Length == 0 && state.Inventory.GetValueOrDefault(gear.Code) > 0;
-        if (state.FreeUnits < 1 && !canFinishSwap) return Stop(CombatReason.InventoryPressure);
+        var activeGear = craftPlan is not null && _craftIndex == craftPlan.Steps.Length ? craftPlan.Gear : gear;
+        bool canFinishSwap = activeGear is not null && state.Weapon.Length == 0 && state.Inventory.GetValueOrDefault(activeGear.Code) > 0;
+        bool canConsumeForCraft = craftPlan is not null && _craftIndex < craftPlan.Steps.Length &&
+            craftPlan.Steps[_craftIndex].Required.Count > 0 && craftPlan.Steps[_craftIndex].Required.All(x =>
+                x.Value > 0 && state.Inventory.GetValueOrDefault(x.Key) >= x.Value);
+        if (state.FreeUnits < 1 && !canFinishSwap && !canConsumeForCraft) return Stop(CombatReason.InventoryPressure);
         if (_noProgress >= _limits.NoProgress) return Stop(CombatReason.NoProgress);
         if (_decisions >= _limits.Decisions) return Stop(CombatReason.DecisionLimit);
         if (!destination.Accessible || destination.MapId <= 0 || destination.Layer != state.Layer ||
@@ -60,10 +67,32 @@ public sealed class CombatRun(CombatLevelGoal goal, CombatObservation? initial, 
         if (baseline.Viability == CombatViability.Unknown) return Stop(CombatReason.UnknownCombat);
 
         CombatCommand command;
-        if (gear is not null && state.Weapon != gear.Code)
+        var dispatchDestination = destination;
+        CombatCraftCommand? craft = null;
+        if (craftPlan is not null && _craftIndex < craftPlan.Steps.Length)
         {
-            var candidate = CombatPrediction.Evaluate(gear.ProjectedStats with { Hp = state.MaxHp }, destination.Monster);
-            if (!gear.ConditionsMet || !state.Inventory.TryGetValue(gear.Code, out int owned) || owned < 1 ||
+            craft = craftPlan.Steps[_craftIndex];
+            if (craft.Quantity <= 0 || craft.OutputQuantity <= 0 || craft.WorkshopMapId <= 0 || craft.Layer != state.Layer ||
+                craft.Required.Count == 0 || craft.Required.Any(x => x.Value <= 0)) return Stop(CombatReason.CraftUnavailable);
+            var missing = craft.Required.Where(x => state.Inventory.GetValueOrDefault(x.Key) < x.Value).ToArray();
+            if (missing.Any(x => x.Key != craftPlan.LootCode)) return Stop(CombatReason.CraftUnavailable);
+            if (missing.Length == 0)
+            {
+                if (state.FreeUnits + craft.Required.Values.Sum(x => (long)x) < craft.OutputQuantity)
+                    return Stop(CombatReason.InventoryPressure);
+                dispatchDestination = destination with { MapId = craft.WorkshopMapId, CraftCommand = craft };
+                command = state.MapId == craft.WorkshopMapId ? CombatCommand.Craft : CombatCommand.Move;
+            }
+            else
+            {
+                if (baseline.Viability != CombatViability.Safe) return Stop(CombatReason.UnsafeCombat);
+                command = state.Stats.Hp < state.MaxHp ? CombatCommand.Rest : state.MapId != destination.MapId ? CombatCommand.Move : CombatCommand.Fight;
+            }
+        }
+        else if (activeGear is not null && state.Weapon != activeGear.Code)
+        {
+            var candidate = CombatPrediction.Evaluate(activeGear.ProjectedStats with { Hp = state.MaxHp }, destination.Monster);
+            if (!activeGear.ConditionsMet || !state.Inventory.TryGetValue(activeGear.Code, out int owned) || owned < 1 ||
                 candidate.Viability != CombatViability.Safe ||
                 baseline.Viability == CombatViability.Safe && candidate.MaximumLoss >= baseline.MaximumLoss)
                 return Stop(CombatReason.EquipmentUnavailable);
@@ -82,7 +111,7 @@ public sealed class CombatRun(CombatLevelGoal goal, CombatObservation? initial, 
         if (command == CombatCommand.Rest) _rests++;
         _noProgress++;
         CombatReply reply;
-        try { reply = await port.DispatchAsync(command, destination, gear?.Code, cancellationToken); }
+        try { reply = await port.DispatchAsync(command, dispatchDestination, activeGear?.Code, cancellationToken); }
         catch (Artiact.Contracts.Client.ActionFailureException ex)
         {
             return Stop(ex.Kind == Artiact.Contracts.Client.ActionFailureKind.Rejected ? CombatReason.Rejected :
@@ -98,11 +127,27 @@ public sealed class CombatRun(CombatLevelGoal goal, CombatObservation? initial, 
         if (command == CombatCommand.Fight && (after.Level > state.Level || after.Level == state.Level && after.Xp > state.Xp))
             _noProgress = 0;
         if (after.Name != state.Name || after.Layer != state.Layer) return Stop(CombatReason.InvalidPostcondition);
-        if (command == CombatCommand.Move && after.MapId != destination.MapId ||
+        if (command == CombatCommand.Move && after.MapId != dispatchDestination.MapId ||
             command != CombatCommand.Move && after.MapId != state.MapId) return Stop(CombatReason.InvalidPostcondition);
         if (command == CombatCommand.Rest && after.Stats.Hp <= state.Stats.Hp) return Stop(CombatReason.RecoveryNoProgress);
-        if (command is CombatCommand.Equip or CombatCommand.Unequip && !ValidEquipment(state, after, command))
+        if (command is CombatCommand.Equip or CombatCommand.Unequip && !ValidEquipment(state, after, command, activeGear!))
             return Stop(CombatReason.InvalidPostcondition);
+        if (command == CombatCommand.Craft)
+        {
+            var expected = state.Inventory.ToBuilder();
+            foreach (var ingredient in craft!.Required)
+            {
+                int remaining = expected.GetValueOrDefault(ingredient.Key) - ingredient.Value;
+                if (remaining < 0) return Stop(CombatReason.InvalidPostcondition);
+                if (remaining == 0) expected.Remove(ingredient.Key); else expected[ingredient.Key] = remaining;
+            }
+            long output = (long)expected.GetValueOrDefault(craft.Code) + craft.OutputQuantity;
+            if (output > int.MaxValue) return Stop(CombatReason.InvalidPostcondition);
+            expected[craft.Code] = (int)output;
+            if (after.Weapon != state.Weapon || expected.Count != after.Inventory.Count ||
+                expected.Any(x => after.Inventory.GetValueOrDefault(x.Key) != x.Value)) return Stop(CombatReason.InvalidPostcondition);
+            _craftIndex++;
+        }
         if (cancellationToken.IsCancellationRequested) return Stop(CombatReason.Cancelled);
         try { await cooldown.WaitAsync(reply.Cooldown, cancellationToken); }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { return Stop(CombatReason.Cancelled); }
@@ -111,9 +156,9 @@ public sealed class CombatRun(CombatLevelGoal goal, CombatObservation? initial, 
         return Decision(CombatStatus.Selected, CombatReason.CommandSelected, command);
     }
 
-    private bool ValidEquipment(CombatObservation before, CombatObservation after, CombatCommand command)
+    private bool ValidEquipment(CombatObservation before, CombatObservation after, CombatCommand command, CombatGear activeGear)
     {
-        string code = command == CombatCommand.Unequip ? before.Weapon : gear!.Code;
+        string code = command == CombatCommand.Unequip ? before.Weapon : activeGear.Code;
         if (after.Weapon != (command == CombatCommand.Unequip ? "" : code)) return false;
         int quantity = before.Inventory.GetValueOrDefault(code) + (command == CombatCommand.Unequip ? 1 : -1);
         var expected = quantity == 0 ? before.Inventory.Remove(code) : before.Inventory.SetItem(code, quantity);

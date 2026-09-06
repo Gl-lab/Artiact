@@ -6,6 +6,21 @@ namespace Artiact.Services.Combat;
 public sealed class CombatSessionFactory(GameClient client, CombatCatalog catalog,
     ICharacterService characters, IMiningCooldownDelay cooldown)
 {
+    public async Task<CombatRun> CreateCraftingAsync(CombatLevelGoal goal, string monsterCode, string targetCode,
+        CombatLimits limits, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        characters.SaveCharacter(await client.GetCharacter());
+        var state = client.LastCharacterPayload is { } raw ? CombatObservation.Read(raw) : null;
+        if (state is null || goal.TargetLevel <= state.Level)
+            return new(goal, state, new(0, "", monsterCode, new(1, 0), false), new CombatActionPort(client, characters), cooldown, limits);
+        var world = state is null ? (Destination: (CombatDestination?)null, Gear: (CombatGear?)null)
+            : await catalog.ResolveAsync(state, monsterCode, cancellationToken);
+        var plan = state is null || world.Destination is null ? null :
+            await new CombatCraftPlanner(client, catalog).CreateAsync(targetCode, state, world.Destination, characters, cancellationToken);
+        var destination = plan is null ? new CombatDestination(0, "", monsterCode, new(1, 0), false) : world.Destination!;
+        return new(goal, state, destination, new CombatActionPort(client, characters), cooldown, limits, craftPlan: plan);
+    }
     public async Task<CombatRun> CreateAsync(CombatLevelGoal goal, string monsterCode,
         CombatLimits limits, CancellationToken cancellationToken = default)
     {

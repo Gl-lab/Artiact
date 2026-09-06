@@ -18,6 +18,7 @@ public sealed class CombatActionPort(GameClient client, ICharacterService charac
             CombatCommand.Rest => await client.Rest(),
             CombatCommand.Equip => await client.EquipItem(new EquipRequest(equipment!, "weapon")),
             CombatCommand.Unequip => await client.UnequipItem(new UnequipRequest("weapon")),
+            CombatCommand.Craft => await client.Crafting(new Item { Code = destination.CraftCommand!.Code, Quantity = destination.CraftCommand.Quantity }),
             _ => throw new ArgumentOutOfRangeException(nameof(command))
         };
         characters.SaveCharacter(response.Data.Character);
@@ -64,6 +65,14 @@ public sealed class CombatActionPort(GameClient client, ICharacterService charac
                     items[0].GetProperty("slot").GetString() == "weapon" &&
                     items[0].GetProperty("code").GetString() == (command == CombatCommand.Equip ? equipment : before.WeaponSlot) &&
                     items[0].GetProperty("quantity").GetInt32() == 1;
+            }
+            if (command == CombatCommand.Craft)
+            {
+                var details = raw.GetProperty("details");
+                var items = details.GetProperty("items");
+                return details.GetProperty("xp").GetInt32() >= 0 && items.ValueKind == JsonValueKind.Array &&
+                    items.GetArrayLength() == 1 && items[0].GetProperty("code").GetString() == destination.CraftCommand!.Code &&
+                    items[0].GetProperty("quantity").GetInt32() == destination.CraftCommand.OutputQuantity;
             }
             return raw.GetProperty("destination").GetProperty("map_id").GetInt32() == destination.MapId;
         }

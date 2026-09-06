@@ -22,7 +22,8 @@
   },
   "maps": [
     { "map_id": 1, "name": "Start", "skin": "plain", "x": 0, "y": 0, "layer": "overworld", "access": { "type": "standard", "conditions": [] }, "interactions": { "content": null, "transition": null } },
-    { "map_id": 2, "name": "Arena", "skin": "plain", "x": 1, "y": 0, "layer": "overworld", "access": { "type": "standard", "conditions": [] }, "interactions": { "content": { "type": "monster", "code": "dummy" }, "transition": null } }
+    { "map_id": 2, "name": "Arena", "skin": "plain", "x": 1, "y": 0, "layer": "overworld", "access": { "type": "standard", "conditions": [] }, "interactions": { "content": { "type": "monster", "code": "dummy" }, "transition": null } },
+    { "map_id": 3, "name": "Workshop", "skin": "plain", "x": 2, "y": 0, "layer": "overworld", "access": { "type": "standard", "conditions": [] }, "interactions": { "content": { "type": "workshop", "code": "weaponcrafting" }, "transition": null } }
   ],
   "monsters": [
     { "name": "Dummy", "code": "dummy", "level": 1, "type": "normal", "hp": 20,
@@ -32,6 +33,7 @@
       "drops": [{ "code": "feather", "rate": 1, "min_quantity": 1, "max_quantity": 1 }] }
   ],
   "items": [
+    { "name": "Crafted", "code": "crafted_blade", "level": 1, "type": "weapon", "subtype": "", "description": "Synthetic", "tradeable": false, "conditions": [], "effects": [{ "code": "attack_fire", "value": 20 }], "craft": { "skill": "weaponcrafting", "level": 1, "quantity": 1, "items": [{ "code": "feather", "quantity": 1 }] } },
     { "name": "Old", "code": "old", "level": 1, "type": "weapon", "subtype": "", "description": "Synthetic", "tradeable": false, "conditions": [], "effects": [{ "code": "attack_fire", "value": 5 }], "craft": null },
     { "name": "Quick", "code": "quick_blade", "level": 1, "type": "weapon", "subtype": "", "description": "Synthetic", "tradeable": false, "conditions": [], "effects": [{ "code": "attack_fire", "value": 10 }], "craft": null },
     { "name": "Heavy", "code": "heavy_blade", "level": 2, "type": "weapon", "subtype": "", "description": "Synthetic", "tradeable": false, "conditions": [], "effects": [{ "code": "attack_fire", "value": 6 }], "craft": null },

@@ -19,11 +19,11 @@
 ## 4. Loot/craft prerequisites
 
 - [x] 4.1 Test and repair shared craft dependency conservation and reciprocal loot ranking.
-- [ ] 4.2 Integrate bounded loot/craft/workshop/equipment prerequisites with deterministic full-client acceptance.
-- [ ] 4.3 Run focused and full gates, document final behavior and commit/push.
+- [x] 4.2 Integrate bounded loot/craft/workshop/equipment prerequisites with deterministic full-client acceptance.
+- [x] 4.3 Run focused and full gates, document final behavior and commit/push.
 
 ## 5. Epic completion
 
-- [ ] 5.1 Review final implementation against every acceptance scenario; resolve blockers and rerun affected gates.
-- [ ] 5.2 Record exact commands, revisions, diff review, warnings and unverified live scope; validate all specs and update roadmap evidence.
+- [x] 5.1 Review final implementation against every acceptance scenario; resolve blockers and rerun affected gates.
+- [x] 5.2 Record exact commands, revisions, diff review, warnings and unverified live scope; validate all specs and update roadmap evidence.
 - [ ] 5.3 Commit/push completed epic; begin Epic 7 specification.

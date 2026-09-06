@@ -38,7 +38,7 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
                 }
                 catch (System.Text.Json.JsonException) { return null; }
                 if (scenario is "basic-mining" or "mining-progression") { _scenario = null; return null; }
-                if (scenario is not ("combat-progression" or "combat-equipment")) return null;
+                if (scenario is not ("combat-progression" or "combat-equipment" or "combat-crafting")) return null;
                 _scenario = scenario;
                 _character = null;
                 _seconds = 0;
@@ -75,22 +75,26 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
                 {
                     case "move":
                         var move = JsonNode.Parse(body);
-                        if (move is not JsonObject moveObject || moveObject.Count != 1 || move["map_id"]!.GetValue<int>() != 2)
+                        if (move is not JsonObject moveObject || moveObject.Count != 1)
                             return Error(422, "destination_not_found");
-                        next["map_id"] = 2; next["x"] = 1;
-                        dataResult["destination"] = _fixture["maps"]![1]!.DeepClone();
+                        int mapId = move["map_id"]!.GetValue<int>();
+                        if (mapId != 2 && !(mapId == 3 && _scenario == "combat-crafting")) return Error(422, "destination_not_found");
+                        next["map_id"] = mapId; next["x"] = mapId - 1;
+                        dataResult["destination"] = _fixture["maps"]![mapId - 1]!.DeepClone();
                         duration = 7; break;
                     case "fight":
                         if (!EmptyRequest(body)) return Error(422, "invalid_request");
                         if (next["map_id"]!.GetValue<int>() != 2 || next["hp"]!.GetValue<int>() != 20 ||
-                            next["weapon_slot"]!.GetValue<string>() != "quick_blade" || Used(next) >= 10 ||
-                            next["level"]!.GetValue<int>() >= 2) return Error(422, "fight_not_available");
+                            (next["weapon_slot"]!.GetValue<string>() != "quick_blade" &&
+                                !(_scenario == "combat-crafting" && next["weapon_slot"]!.GetValue<string>() == "crafted_blade")) || Used(next) >= 10 ||
+                            next["level"]!.GetValue<int>() >= (_scenario == "combat-crafting" ? 3 : 2)) return Error(422, "fight_not_available");
                         int xp = next["xp"]!.GetValue<int>() + 5;
-                        next["xp"] = xp % 10; next["level"] = 1 + xp / 10; next["hp"] = 14;
+                        int finalHp = next["weapon_slot"]!.GetValue<string>() == "crafted_blade" ? 17 : 14;
+                        next["xp"] = xp % 10; next["level"] = next["level"]!.GetValue<int>() + xp / 10; next["hp"] = finalHp;
                         Add(next, "feather", 1);
                         dataResult["fight"] = new JsonObject { ["result"] = "win", ["turns"] = 2, ["opponent"] = "dummy",
                             ["logs"] = new JsonArray(), ["characters"] = new JsonArray(new JsonObject {
-                                ["character_name"] = "researcher", ["xp"] = 5, ["gold"] = 0, ["final_hp"] = 14,
+                                ["character_name"] = "researcher", ["xp"] = 5, ["gold"] = 0, ["final_hp"] = finalHp,
                                 ["drops"] = new JsonArray(new JsonObject { ["code"] = "feather", ["quantity"] = 1 }) }) };
                         dataResult["characters"] = new JsonArray(next.DeepClone());
                         duration = 8; break;
@@ -109,18 +113,29 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
                         if (action == "unequip")
                         {
                             code = next["weapon_slot"]!.GetValue<string>();
-                            if (code != "old" || Used(next) >= 10) return Error(422, "invalid_equipment");
+                            if ((code != "old" && !(_scenario == "combat-crafting" && code == "quick_blade")) || Used(next) >= 10) return Error(422, "invalid_equipment");
                             Add(next, code, 1); next["weapon_slot"] = ""; next["attack_fire"] = 0;
                         }
                         else
                         {
                             code = request[0]!["code"]!.GetValue<string>();
-                            if (code != "quick_blade" || next["weapon_slot"]!.GetValue<string>() != "" ||
+                            if ((code != "quick_blade" && !(_scenario == "combat-crafting" && code == "crafted_blade")) || next["weapon_slot"]!.GetValue<string>() != "" ||
                                 !Add(next, code, -1)) return Error(422, "invalid_equipment");
-                            next["weapon_slot"] = code; next["attack_fire"] = 10;
+                            next["weapon_slot"] = code; next["attack_fire"] = code == "crafted_blade" ? 20 : 10;
                         }
                         dataResult["items"] = new JsonArray(new JsonObject { ["code"] = code, ["slot"] = "weapon", ["quantity"] = 1 });
                         duration = 3; break;
+                    case "crafting":
+                        var requestCraft = JsonNode.Parse(body);
+                        if (_scenario != "combat-crafting" || next["map_id"]!.GetValue<int>() != 3 ||
+                            requestCraft is not JsonObject craftObject || craftObject.Count != 2 ||
+                            requestCraft["code"]!.GetValue<string>() != "crafted_blade" || requestCraft["quantity"]!.GetValue<int>() != 1 ||
+                            !Add(next, "feather", -1)) return Error(422, "craft_not_available");
+                        Add(next, "crafted_blade", 1);
+                        next["weaponcrafting_xp"] = next["weaponcrafting_xp"]!.GetValue<int>() + 1;
+                        dataResult["details"] = new JsonObject { ["xp"] = 1, ["items"] = new JsonArray(new JsonObject {
+                            ["code"] = "crafted_blade", ["quantity"] = 1 }) };
+                        duration = 4; break;
                     default: return Error(404, "unsupported_route");
                 }
             }

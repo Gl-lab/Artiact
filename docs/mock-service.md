@@ -1,6 +1,6 @@
 # Artiact.MockService
 
-The additional `combat-progression` and `combat-equipment` scenarios use a scripted kernel before the mining controllers. See [combat progression](combat-progression.md) for their reset/state/trace, fight/rest/equipment subset and divergences. The mining contracts below remain unchanged.
+The additional `combat-progression`, `combat-equipment` and `combat-crafting` scenarios use a scripted kernel before the mining controllers. See [combat progression](combat-progression.md) for their reset/state/trace, fight/rest/equipment/crafting subset and divergences. The mining contracts below remain unchanged.
 
 ## Purpose
 

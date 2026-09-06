@@ -36,6 +36,18 @@ public class WearCraftTargetFinder : IWearCraftTargetFinder
         return await FindOptimalTargets( availableItems, characterService );
     }
 
+    public async Task<CraftTarget?> FindTargetAsync(string code, List<Item> availableItems, ICharacterService characterService)
+    {
+        _allItems = await _gameClient.GetItems();
+        var item = _allItems.SingleOrDefault(x => x.Code == code);
+        if (item?.Craft is null || !_wearableTypes.Contains(item.Type)) return null;
+        var (resources, prerequisite) = await CreatePlanningResources(item, CalculateAvailableResources(availableItems), characterService);
+        if (resources is null) return null;
+        var target = await _chainBuilder.TryCreateCraftChain(item, resources);
+        if (target is not null) target.LootPrerequisite = prerequisite;
+        return target;
+    }
+
     private async Task<List<CraftTarget>> FindOptimalTargets( List<Item> availableItems,
                                                               ICharacterService characterService )
     {
@@ -165,11 +177,22 @@ public class WearCraftTargetFinder : IWearCraftTargetFinder
             return true;
         }
 
-        int craftsNeeded = ( remainingQuantity + item.Craft.Quantity - 1 ) / item.Craft.Quantity;
+        if (item.Craft.Quantity <= 0 || item.Craft.Items is null || item.Craft.Items.Count == 0 ||
+            item.Craft.Items.Any(x => x is null || x.Quantity <= 0 || string.IsNullOrWhiteSpace(x.Code)))
+        {
+            path.Remove(item.Code);
+            return false;
+        }
+        int craftsNeeded = (int)(((long)remainingQuantity + item.Craft.Quantity - 1) / item.Craft.Quantity);
+        if ((long)craftsNeeded * item.Craft.Quantity > int.MaxValue)
+        {
+            path.Remove(item.Code);
+            return false;
+        }
         foreach ( Item requiredItem in item.Craft.Items )
         {
             ItemDatum? requiredItemData = _allItems.FirstOrDefault( candidate => candidate.Code == requiredItem.Code );
-            if ( requiredItemData == null ||
+            if ( requiredItemData == null || (long)requiredItem.Quantity * craftsNeeded > int.MaxValue ||
                  !TryCollectMissingLeaves( requiredItemData, requiredItem.Quantity * craftsNeeded, stock,
                      missingLeaves, path ) )
             {

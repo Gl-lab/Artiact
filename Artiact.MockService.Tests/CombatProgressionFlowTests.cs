@@ -14,6 +14,55 @@ namespace Artiact.MockService.Tests;
 
 public class CombatProgressionFlowTests
 {
+    [Fact]
+    public async Task LootCraftAndEquipmentReachTargetWithConservedIngredients()
+    {
+        await using var factory = new MockServiceFactory();
+        using var recorder = new CombatRecorder(factory.Server.CreateHandler());
+        using var transport = new HttpClient(recorder) { BaseAddress = new Uri("http://localhost") };
+        var settings = new ApiSettings { BaseUrl = "http://localhost", Character = "researcher", Username = "mock", Password = "mock" };
+        var http = new GameHttpClient(new ClientFactory(transport), settings);
+        string? firstState = null, firstTrace = null, firstDecision = null;
+        for (int replay = 0; replay < 2; replay++)
+        {
+            using var reset = await transport.PostAsync("/__mock/reset", new StringContent("{\"scenario\":\"combat-crafting\"}", Encoding.UTF8, "application/json"));
+            reset.EnsureSuccessStatusCode();
+            recorder.Responses.Clear();
+            var client = new GameClient(http, settings, NullLogger<IGameClient>.Instance, new EmptyCache(), new ActivitySource("CombatCraft"));
+            var characters = new CharacterService();
+            var run = await new CombatSessionFactory(client, new CombatCatalog(http), characters, new NoDelay())
+                .CreateCraftingAsync(new(3), "dummy", "crafted_blade", new(30, 6, 4, 7));
+            var commands = new List<CombatCommand?>();
+            var decisions = new List<CombatDecision>();
+            CombatDecision? result = null;
+            for (int i = 0; i < 14; i++)
+            {
+                result = await run.ExecuteCycleAsync();
+                commands.Add(result.Command);
+                decisions.Add(result);
+            }
+            Assert.Equal(CombatStatus.Completed, result!.Status);
+            Assert.Equal(81, result.VirtualSeconds);
+            Assert.Equal(3, result.State!.Level);
+            Assert.Equal(0, result.State.Xp);
+            Assert.Equal(17, result.State.Stats.Hp);
+            Assert.Equal(2, result.State.MapId);
+            Assert.Equal("crafted_blade", result.State.Weapon);
+            Assert.Equal(3, result.State.Inventory["feather"]);
+            Assert.Equal(1, result.State.Inventory["quick_blade"]);
+            Assert.Equal(6, result.State.FreeUnits);
+            Assert.Equal(1, characters.GetCharacter().WeaponcraftingXp);
+            ExpectedCombat.AssertCraftResponses(recorder.Responses);
+            Assert.Equal(new CombatCommand?[] { CombatCommand.Move, CombatCommand.Fight, CombatCommand.Move, CombatCommand.Craft,
+                CombatCommand.Unequip, CombatCommand.Equip, CombatCommand.Rest, CombatCommand.Move, CombatCommand.Fight,
+                CombatCommand.Rest, CombatCommand.Fight, CombatCommand.Rest, CombatCommand.Fight, null }, commands);
+            string state = await transport.GetStringAsync("/__mock/state/researcher");
+            string trace = await transport.GetStringAsync("/__mock/trace");
+            string decisionJson = JsonSerializer.Serialize(decisions);
+            if (replay == 0) { firstState = state; firstTrace = trace; firstDecision = decisionJson; }
+            else { Assert.Equal(firstState, state); Assert.Equal(firstTrace, trace); Assert.Equal(firstDecision, decisionJson); }
+        }
+    }
     [Theory]
     [InlineData("combat-progression", 5, 29)]
     [InlineData("combat-equipment", 7, 35)]
@@ -104,6 +153,11 @@ public class CombatProgressionFlowTests
     [InlineData("fight", "drop", CombatReason.InvalidPostcondition, 2)]
     [InlineData("rest", "restored", CombatReason.InvalidPostcondition, 3)]
     [InlineData("unequip", "slot", CombatReason.InvalidPostcondition, 1)]
+    [InlineData("crafting", "craft_inventory", CombatReason.InvalidPostcondition, 4)]
+    [InlineData("crafting", "lost", CombatReason.UnknownOutcome, 4)]
+    [InlineData("planning", "workshop", CombatReason.UnsupportedAccess, 0)]
+    [InlineData("planning", "skill", CombatReason.UnsupportedAccess, 0)]
+    [InlineData("planning", "recipe", CombatReason.UnsupportedAccess, 0)]
     public async Task CorruptedOrLostHttpReplyStopsWithoutFollowUp(string action, string corruption, CombatReason reason, int expectedActions)
     {
         await using var factory = new MockServiceFactory();
@@ -112,13 +166,14 @@ public class CombatProgressionFlowTests
         using var transport = new HttpClient(handler) { BaseAddress = new Uri("http://localhost") };
         var settings = new ApiSettings { BaseUrl = "http://localhost", Character = "researcher", Username = "mock", Password = "mock" };
         var http = new GameHttpClient(new ClientFactory(transport), settings);
-        string scenario = action == "unequip" ? "combat-equipment" : "combat-progression";
+        string scenario = action is "crafting" or "planning" ? "combat-crafting" : action == "unequip" ? "combat-equipment" : "combat-progression";
         using var reset = await transport.PostAsync("/__mock/reset", new StringContent(JsonSerializer.Serialize(new { scenario }), Encoding.UTF8, "application/json"));
         reset.EnsureSuccessStatusCode();
         var client = new GameClient(http, settings, NullLogger<IGameClient>.Instance, new EmptyCache(), new ActivitySource("CombatFailure"));
         var state = new CharacterService();
-        var run = await new CombatSessionFactory(client, new CombatCatalog(http), state, new NoDelay())
-            .CreateAsync(new(2), "dummy", new CombatLimits(NoProgress: 5));
+        var sessions = new CombatSessionFactory(client, new CombatCatalog(http), state, new NoDelay());
+        var run = action is "crafting" or "planning" ? await sessions.CreateCraftingAsync(new(3), "dummy", "crafted_blade", new(30, 6, 4, 7)) :
+            await sessions.CreateAsync(new(2), "dummy", new CombatLimits(NoProgress: 5));
         CombatDecision? decision = null;
         for (int i = 0; i < 10; i++)
         {
@@ -138,6 +193,17 @@ public class CombatProgressionFlowTests
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
         {
             var response = await base.SendAsync(request, token);
+            string path = request.RequestUri!.AbsolutePath;
+            if (action == "planning" && (corruption == "workshop" && path == "/maps" ||
+                corruption == "skill" && path == "/characters/researcher" || corruption == "recipe" && path == "/items"))
+            {
+                var document = JsonNode.Parse(await response.Content.ReadAsStringAsync(token))!;
+                if (corruption == "workshop") document["data"]!.AsArray().Single(x => x!["map_id"]!.GetValue<int>() == 3)!["access"]!["type"] = "blocked";
+                if (corruption == "skill") document["data"]!["weaponcrafting_level"] = 0;
+                if (corruption == "recipe") document["data"]!.AsArray().Single(x => x!["code"]!.GetValue<string>() == "crafted_blade")!["craft"]!["quantity"] = 0;
+                response.Content.Dispose();
+                response.Content = new StringContent(document.ToJsonString(), Encoding.UTF8, "application/json");
+            }
             if (!request.RequestUri!.AbsolutePath.Contains("/action/", StringComparison.Ordinal)) return response;
             Actions++;
             if (!request.RequestUri.AbsolutePath.EndsWith("/" + action, StringComparison.Ordinal)) return response;
@@ -154,6 +220,7 @@ public class CombatProgressionFlowTests
                 case "drop": data["fight"]!["characters"]![0]!["drops"]![0]!["quantity"] = -1; break;
                 case "restored": data["hp_restored"] = 999; break;
                 case "slot": data["items"]![0]!["slot"] = "shield"; break;
+                case "craft_inventory": data["character"]!["inventory"]![0]!["quantity"] = 2; break;
             }
             response.Content.Dispose();
             response.Content = new StringContent(root.ToJsonString(), Encoding.UTF8, "application/json");

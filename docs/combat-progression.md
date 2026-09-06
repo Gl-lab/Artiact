@@ -24,6 +24,7 @@ Responses are saved to `CharacterService` before subsequent checks/cancellation.
 |---|---|---:|---:|---|
 | combat-progression | move, fight, rest, fight | 5 | 29 | level2, XP0, HP14, map2, two feathers, free8 |
 | combat-equipment | unequip, equip, move, fight, rest, fight | 7 | 35 | same combat state, quick_blade equipped, old and heavy_blade retained, free6 |
+| combat-crafting | move, fight, workshop move, craft, unequip, equip, rest, arena move, fight, rest, fight, rest, fight | 14 | 81 | level3, XP0, HP17, map2, crafted_blade equipped, quick_blade1/feather3 retained, free6 |
 
 `CombatProgressionFlowTests` uses real clients, empty in-memory cache, TestServer, the session factory and a no-wait cooldown. Both scenarios replay exactly. This is scripted acceptance, not an upstream combat emulator.
 
@@ -32,6 +33,14 @@ dotnet test Artiact.Tests/Artiact.Tests.csproj --no-restore --filter FullyQualif
 dotnet test Artiact.MockService.Tests/Artiact.MockService.Tests.csproj --no-restore --filter FullyQualifiedName~CombatProgressionFlowTests
 ```
 
+## Loot and craft prerequisites
+
+`CombatSessionFactory.CreateCraftingAsync` accepts an explicit craft target code. CombatCraftPlanner reuses WearCraftTargetFinder, TargetLootingResolver and CraftChainBuilder through a current-map adapter restricted to supported access/layers. It admits a supported improved weapon, one missing mob leaf from the selected viable opponent, sufficient skill and reachable workshop. Immutable commands preserve exact batches, ingredients, output and workshop IDs. Invalid/unsupported plans block before mutation. Completed/invalid goals do not require catalog loading.
+
+The run fights only for missing planned leaf ingredients, then moves/crafts one command at a time, checks exact inventory subtraction/output and advances its craft index only after a valid response. Crafting that consumes sufficient stock can proceed at full capacity if its output fits; a pending equip may likewise free inventory space. The fixture uses limits30 decisions/6 fights/4 rests/7 no-progress commands. Recipe preflight rejects zero/negative yields and overflowing batches before recursive planning.
+
+Combat-crafting starts with quick_blade, obtains one feather, consumes it into crafted_blade at map3, equips it and reaches level3. Craft awards one synthetic weaponcrafting XP. Complete independently authored action oracles and state/trace/decision replay cover all three combat fixtures. HTTP corruption tests cover missing stats, wrong movement/opponent/participant HP, invalid drops/rest/equipment/craft inventory, lost response and cancellation; unsupported workshop, skill and recipe cases emit no actions.
+
 ## Remaining scope
 
-Loot/craft prerequisites, broader adversarial HTTP response coverage and final Epic 6 acceptance remain open. No live character run, effects/consumables, banking, defeat recovery or restart reconciliation follows from these deterministic results. The strategy portfolio migration belongs to Epic 7 after the remaining craft slice is verified.
+No live character run, effects/consumables, banking, defeat recovery or restart reconciliation follows from these deterministic results. Craft factory scope requires one missing leaf; it is not a generic crafting objective or automatic inventory cleanup policy. Failed craft-plan construction currently uses the general UnsupportedAccess terminal reason. The configurable strategy portfolio and an additional profession belong to Epic 7.

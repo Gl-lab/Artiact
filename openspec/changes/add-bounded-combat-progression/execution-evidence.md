@@ -55,3 +55,19 @@ Commands on the final slice code:
 Review: self-review of the working diff against `4f5e736`, including new exception, DTO and client tests. No independent review is claimed. No other equipment callers or Moq setups exist; interface and implementation migrated together. Existing mock fixtures/cache files unchanged. Pre-existing `.serena/project.yml` modification excluded.
 
 Not verified/remaining: complete required combat stats, exact fight-result participant details, cooldown domains, map identity/access, defeat handling in legacy steps, bounded combat policy, full independent HTTP scenarios, loot/craft extension and live rollout. Equipment/result item details are retained as JSON for subsequent normalization. Existing research probes remain historical fragments, not full API compatibility evidence. Epic 6 tasks remain open until these are implemented and verified; Epics 7–8 have not started.
+
+## Final loot/craft integration and Epic 6 acceptance
+
+Base `3d300c5`, final working diff reviewed on 2026-09-06. Explicit crafting sessions reuse the shared-stock planner, verified opponent and workshop/skill constraints. The complete independent HTTP oracle and replay cover 14 decisions, 13 actions and 81 virtual seconds through loot, craft, equip, rest and combat level 3. Default worker behavior is unchanged.
+
+The first new HTTP scenario test failed because combat-crafting was not implemented. Domain integration preceded that test; no blanket test-first claim is made. Independent review subsequently identified full-inventory craft rejection, unnecessary catalog access for completed/invalid goals, and division by zero for zero-yield nested recipes. `dotnet test Artiact.Tests/Artiact.Tests.csproj --no-restore --filter FullyQualifiedName~CombatCraftBoundaryTests` reproduced all four cases before fixes, then passed 4. Added HTTP missing/blocked workshop, insufficient skill and invalid recipe checks pass with zero actions. A timestamp formatting error in the test oracle after 60 seconds was corrected as a harness defect.
+
+Final commands:
+
+- `dotnet build Artiact.sln --no-restore --verbosity quiet`: passed, zero errors.
+- `dotnet test Artiact.sln --no-restore --verbosity quiet`: 396 application + 107 mock tests passed, zero failed/skipped.
+- `dotnet test Artiact.RealApiTests/Artiact.RealApiTests.csproj --no-restore --filter Category=RealApiOffline --verbosity quiet`: 36 passed.
+- `git diff --check`: passed.
+
+Independent re-review against `3d300c5` confirmed every reported blocker resolved and found no remaining concrete Epic 6 acceptance blocker. Reviewer independently reran the 4 boundary and 27 CombatProgressionFlowTests. Reviewed blobs: CombatRun `fa6665f`, CombatSessionFactory `0019770`, WearCraftTargetFinder `5be90a3`, boundary tests `a605cd0`, flow tests `fd611bd`. Parent owns broad gates and documentation. Existing NU1902 warning remains for Epic 8 remediation. Live compatibility, production combat safety and optional systems remain unverified; ADR live no-go still applies. User tooling edit `.serena/project.yml` excluded.
+`nFinal `npx -y @fission-ai/openspec@1.12.0 validate --all --strict`: 9 passed, zero failed; existing long-requirement notices and environment TLS warning.

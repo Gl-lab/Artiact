@@ -65,7 +65,7 @@ public sealed class CombatCatalog(IGameHttpClient http)
         }
     }
 
-    private static bool TryWeapon(JsonElement item, int level, out int attack)
+    internal static bool TryWeapon(JsonElement item, int level, out int attack)
     {
         attack = 0;
         if (item.GetProperty("type").GetString() != "weapon" || CombatObservation.Int(item, "level") is < 1 ||
@@ -81,7 +81,7 @@ public sealed class CombatCatalog(IGameHttpClient http)
     private static bool Empty(JsonElement raw, string property) => !raw.TryGetProperty(property, out var value) ||
         value.ValueKind == JsonValueKind.Null || value.ValueKind == JsonValueKind.Array && value.GetArrayLength() == 0;
 
-    private async Task<IReadOnlyList<JsonElement>> ReadPagesAsync(string endpoint, CancellationToken token)
+    internal async Task<IReadOnlyList<JsonElement>> ReadPagesAsync(string endpoint, CancellationToken token)
     {
         var result = new List<JsonElement>();
         int expectedPages = 1;

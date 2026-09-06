@@ -22,7 +22,7 @@ This list records behavior visible in the current source. It is not a roadmap an
 - [ADR 0001](decisions/0001-combat-viability-and-recovery.md) proves only a narrow synthetic offline model. Missing complete effects/conditions/stat normalization, map access and ambiguous-action reconciliation prevent live combat readiness. Official sources disagree on rest timing; research uses returned cooldowns.
 
 - Only one distinct missing loot leaf is supported per target.
-- Combat eligibility is approximated by `monster.Level <= character.Level + 1`; equipment, HP, resistances and recovery are not evaluated.
+- Legacy combat eligibility is approximated by `monster.Level <= character.Level + 1`; equipment, HP, resistances and recovery are not evaluated.
 - The legacy resolver picks the reachable eligible monster with the lowest positive numeric reciprocal rate; distance and combat cost are ignored.
 - Legacy fight execution is bounded to ten attempts and stops on a returned defeat, retaining the authoritative character without revenge or recovery. There is no rest/heal/death-recovery flow.
 - Execution trusts the API's returned inventory state and does not reserve ingredients against concurrent consumers.
@@ -49,8 +49,8 @@ This list records behavior visible in the current source. It is not a roadmap an
 
 ## Mock and operations
 
-- MockService now proves scripted combat/equipment progression, but the legacy looting-aware craft path is not yet covered by a complete mock HTTP scenario.
-- The mock supports basic-mining/mining-progression and the additional scripted combat-progression/combat-equipment scenarios; unsupported routes return a local 404. Legacy Swagger/YARP dependencies and configuration were removed in `8171c6e`.
+- MockService proves scripted combat/equipment and bounded loot/craft/equip progression through real clients. Independent legacy multi-action step graphs remain a separate compatibility path.
+- The mock supports basic-mining/mining-progression and the additional scripted combat-progression/combat-equipment/combat-crafting scenarios; unsupported routes return a local 404. Legacy Swagger/YARP dependencies and configuration were removed in `8171c6e`.
 - Compose uses mutable image tags and development credentials; no production deployment definition is present.
 - Prometheus runs in a container but scrapes `localhost:5000`, which points back into that container rather than to a host-run Artiact process. Port 5000 is also the documented mock-service port.
 - `Artiact/Dockerfile` has no dependable build context for the current multi-project layout: the repository root has no matching root project file, while an `Artiact/` context omits `Artiact.Contracts`.
