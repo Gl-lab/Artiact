@@ -36,7 +36,7 @@ public class MiningBoundaryTests
         Assert.Same(response,f.Character.GetCharacter());
         Assert.Equal(move ? 0 : 1,f.Gathers);
         Assert.Equal(reason,f.Selector.Evaluate(f.Character.GetCharacter()).Reason);
-        f.Map.Verify(x=>x.GetByContentCode(It.Is<ContentCode>(c=>c.Value=="best")),Times.Once);
+        f.Map.VerifyNoOtherCalls();
         f.Client.Verify(x=>x.Move(It.IsAny<MapPoint>()),move ? Times.Once() : Times.Never());
     }
 
@@ -56,10 +56,11 @@ public class MiningBoundaryTests
     }
 
     [Fact]
-    public async Task Step_UsesSelectedTargetAndRepeatsWhileLatestResponseRemainsAuthorized()
+    public async Task Step_UsesSelectedTargetAndReturnsAfterOneGather()
     {
         CharacterService character = new();
         character.SaveCharacter(GoalServiceTests.Snapshot(19, 10));
+        character.GetCharacter().MiningMaxXp = 10;
         Mock<IGameClient> client = new(MockBehavior.Strict);
         Mock<IMapService> map = new(MockBehavior.Strict);
         map.Setup(x => x.GetByContentCode(It.IsAny<ContentCode>()))
@@ -68,6 +69,7 @@ public class MiningBoundaryTests
         {
             new() { Code = "best", Skill = "mining", Level = 19 }
         });
+        TestMining.Catalog(client);
         Queue<Character> responses = new(new[]
         {
             GoalServiceTests.Snapshot(20, 10),
@@ -81,14 +83,14 @@ public class MiningBoundaryTests
                 Cooldown = new Cooldown { TotalSeconds = 0 }
             }
         });
-        StepBuilder builder = new(client.Object, map.Object);
+        StepBuilder builder = new(TestMining.State(), TestMining.Delay(), client.Object, map.Object);
 
         IStep step = await builder.BuildStep(new GatheringGoal(27), character);
         await step.Execute(client.Object, CancellationToken.None);
 
-        client.Verify(x => x.Gathering(), Times.Exactly(2));
-        Assert.Equal(27, character.GetCharacter().MiningLevel);
-        Assert.Empty(responses);
+        client.Verify(x => x.Gathering(), Times.Once());
+        Assert.Equal(20, character.GetCharacter().MiningLevel);
+        Assert.Single(responses);
     }
 
     [Theory]
@@ -100,7 +102,7 @@ public class MiningBoundaryTests
         using CancellationTokenSource stop = new();
         using ActivitySource source = new("MiningBoundaryTests.Flow");
         DecisionLogger<ActionService> logger = new();
-        ActionService action = new(f.Client.Object,f.Selector,f.Builder,
+        ActionService action = new(TestMining.State(), f.Client.Object,f.Selector,f.Builder,
             new GoalDecomposer(NullLogger<GoalDecomposer>.Instance,Mock.Of<IWearCraftTargetFinder>(),source),f.Character,source,logger);
         CountingCycles cycles = new(action,stop);
         using ServiceProvider provider = new ServiceCollection().AddSingleton<IActionService>(cycles).BuildServiceProvider();
@@ -144,19 +146,21 @@ public class MiningBoundaryTests
         public Fixture(Character response,bool move)
         {
             Character.SaveCharacter(GoalServiceTests.Snapshot());
+            Character.GetCharacter().MiningMaxXp = 10;
             MapPoint point=new() {X=move ? 1 : 0,Y=0};
             Map.Setup(x=>x.GetByContentCode(It.IsAny<ContentCode>())).ReturnsAsync(point);
             Client.Setup(x=>x.GetResources()).ReturnsAsync(new List<ResourceDatum>{
                 new(){Code="lower",Skill="mining",Level=1},new(){Code="best",Skill="mining",Level=19},
                 new(){Code="higher",Skill="mining",Level=20},new(){Code="wood",Skill="woodcutting",Level=19}});
-            Client.Setup(x=>x.Move(point)).ReturnsAsync(Response(response));
+            Client.Setup(x=>x.GetMap()).ReturnsAsync(new List<MapPlace> { new() { X = point.X, Y = point.Y, Content = new() { Type = "resource", Code = "best" } } });
+            Client.Setup(x=>x.Move(It.Is<MapPoint>(p => p.X == point.X && p.Y == point.Y))).ReturnsAsync(Response(response));
             Client.Setup(x=>x.Gathering()).Returns(()=>
             {
                 Gathers++;
                 if(move || Gathers>1) throw new InvalidOperationException("Unauthorized gather");
                 return Task.FromResult(Response(response));
             });
-            Builder=new(Client.Object,Map.Object);
+            Builder=new(TestMining.State(), TestMining.Delay(), Client.Object,Map.Object);
         }
         private static ActionResponse Response(Character c)=>new(){Data=new(){Character=c,Cooldown=new(){TotalSeconds=0}}};
     }

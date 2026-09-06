@@ -10,5 +10,6 @@
     <ItemGroup>
         <ProjectReference Include="..\Artiact.Contracts\Artiact.Contracts.csproj"/>
         <Content Update="BasicMiningScenario.json" CopyToOutputDirectory="PreserveNewest" />
+        <Content Update="MiningProgressionScenario.json" CopyToOutputDirectory="PreserveNewest" />
     </ItemGroup>
 </Project>

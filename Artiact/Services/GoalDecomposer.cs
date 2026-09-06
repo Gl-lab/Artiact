@@ -25,6 +25,8 @@ public class GoalDecomposer : IGoalDecomposer
         _logger.LogDebug( "Decomposed goal {GoalType}", goal.Type );
         switch ( goal )
         {
+            case Artiact.Models.ResolvedMiningGoal:
+                return; // Live mining guards handle pressure; autonomous mining has no craft prerequisites.
             case GatheringGoal gatheringGoal:
                 await DecomposeGatheringGoal( gatheringGoal, characterService );
                 break;

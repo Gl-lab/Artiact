@@ -1,4 +1,4 @@
-﻿using Artiact.Contracts.Client;
+using Artiact.Contracts.Client;
 using Artiact.Contracts.Models;
 using Artiact.Contracts.Models.Api;
 using Artiact.Models.Steps;
@@ -10,13 +10,17 @@ public class StepBuilder : IStepBuilder
 {
     private const int MaxLootFightAttempts = 10;
     private readonly IGameClient _gameClient;
+    private readonly MiningRunState _runState;
+    private readonly IMiningCooldownDelay _delay;
     private readonly IMapService _mapService;
 
-    public StepBuilder(
+    public StepBuilder(MiningRunState runState, IMiningCooldownDelay delay,
         IGameClient gameClient,
         IMapService mapService )
     {
         _gameClient = gameClient;
+        _runState = runState;
+        _delay = delay;
         _mapService = mapService;
     }
 
@@ -57,55 +61,14 @@ public class StepBuilder : IStepBuilder
 
     private async Task<IStep> BuildMiningSteps( GatheringGoal gatheringGoal, ICharacterService characterService )
     {
-        Character character = characterService.GetCharacter();
-        ResourceDatum? resCandidate = await FindResourceCandidate( character );
-
-        MapPoint? tagetMap = await _mapService.GetByContentCode( new ContentCode( resCandidate.Code ) );
-
-        List<IStep> steps = new();
-
-        if ( character.X != tagetMap.X || character.Y != tagetMap.Y )
+        MiningDestination? destination = (gatheringGoal as ResolvedMiningGoal)?.Destination;
+        if (destination is null)
         {
-            steps.Add( new MoveStep( tagetMap, characterService ) );
+            var result = await new MiningDestinationResolver(_gameClient).ResolveAsync(characterService.GetCharacter());
+            destination = result.Destination ?? throw new InvalidOperationException($"Cannot resolve mining goal: {result.Reason}.");
         }
-
-
-        bool CanGather(ICharacterService service)
-        {
-            Character live = service.GetCharacter();
-            return live is not null && live.MiningLevel >= 0 && live.MiningLevel < gatheringGoal.TargetLevel &&
-                   MiningInventory.TryRead(live, out _, out int free) && free >= GoalDecision.InventoryReserve;
-        }
-
-        steps.Add(new ConditionalStep(
-            new ActionStep(characterService, client => client.Gathering(), CanGather),
-            CanGather, characterService));
-
-
-        if ( steps.Count > 1 )
-        {
-            return new MixedStep( steps, characterService );
-        }
-
-        return steps.First();
+        return new MiningStep(characterService, gatheringGoal.TargetLevel, destination, _runState, _delay);
     }
-
-    private async Task<ResourceDatum?> FindResourceCandidate( Character character )
-    {
-        List<ResourceDatum> resource = await _gameClient.GetResources();
-        List<ResourceDatum> miningResource = resource
-                                            .Where( x =>
-                                                 x.Skill is not null && x.Skill == ResourceSkill.Mining.ToString() )
-                                            .Where( x =>
-                                                 x.Level <=
-                                                 ( character.MiningLevel == 0 ? 1 : character.MiningLevel ) )
-                                            .ToList();
-
-        ResourceDatum resCandidate =
-            miningResource.FirstOrDefault( x => x.Level == miningResource.Max( y => y.Level ) );
-        return resCandidate;
-    }
-
 
     private async Task<IStep> BuildSpendResourcesStep( SpendResourcesGoal goal, ICharacterService character )
     {

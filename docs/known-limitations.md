@@ -4,8 +4,9 @@ This list records behavior visible in the current source. It is not a roadmap an
 
 ## Planning and domain
 
-- Goal selection supports only one configured mining milestone. It has no resource ranking, generic optimizer or autonomous inventory remediation. Blocked/Completed stops the worker; external changes are not polled and restart is required to reevaluate.
-- `GatheringGoal.TargetLevel` stops gathering at the selected target, but does not alter resource or movement selection. One selected cycle does not guarantee reaching the milestone.
+- Goal selection supports only one configured mining milestone. The deterministic MiningDestinationResolver ranks eligible catalog coordinates each cycle. There is no generic optimizer or autonomous inventory remediation. Blocked/Completed stops the worker; external changes are not polled and restart is required to reevaluate.
+- Mining destination eligibility uses the existing coordinate-only catalog. Layers, access conditions and transitions are not represented; duplicate coordinates fail validation instead of guessing a layer. A selected coordinate is not proof of real-world reachability or optimal XP/hour.
+- Mining progression stops on target, inventory pressure, invalid progress/catalog, missing destination, wrong movement result, no progress or cycle limit. Finite inventory and limits do not guarantee reaching the target; automatic banking/crafting/remediation is deferred.
 - `LevelUpGoal` exists but is not decomposed or built into steps.
 - `SpendMethod.Recycle` throws `NotImplementedException`; delete is the only directly built spend step.
 - `CraftTargetEvaluator` chooses the highest item level and does not use the supplied character.
@@ -25,7 +26,7 @@ This list records behavior visible in the current source. It is not a roadmap an
 ## Runtime and resilience
 
 - The background service uses one DI scope for its full lifetime.
-- The worker invokes one explicit orchestration cycle at a time, but an existing step graph can still contain several bounded or repeated game actions; this is not yet the later atomic-command state machine.
+- Mining invokes each Move/Gathering method at most once per cycle; generic craft/loot graphs can still contain several actions. Finite attempt bounds do not time out hung tokenless client calls or reconcile unknown server outcomes.
 - Cancellation reaches orchestration, worker recovery and step cooldown delays, but current `IGameClient` methods remain tokenless and cannot abort an already-started HTTP call. A successful in-flight action response is saved before cancellation prevents its cooldown wait, repeat or following child.
 - The action client retries operations that may be non-idempotent after network failures; the server may have completed an action before a retry.
 - Token retrieval does not throw on a non-success response at the point of authentication; the later request proceeds with the previous Basic header.
@@ -33,7 +34,7 @@ This list records behavior visible in the current source. It is not a roadmap an
 - `/health` reports a static healthy payload and does not reflect worker/API/cache status.
 - Tracing is optional for action execution and gathering decomposition; a missing activity listener does not block game behavior.
 - Character state is loaded once and then refreshed only from action responses; unrelated external character changes are not polled.
-- Several mining and crafting paths assume non-empty lookup results and may throw through null dereferences, `Max`, or `First`.
+- Autonomous mining returns typed catalog/destination failures. Independently supplied unresolvable gathering goals and missing crafting workshops still throw.
 
 ## Build and dependency baseline
 
@@ -45,7 +46,7 @@ This list records behavior visible in the current source. It is not a roadmap an
 ## Mock and operations
 
 - `Artiact.MockService` is incomplete and cannot execute the looting-aware fight path.
-- The mock supports only the reset/load/move/gather `basic-mining` scenario; unsupported routes return a local 404. Legacy Swagger/YARP dependencies and configuration were removed in `8171c6e`.
+- The mock supports the reset/load/move/gather `basic-mining` and repeated `mining-progression` scenarios; unsupported routes return a local 404. Legacy Swagger/YARP dependencies and configuration were removed in `8171c6e`.
 - Compose uses mutable image tags and development credentials; no production deployment definition is present.
 - Prometheus runs in a container but scrapes `localhost:5000`, which points back into that container rather than to a host-run Artiact process. Port 5000 is also the documented mock-service port.
 - `Artiact/Dockerfile` has no dependable build context for the current multi-project layout: the repository root has no matching root project file, while an `Artiact/` context omits `Artiact.Contracts`.
@@ -55,3 +56,6 @@ This list records behavior visible in the current source. It is not a roadmap an
 ## Documentation maintenance
 
 When a limitation is fixed, remove or amend it in the same change. If a limitation becomes an accepted contract rather than a temporary constraint, move it to the relevant architecture or domain document.
+
+
+The mining-progression mock uses synthetic six-XP awards and ten-XP thresholds. Its exact offline completion/replay is not current OpenAPI payload compatibility or production rollout evidence.

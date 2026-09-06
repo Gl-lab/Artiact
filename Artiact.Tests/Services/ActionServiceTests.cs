@@ -15,7 +15,7 @@ public class ActionServiceTests
     public async Task ExecuteCycleAsync_PreCancelledTokenSelectsNoGoal()
     {
         Mock<IGoalService> goalService = new();
-        ActionService service = new(
+        ActionService service = new(TestMining.State(),
             Mock.Of<IGameClient>(),
             goalService.Object,
             Mock.Of<IStepBuilder>(),
@@ -39,6 +39,7 @@ public class ActionServiceTests
             "ActionServiceTests.Failure",
             activity => stoppedStatus = activity.Status );
         Mock<IGameClient> client = new();
+        TestMining.Catalog(client);
         Mock<IGoalService> goalService = new();
         Mock<IStepBuilder> stepBuilder = new();
         Mock<IGoalDecomposer> goalDecomposer = new();
@@ -48,12 +49,12 @@ public class ActionServiceTests
         InvalidOperationException expected = new( "cycle failed" );
 
         characterService.Setup( x => x.GetCharacter() )
-                        .Returns( new Character { Name = "TestCharacter", Inventory = new List<Inventory>() } );
+                        .Returns( new Character { Name = "TestCharacter", MiningLevel = 19, MiningMaxXp = 10, Inventory = new List<Inventory>() } );
         goalService.Setup( x => x.Evaluate( It.IsAny<Character>() ) ).Returns( decision );
         goalDecomposer.Setup( x => x.DecomposeGoal( It.IsAny<Goal>(), characterService.Object ) ).Returns( Task.CompletedTask );
         stepBuilder.Setup( x => x.BuildStep( It.IsAny<Goal>(), characterService.Object ) ).ReturnsAsync( step.Object );
         step.Setup( x => x.Execute( client.Object, CancellationToken.None ) ).ThrowsAsync( expected );
-        ActionService service = new(
+        ActionService service = new(TestMining.State(),
             client.Object,
             goalService.Object,
             stepBuilder.Object,
@@ -72,6 +73,7 @@ public class ActionServiceTests
     public async Task InitializeAsync_PreCancelledTokenStartsNoClientWork()
     {
         Mock<IGameClient> client = new();
+        TestMining.Catalog(client);
         ActionService service = CreateService( client: client );
         using CancellationTokenSource cancellation = new();
         cancellation.Cancel();
@@ -88,6 +90,7 @@ public class ActionServiceTests
     {
         using CancellationTokenSource cancellation = new();
         Mock<IGameClient> client = new();
+        TestMining.Catalog(client);
         client.Setup( x => x.WarmUpCache() )
               .Callback( cancellation.Cancel )
               .Returns( Task.CompletedTask );
@@ -105,6 +108,7 @@ public class ActionServiceTests
     {
         using ActivityListener listener = ListenTo( "ActionServiceTests" );
         Mock<IGameClient> client = new();
+        TestMining.Catalog(client);
         Mock<IGoalService> goalService = new();
         Mock<IStepBuilder> stepBuilder = new();
         Mock<IGoalDecomposer> goalDecomposer = new();
@@ -113,12 +117,12 @@ public class ActionServiceTests
         GoalDecision decision = GoalDecision.Create(GoalDecisionStatus.Selected,GoalDecisionReason.MiningBelowTarget,20,19,20,10,10,GoalType.Gathering);
 
         characterService.Setup( x => x.GetCharacter() )
-                        .Returns( new Character { Name = "TestCharacter", Inventory = new List<Inventory>() } );
+                        .Returns( new Character { Name = "TestCharacter", MiningLevel = 19, MiningMaxXp = 10, Inventory = new List<Inventory>() } );
         goalService.Setup( x => x.Evaluate( It.IsAny<Character>() ) ).Returns( decision );
         goalDecomposer.Setup( x => x.DecomposeGoal( It.IsAny<Goal>(), characterService.Object ) ).Returns( Task.CompletedTask );
         stepBuilder.Setup( x => x.BuildStep( It.IsAny<Goal>(), characterService.Object ) ).ReturnsAsync( step.Object );
         step.Setup( x => x.Execute( client.Object, CancellationToken.None ) ).Returns( Task.CompletedTask );
-        ActionService service = new( client.Object,
+        ActionService service = new(TestMining.State(),  client.Object,
             goalService.Object,
             stepBuilder.Object,
             goalDecomposer.Object,
@@ -137,6 +141,7 @@ public class ActionServiceTests
     public async Task ExecuteCycleAsync_WithoutActivityListener_StillExecutesCycle()
     {
         Mock<IGameClient> client = new();
+        TestMining.Catalog(client);
         Mock<IGoalService> goalService = new();
         Mock<IStepBuilder> stepBuilder = new();
         Mock<IGoalDecomposer> goalDecomposer = new();
@@ -145,12 +150,12 @@ public class ActionServiceTests
         GoalDecision decision = GoalDecision.Create(GoalDecisionStatus.Selected,GoalDecisionReason.MiningBelowTarget,20,19,20,10,10,GoalType.Gathering);
 
         characterService.Setup( x => x.GetCharacter() )
-                        .Returns( new Character { Name = "TestCharacter", Inventory = new List<Inventory>() } );
+                        .Returns( new Character { Name = "TestCharacter", MiningLevel = 19, MiningMaxXp = 10, Inventory = new List<Inventory>() } );
         goalService.Setup( x => x.Evaluate( It.IsAny<Character>() ) ).Returns( decision );
         goalDecomposer.Setup( x => x.DecomposeGoal( It.IsAny<Goal>(), characterService.Object ) ).Returns( Task.CompletedTask );
         stepBuilder.Setup( x => x.BuildStep( It.IsAny<Goal>(), characterService.Object ) ).ReturnsAsync( step.Object );
         step.Setup( x => x.Execute( client.Object, CancellationToken.None ) ).Returns( Task.CompletedTask );
-        ActionService service = new( client.Object,
+        ActionService service = new(TestMining.State(),  client.Object,
             goalService.Object,
             stepBuilder.Object,
             goalDecomposer.Object,
@@ -169,6 +174,7 @@ public class ActionServiceTests
     public async Task Cycle_ReturnsExactDecisionAndExecutesOnlySelected(GoalDecisionStatus status)
     {
         Character snapshot = GoalServiceTests.Snapshot();
+        snapshot.MiningMaxXp = 10;
         GoalDecision decision = status switch
         {
             GoalDecisionStatus.Selected => GoalDecision.Create(status,GoalDecisionReason.MiningBelowTarget,27,19,20,10,10,GoalType.Gathering),
@@ -180,6 +186,7 @@ public class ActionServiceTests
         Mock<IGoalService> selector = new(MockBehavior.Strict);
         selector.Setup(x=>x.Evaluate(snapshot)).Returns(decision);
         Mock<IGameClient> client = new(MockBehavior.Strict);
+        TestMining.Catalog(client);
         Mock<IGoalDecomposer> decomposer = new(MockBehavior.Strict);
         Mock<IStepBuilder> builder = new(MockBehavior.Strict);
         Mock<IStep> step = new(MockBehavior.Strict);
@@ -189,7 +196,7 @@ public class ActionServiceTests
             decomposer.Setup(x=>x.DecomposeGoal(It.IsAny<Goal>(),character.Object))
                 .Callback<Goal,ICharacterService>((goal,_)=>
                 {
-                    Assert.Equal(27,Assert.IsType<GatheringGoal>(goal).TargetLevel);
+                    Assert.Equal(27,Assert.IsType<ResolvedMiningGoal>(goal).TargetLevel);
                     graphs.Add(goal); goal.Type = GoalType.LevelUp;
                     goal.AddSubGoal(new LevelUpGoal());
                 }).Returns(Task.CompletedTask);
@@ -198,7 +205,7 @@ public class ActionServiceTests
             step.Setup(x=>x.Execute(client.Object,CancellationToken.None)).Returns(Task.CompletedTask);
         }
         using ActivitySource source = new("ActionServiceTests.Boundary");
-        ActionService service = new(client.Object,selector.Object,builder.Object,decomposer.Object,character.Object,source);
+        ActionService service = new(TestMining.State(), client.Object,selector.Object,builder.Object,decomposer.Object,character.Object,source);
         Assert.Same(decision,await service.ExecuteCycleAsync(CancellationToken.None));
         character.Verify(x=>x.GetCharacter(),Times.Once);
         selector.Verify(x=>x.Evaluate(snapshot),Times.Once);
@@ -212,12 +219,17 @@ public class ActionServiceTests
             Assert.Equal(GoalType.Gathering,decision.SelectedGoalType);
         }
         else { decomposer.VerifyNoOtherCalls(); builder.VerifyNoOtherCalls(); step.VerifyNoOtherCalls(); }
+        if(status == GoalDecisionStatus.Selected)
+        {
+            client.Verify(c => c.GetResources(), Times.Exactly(2));
+            client.Verify(c => c.GetMap(), Times.Exactly(2));
+        }
         client.VerifyNoOtherCalls();
     }
 
     private static ActionService CreateService( Mock<IGameClient>? client = null )
     {
-        return new ActionService( ( client ?? new Mock<IGameClient>() ).Object,
+        return new ActionService(TestMining.State(),  ( client ?? new Mock<IGameClient>() ).Object,
             Mock.Of<IGoalService>(),
             Mock.Of<IStepBuilder>(),
             Mock.Of<IGoalDecomposer>(),

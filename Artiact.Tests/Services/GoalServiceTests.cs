@@ -138,6 +138,6 @@ public class GoalDecisionFactoryTests
         Assert.All(typeof(GoalDecision).GetProperties(),p=>Assert.Null(p.SetMethod));
         Assert.DoesNotContain(typeof(GoalDecision).GetProperties(),p=>typeof(Goal).IsAssignableFrom(p.PropertyType));
         Assert.Equal(3,Enum.GetValues<GoalDecisionStatus>().Length);
-        Assert.Equal(6,Enum.GetValues<GoalDecisionReason>().Length);
+        Assert.Equal(12,Enum.GetValues<GoalDecisionReason>().Length);
     }
 }

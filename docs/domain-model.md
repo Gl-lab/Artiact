@@ -18,7 +18,7 @@ These definitions describe the current implementation. There is no repository-le
 
 `Goal` owns `SubGoals` and sets `ParentGoal` through `AddSubGoal`. `GoalDecomposer` currently handles:
 
-- `GatheringGoal`: independently supplied goals retain the legacy inventory-spending decomposition. Autonomous selection blocks insufficient inventory before reaching this path. Gathering execution checks mining below its target and valid free inventory of at least ten before the first gather and every repeat.
+- `GatheringGoal`: independently supplied goals retain the legacy inventory-spending decomposition. Autonomous selection blocks insufficient inventory before reaching this path. MiningStep checks target, ten-unit inventory reserve, XP, resource level and coordinates before its single gather. Autonomous ResolvedMiningGoal never introduces inventory-spending prerequisites.
 - `SpendResourcesGoal`: find wearable craft targets from resources marked `Craft`, then add one `GearCraftingGoal` per target.
 - `GearCraftingGoal`: already contains a planned `CraftTarget`; execution is built by `StepBuilder`.
 
@@ -39,7 +39,20 @@ Evaluation precedence is fixed:
 
 The shared selection/live inventory rule rejects null lists/elements, negative capacity/quantity, positive quantity with blank/null item code, checked integer sum overflow, and used capacity greater than capacity. Zero-quantity slots contribute zero regardless of code. At target 20, mining 19 with capacity 20 and used 10 selects; used 11 blocks. Mining 20 or 21 completes even with malformed inventory.
 
-`ConditionalStep` applies the live predicate after any move and before the first gather; the ActionStep repeat predicate applies it after each saved response. Negative mining or invalid inventory returns false without authorizing another gather. Reaching target or falling from ten to nine free units stops repeats. The authoritative response remains stored, the selected cycle returns normally, and one next cycle emits Completed/Blocked before the worker stops. Blocked requires intervention/restart; no crafting, deletion, banking or other remediation is selected.
+`MiningStep` invokes Move at most once and Gathering at most once per selected cycle. It rechecks live state before movement and after its cooldown; an already reached destination needs no move. A changed mining level after movement ends this cycle for reselection. A wrong returned coordinate is retained and records a pending movement failure. Successful responses are saved before cancellation checks and waits use returned total cooldown seconds. Completion and other terminal effects are reported by the next cycle. These limits count application-to-client invocations; internal POST retries and unknown server effects remain outside them.
+
+After pure selection, ActionService applies progression guards in order: invalid XP (negative XP, nonpositive max XP, or XP at least max XP), pending movement failure, consecutive no-progress threshold, cycle limit, then catalog resolution. An attempt is reserved before catalog I/O and is never refunded for loading/build/action exceptions or cancellation. Only successful gather responses count toward no-progress: higher level, or higher XP at equal level, resets the counter; non-increase increments it. Invalid responses are saved for next-cycle validation. Movement alone changes neither progress counter. Pure completion and inventory decisions retain precedence over all these guards.
+
+MiningRunState is scoped and captures configured limits once. It resets only after complete successful initialization, including a post-load cancellation check. Failed initialization preserves counters. There is no automatic restart, inventory remediation or periodic character reload.
+## Mining destination resolution
+
+`MiningDestinationResolver` finalizes the selected mining destination before execution. Its pure `Rank` method returns an immutable resource code/level/X/Y destination or `InvalidMiningCatalog` / `NoMiningDestination`; its client adapter propagates loading exceptions unchanged. ActionService carries this destination in a fresh ResolvedMiningGoal; StepBuilder consumes it without another catalog selection. Independently supplied plain GatheringGoal uses the same resolver and throws a clear error if unresolved.
+
+The resolver validates both entire catalogs before selection: null lists/elements, blank resource codes, levels below one, duplicate ordinal resource codes and duplicate map coordinates are invalid. Null content or blank content code denotes an empty tile. It joins exact resource codes to maps with exact type `resource`, matches mining skill ignoring case, and admits levels up to `max(1, current mining level)`, excluding resources ten or more levels below the character. That exclusion follows the [official gathering XP boundary](https://docs.artifactsmmo.com/concepts/skills). Candidates rank by descending resource level, ascending Manhattan distance, ordinal code, X, then Y. Distance and the XP boundary use wide arithmetic. Unmapped higher resources do not hide mapped lower ones; catalogs are never reordered or retained in the result.
+
+This is coordinate-only eligibility. The current DTOs do not express the layers and access conditions described in the [official movement model](https://docs.artifactsmmo.com/concepts/maps_and_movement); ranking does not establish reachability or optimal XP/hour.
+
+The application-local decision factory also accepts six progression-only Blocked reasons: `invalid_mining_progress`, `mining_destination_not_reached`, `mining_no_progress`, `mining_cycle_limit`, `invalid_mining_catalog`, and `no_mining_destination`. Each requires a positive target and a nonnegative below-target current level, with no inventory facts or selected goal type. The pure GoalService still returns only its original six outcomes; ActionService emits the final progression result.
 
 ## Craft planning
 
@@ -90,7 +103,7 @@ flowchart TD
 
 ## State ownership
 
-`CharacterService` stores the latest character snapshot in memory. Every successful `ActionStep` replaces it with the character returned by the API. Planning reads that snapshot; it does not own server state.
+`CharacterService` stores the latest character snapshot in memory. Every successful `ActionStep` or `MiningStep` action replaces it with the character returned by the API. Planning reads that snapshot; it does not own server state.
 
 The main app's source of truth for actions is the external API response. The mock service has a separate singleton in-memory character cache and should not be confused with `CharacterService`.
 

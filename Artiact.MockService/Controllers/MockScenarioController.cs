@@ -38,7 +38,7 @@ public sealed class MockScenarioController( IMockScenarioStore store ) : Control
             return Problem( "invalid_reset_request", StatusCodes.Status400BadRequest );
         }
 
-        if ( !String.Equals( scenario, "basic-mining", StringComparison.Ordinal ) )
+        if ( scenario is not ("basic-mining" or "mining-progression") )
         {
             return Problem( "scenario_not_found", StatusCodes.Status404NotFound );
         }

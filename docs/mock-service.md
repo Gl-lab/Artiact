@@ -20,7 +20,7 @@ The only manual listener is `http://localhost:5000`, configured with `ListenLoca
 
 ## Deterministic scenario
 
-The only accepted scenario is `basic-mining`. Its content-root fixture is `Artiact.MockService/BasicMiningScenario.json`.
+The exact accepted names are `basic-mining` and `mining-progression`. The original basic-mining sequence below and its `Artiact.MockService/BasicMiningScenario.json` fixture remain unchanged.
 
 1. `POST /__mock/reset` with exactly `{ "scenario": "basic-mining" }` atomically clears character state and trace, sets phase `Ready`, increments `generation`, and resets virtual time to `2000-01-01T00:00:00.0000000Z`.
 2. Load page 1 of maps, resources, items, and monsters.
@@ -125,3 +125,13 @@ dotnet test Artiact.sln --no-restore
 ## Deliberate non-goals
 
 Unsupported: combat, rest, crafting, equipment, item use, recycling, deletion, bank, tasks, marketplace, multi-character simulation, real authentication, production networking, persistence, full economy/world simulation, and scheduler-independent ordering for overlapping requests.
+
+## Mining progression scenario
+
+Reset with exactly `{"scenario":"mining-progression"}`. `MiningProgressionScenario.json` adds Iron Rocks at (4,0), a level-2 mining resource yielding iron ore, alongside Origin and Copper Rocks. Starting character fields match basic-mining except mining max XP is 10. Both definitions are validated at load time. Reset selects the full definition, clears character/trace and resets the virtual clock atomically; switching back restores every basic-mining rule.
+
+Moves may target any scenario map, with current coordinate rejected as invalid_transition and missing coordinates as destination_not_found. Gathering requires a mining tile, sufficient level, capacity for one unit and a matching or empty slot. Failures return gathering_not_available, insufficient_mining_level or inventory_full before mutation. Existing matching slots win over empty slots; otherwise the first empty slot in fixture order is used. Checked XP/level/time overflow returns invalid_transition without partial state, phase, time or trace changes.
+
+Each gather awards a synthetic six XP and one local ore. Every ten XP increments mining level and preserves the remainder; max XP remains ten. These are test rules independent of upstream game formulas. Two copper gathers then two iron gathers produce level/XP 1/6, 2/2, 2/8, 3/4. With moves to copper and iron the exact cooldown requests are 7,5,5,7,5,5 seconds and virtual elapsed time is 34 seconds. Phase records the last action (Moved/Gathered) and does not prohibit later valid progression actions.
+
+Responses contain the complete committed character, unchanged embedded character cooldown fields, total action cooldown 7/5, remaining zero and mock_virtual_elapsed. Move details are XP zero/items empty and destination is the actual map, including Origin. Gather destination is null and details report award six plus the correct one-unit ore, even across level-up. Ordered state, trace, catalogs and responses are deep snapshots. Tests compare complete independent literals, replay after reset, concurrent state/catalog reads and reset/action races. There is no new endpoint or external transport.

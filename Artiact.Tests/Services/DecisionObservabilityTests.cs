@@ -43,6 +43,18 @@ public class DecisionObservabilityTests
             fields.Add("goal.inventory.capacity",20);fields.Add("goal.inventory.used",20-free.Value);
             fields.Add("goal.inventory.free",free.Value);fields.Add("goal.inventory.required_free",10);
         }
+        if(expected.Status == GoalDecisionStatus.Selected)
+        {
+            snapshot!.MiningMaxXp = 10;
+            fields.Add("goal.mining.resource_code", "best");
+            fields.Add("goal.mining.resource_level", 19);
+            fields.Add("goal.mining.destination_x", 0);
+            fields.Add("goal.mining.destination_y", 0);
+            fields.Add("goal.mining.attempted_cycles", 1);
+            fields.Add("goal.mining.max_cycles", 100);
+            fields.Add("goal.mining.consecutive_no_progress", 0);
+            fields.Add("goal.mining.max_no_progress", 3);
+        }
         foreach(bool listen in new[]{false,true})
         {
             using ActivitySource source=new("DecisionObservabilityTests.Source");
@@ -57,7 +69,8 @@ public class DecisionObservabilityTests
             Mock<IStep> step=new();step.Setup(x=>x.Execute(It.IsAny<IGameClient>(),It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
             builder.Setup(x=>x.BuildStep(It.IsAny<Artiact.Contracts.Models.Goal>(),character.Object)).ReturnsAsync(step.Object);
             DecisionLogger<ActionService> logger=new();
-            ActionService action=new(Mock.Of<IGameClient>(),selector.Object,builder.Object,Mock.Of<IGoalDecomposer>(),character.Object,source,logger);
+            Mock<IGameClient> client = new(); TestMining.Catalog(client);
+            ActionService action=new(TestMining.State(), client.Object,selector.Object,builder.Object,Mock.Of<IGoalDecomposer>(),character.Object,source,logger);
             Assert.Same(expected,await action.ExecuteCycleAsync(CancellationToken.None));
             var entry=Assert.Single(logger.Events);
             Assert.Equal(LogLevel.Information,entry.Level);

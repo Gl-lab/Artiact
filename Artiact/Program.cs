@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using Artiact.Client;
 using Artiact.Contracts.Client;
@@ -86,6 +86,7 @@ internal class Program
         builder.Services.AddScoped<IGameHttpClient, GameHttpClient>();
         builder.Services.AddScoped<IGameClient, GameClient>();
         builder.Services.AddGoalSelection( builder.Configuration );
+        builder.Services.AddMiningProgression( builder.Configuration );
         builder.Services.AddScoped<IMapService, MapService>();
         builder.Services.AddScoped<IStepBuilder, StepBuilder>();
         builder.Services.AddScoped<ICharacterService, CharacterService>();

@@ -5,7 +5,7 @@ using Artiact.SmartProxy.Models;
 
 namespace Artiact.SmartProxy.Services;
 
-public sealed class MockScenarioStore : IMockScenarioStore
+public sealed partial class MockScenarioStore : IMockScenarioStore
 {
     private static readonly DateTime Epoch = new( 2000, 1, 1, 0, 0, 0, DateTimeKind.Utc );
     private readonly object _sync = new();
@@ -14,21 +14,36 @@ public sealed class MockScenarioStore : IMockScenarioStore
     private Character? _character;
     private DateTime _virtualTime = Epoch;
     private string _phase = "Uninitialized";
-    private readonly BasicMiningDefinition _definition;
+    private BasicMiningDefinition _definition;
+    private readonly Dictionary<string, BasicMiningDefinition> _definitions;
+    private string _scenario = "basic-mining";
 
     public MockScenarioStore( IWebHostEnvironment environment )
     {
-        string path = Path.Combine( environment.ContentRootPath, "BasicMiningScenario.json" );
-        _definition = JsonSerializer.Deserialize<BasicMiningDefinition>(
-            File.ReadAllText( path ),
-            new JsonSerializerOptions { PropertyNameCaseInsensitive = true } )
-            ?? throw new InvalidOperationException( "Basic mining scenario is missing." );
-    }
+        _definitions = new(StringComparer.Ordinal)
+        {
+            ["basic-mining"] = Load("BasicMiningScenario.json"),
+            ["mining-progression"] = Load("MiningProgressionScenario.json")
+        };
+        _definition = _definitions["basic-mining"];
 
+        BasicMiningDefinition Load(string file)
+        {
+            var definition = JsonSerializer.Deserialize<BasicMiningDefinition>(
+                File.ReadAllText(Path.Combine(environment.ContentRootPath, file)),
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
+                ?? throw new InvalidOperationException("Mining scenario is missing.");
+            ValidateDefinition(definition);
+            return definition;
+        }
+    }
     public ResetSummary Reset( string scenario )
     {
         lock ( _sync )
         {
+            if (!_definitions.TryGetValue(scenario, out var definition)) throw new ArgumentException("Unknown scenario.", nameof(scenario));
+            _definition = definition;
+            _scenario = scenario;
             _generation++;
             _character = null;
             _virtualTime = Epoch;
@@ -57,6 +72,7 @@ public sealed class MockScenarioStore : IMockScenarioStore
             if ( !IsMockHero( name ) ) return StoreResult<ActionResponse>.Failure( "character_not_found", StatusCodes.Status404NotFound );
             if ( _character == null ) return StoreResult<ActionResponse>.Failure( "character_not_initialized", StatusCodes.Status409Conflict );
             if ( !TryReadMove( body, out int x, out int y ) ) return StoreResult<ActionResponse>.Failure( "invalid_move_request", StatusCodes.Status400BadRequest );
+            if (_scenario == "mining-progression") return ProgressionMove(x, y);
             if ( _phase != "Ready" ) return StoreResult<ActionResponse>.Failure( "invalid_transition", StatusCodes.Status409Conflict );
             if ( x != 2 || y != 0 ) return StoreResult<ActionResponse>.Failure( "destination_not_found", StatusCodes.Status422UnprocessableEntity );
 
@@ -97,6 +113,7 @@ public sealed class MockScenarioStore : IMockScenarioStore
             if ( _phase == "Uninitialized" ) return StoreResult<ActionResponse>.Failure( "scenario_not_initialized", StatusCodes.Status409Conflict );
             if ( !IsMockHero( name ) ) return StoreResult<ActionResponse>.Failure( "character_not_found", StatusCodes.Status404NotFound );
             if ( _character == null ) return StoreResult<ActionResponse>.Failure( "character_not_initialized", StatusCodes.Status409Conflict );
+            if (_scenario == "mining-progression") return ProgressionGather();
             if ( _character.X != 2 || _character.Y != 0 ) return StoreResult<ActionResponse>.Failure( "gathering_not_available", StatusCodes.Status422UnprocessableEntity );
             if ( _phase != "Moved" ) return StoreResult<ActionResponse>.Failure( "invalid_transition", StatusCodes.Status409Conflict );
 
@@ -133,14 +150,14 @@ public sealed class MockScenarioStore : IMockScenarioStore
             if ( _phase == "Uninitialized" ) return StoreResult<StateSummary>.Failure( "scenario_not_initialized", StatusCodes.Status409Conflict );
             if ( !IsMockHero( name ) ) return StoreResult<StateSummary>.Failure( "character_not_found", StatusCodes.Status404NotFound );
             if ( _character == null ) return StoreResult<StateSummary>.Failure( "character_not_initialized", StatusCodes.Status409Conflict );
-            return StoreResult<StateSummary>.Success( new StateSummary( "basic-mining", _generation, _phase, Format( _virtualTime ), Clone( _character ) ) );
+            return StoreResult<StateSummary>.Success( new StateSummary( _scenario, _generation, _phase, Format( _virtualTime ), Clone( _character ) ) );
         }
     }
 
-    public StoreResult<Map> GetMaps() => ReadCatalog( _definition.Maps );
-    public StoreResult<ResourceResponse> GetResources() => ReadCatalog( _definition.Resources );
-    public StoreResult<ItemsResponse> GetItems() => ReadCatalog( _definition.Items );
-    public StoreResult<MonstersResponse> GetMonsters() => ReadCatalog( _definition.Monsters );
+    public StoreResult<Map> GetMaps() => ReadCatalog( () => _definition.Maps );
+    public StoreResult<ResourceResponse> GetResources() => ReadCatalog( () => _definition.Resources );
+    public StoreResult<ItemsResponse> GetItems() => ReadCatalog( () => _definition.Items );
+    public StoreResult<MonstersResponse> GetMonsters() => ReadCatalog( () => _definition.Monsters );
 
     public StoreResult<IReadOnlyList<TraceEntry>> GetTrace()
     {
@@ -152,13 +169,13 @@ public sealed class MockScenarioStore : IMockScenarioStore
         }
     }
 
-    private StoreResult<T> ReadCatalog<T>( T value ) where T : class
+    private StoreResult<T> ReadCatalog<T>( Func<T> value ) where T : class
     {
         lock ( _sync )
         {
             return _phase == "Uninitialized"
                 ? StoreResult<T>.Failure( "scenario_not_initialized", StatusCodes.Status409Conflict )
-                : StoreResult<T>.Success( Clone( value ) );
+                : StoreResult<T>.Success( Clone( value() ) );
         }
     }
 

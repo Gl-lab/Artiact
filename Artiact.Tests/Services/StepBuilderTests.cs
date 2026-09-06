@@ -18,7 +18,7 @@ public class StepBuilderTests
         Mock<IGameClient> gameClientMock = new();
         _mapServiceMock = new Mock<IMapService>();
         _characterServiceMock = new Mock<ICharacterService>();
-        _stepBuilder = new StepBuilder( gameClientMock.Object, _mapServiceMock.Object );
+        _stepBuilder = new StepBuilder(TestMining.State(), TestMining.Delay(),  gameClientMock.Object, _mapServiceMock.Object );
     }
 
     [Fact]

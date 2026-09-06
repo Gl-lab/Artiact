@@ -6,7 +6,9 @@ public enum GoalDecisionStatus { Selected, Completed, Blocked }
 public enum GoalDecisionReason
 {
     MiningBelowTarget, MiningTargetReached, InvalidGoalPolicy,
-    InvalidCharacterSnapshot, InvalidInventorySnapshot, InventoryPressure
+    InvalidCharacterSnapshot, InvalidInventorySnapshot, InventoryPressure,
+    InvalidMiningProgress, MiningDestinationNotReached, MiningNoProgress,
+    MiningCycleLimit, InvalidMiningCatalog, NoMiningDestination
 }
 
 public sealed record GoalDecision
@@ -34,6 +36,12 @@ public sealed record GoalDecision
         GoalDecisionReason.InvalidCharacterSnapshot => "invalid_character_snapshot",
         GoalDecisionReason.InvalidInventorySnapshot => "invalid_inventory_snapshot",
         GoalDecisionReason.InventoryPressure => "inventory_pressure",
+        GoalDecisionReason.InvalidMiningProgress => "invalid_mining_progress",
+        GoalDecisionReason.MiningDestinationNotReached => "mining_destination_not_reached",
+        GoalDecisionReason.MiningNoProgress => "mining_no_progress",
+        GoalDecisionReason.MiningCycleLimit => "mining_cycle_limit",
+        GoalDecisionReason.InvalidMiningCatalog => "invalid_mining_catalog",
+        GoalDecisionReason.NoMiningDestination => "no_mining_destination",
         _ => throw new ArgumentOutOfRangeException(nameof(Reason))
     };
     public int MiningTargetLevel { get; }
@@ -67,6 +75,11 @@ public sealed record GoalDecision
                 belowTarget && noInventory && selectedGoalType is null,
             (GoalDecisionStatus.Blocked, GoalDecisionReason.InventoryPressure) =>
                 belowTarget && validInventory && free < InventoryReserve && selectedGoalType is null,
+            (GoalDecisionStatus.Blocked, GoalDecisionReason.InvalidMiningProgress or
+                GoalDecisionReason.MiningDestinationNotReached or GoalDecisionReason.MiningNoProgress or
+                GoalDecisionReason.MiningCycleLimit or GoalDecisionReason.InvalidMiningCatalog or
+                GoalDecisionReason.NoMiningDestination) =>
+                belowTarget && noInventory && selectedGoalType is null,
             _ => false
         };
         if (!valid)

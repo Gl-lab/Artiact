@@ -117,7 +117,7 @@ set ASPNETCORE_ENVIRONMENT=Dev
 dotnet run --project Artiact/Artiact.csproj
 ```
 
-On Bash/Git Bash, use `export ASPNETCORE_ENVIRONMENT=Dev` instead of `set`. The mock implements only the deterministic `basic-mining` slice. The autonomous worker can still select an unsupported goal/action, so use the TestServer compatibility suite rather than starting the main host as a general smoke test. See [Mock service](mock-service.md).
+On Bash/Git Bash, use `export ASPNETCORE_ENVIRONMENT=Dev` instead of `set`. The mock implements the deterministic `basic-mining` and `mining-progression` slices. The autonomous worker can still select an unsupported goal/action, so use the TestServer compatibility suite rather than starting the main host as a general smoke test. See [Mock service](mock-service.md).
 
 ### Monitoring
 
@@ -149,7 +149,12 @@ The current `Artiact/Dockerfile` does not have a working obvious build context f
 | `StepBuilderTests` | Craft order, workshop movement, live loot predicates and ten-fight bound |
 | `ActionServiceTests` | Exact decision identity, terminal isolation, fresh execution graphs, cancellation and optional tracing |
 | `GoalServiceTests` / `GoalDecisionFactoryTests` | Deterministic precedence, malformed snapshots and immutable construction invariants |
-| `MiningBoundaryTests` | Live move/gather responses, target/reserve boundaries and two-cycle terminal worker flows |
+| `MiningDestinationResolverTests` / `MiningGoalDecisionFactoryTests` | Progression resolver ranking/catalog validation and progression-only reason invariants |
+| MiningRunTests / MiningProgressionTests | Guard precedence, counters, reset/failure semantics and exact progression telemetry |
+| MiningStepTests / MiningExecutionBoundaryTests | One-gather execution, live guards, resolved goals and controlled cooldown cancellation |
+| MiningProgressionConfigurationTests | Production limit binding/validation and isolated scopes |
+| MiningProgressionScenarioTests / MiningProgressionFlowTests | Synthetic scenario literals, atomic/replayed transitions and full-client five-cycle worker/manual acceptance |
+| MiningBoundaryTests | Live move/gather responses, target/reserve boundaries and two-cycle terminal worker flows |
 | `DecisionObservabilityTests` | Exact structured event/activity fields, omission, cardinality and listener equivalence |
 | `GoalSelectionConfigurationTests` | Production registration and startup validation without hosting |
 | `GoalDecomposerTests` | Gathering decomposition without a trace listener |
@@ -206,3 +211,18 @@ When behavior changes, search related prose, diagrams, root/nested `AGENTS.md` a
 - JSON reference-cache changes are data changes and should be reviewed separately from logic.
 - The `.hermes/` planning directory is locally excluded through `.git/info/exclude` in this checkout.
 - GitHub Actions workflow `.github/workflows/ci.yml` runs the solution build/tests and the separately restored `Category=RealApiOffline` boundary suite as independent credential-free jobs on pushes and pull requests to `master`. It does not start the main host or opt into live API tests.
+
+## Bounded mining progression
+
+Program calls AddMiningProgression alongside AddGoalSelection. Required positive integer settings are `MiningProgression:MaxCycles` (tracked 100) and `MiningProgression:MaxConsecutiveNoProgress` (tracked 3); no-progress must not exceed cycles. Missing, malformed, zero, negative or inverted values fail startup validation without starting the worker. Limits are captured once per scope. Successful explicit initialization resets the run; cycle failure and cancelled/failed reinitialization do not refund attempts.
+
+Mining produces one final decision per normal cycle, with at most one Move and one Gathering method invocation. Completed/Blocked stops normally without recovery delay; loading/action exceptions propagate and retain reserved budget. Returned cooldown totals remain honored in production. Tests inject recorded instant/controlled waits.
+
+Focused offline checks:
+
+```text
+dotnet test Artiact.Tests/Artiact.Tests.csproj --no-restore --filter "FullyQualifiedName~Mining|FullyQualifiedName~GoalDecision|FullyQualifiedName~ActionService|FullyQualifiedName~DecisionObservability|FullyQualifiedName~StepCancellation|FullyQualifiedName~StepBuilder|FullyQualifiedName~LootingCraftPlanning|FullyQualifiedName~ArtiactBackgroundService"
+dotnet test Artiact.MockService.Tests/Artiact.MockService.Tests.csproj --no-restore
+```
+
+MiningProgressionFlowTests uses real application services and clients over TestServer with in-memory cache, sentinel credentials and no real cooldown sleep. Both manual and worker drivers reproduce four Selected decisions then Completed at level/XP 3/4, six actions and 34 virtual seconds, including full independent response oracles and reset/replay. Boundary injection covers wrong movement, unchanged XP, invalid state, exhausted inventory, low budget and cancellation without adding mock HTTP control endpoints. Live API and main-host execution remain outside this verification.
