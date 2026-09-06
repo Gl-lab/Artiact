@@ -88,6 +88,7 @@ internal class Program
         builder.Services.AddScoped<IGameClient>(services => services.GetRequiredService<GameClient>());
         builder.Services.AddScoped<Artiact.Services.Combat.CombatCatalog>();
         builder.Services.AddScoped<Artiact.Services.Combat.CombatSessionFactory>();
+        builder.Services.AddScoped<Artiact.Services.Strategy.StrategySessionFactory>();
         builder.Services.AddGoalSelection( builder.Configuration );
         builder.Services.AddMiningProgression( builder.Configuration );
         builder.Services.AddScoped<IMapService, MapService>();

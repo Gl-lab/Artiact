@@ -23,7 +23,31 @@ internal static class ExpectedCombat
         """;
 
     private sealed record Frame(string Action, int Start, int End, int Level, int Xp, int Hp, int Map,
-        string Weapon, int Attack, string Inventory);
+        string Weapon, int Attack, string Inventory, int MiningLevel = 1, int MiningXp = 0, int WoodLevel = 1, int WoodXp = 0);
+
+    public static void AssertPortfolioResponses(IReadOnlyList<(string Path, string Body)> responses) => AssertFrames(
+    [
+        new("unequip",0,3,1,0,20,1,"",0,"[{\"slot\":1,\"code\":\"quick_blade\",\"quantity\":1},{\"slot\":2,\"code\":\"heavy_blade\",\"quantity\":1},{\"slot\":3,\"code\":\"old\",\"quantity\":1}]"),
+        new("equip",3,6,1,0,20,1,"quick_blade",10,PortfolioInventory(0,0,0)),
+        new("move",6,13,1,0,20,4,"quick_blade",10,PortfolioInventory(0,0,0)),
+        new("gathering",13,18,1,0,20,4,"quick_blade",10,PortfolioInventory(1,0,0),1,5),
+        new("gathering",18,23,1,0,20,4,"quick_blade",10,PortfolioInventory(2,0,0),2,0),
+        new("move",23,30,1,0,20,5,"quick_blade",10,PortfolioInventory(2,0,0),2,0),
+        new("gathering",30,35,1,0,20,5,"quick_blade",10,PortfolioInventory(2,1,0),2,0,1,5),
+        new("gathering",35,40,1,0,20,5,"quick_blade",10,PortfolioInventory(2,2,0),2,0,2,0),
+        new("move",40,47,1,0,20,2,"quick_blade",10,PortfolioInventory(2,2,0),2,0,2,0),
+        new("fight",47,55,1,5,14,2,"quick_blade",10,PortfolioInventory(2,2,1),2,0,2,0),
+        new("rest",55,61,1,5,20,2,"quick_blade",10,PortfolioInventory(2,2,1),2,0,2,0),
+        new("fight",61,69,2,0,14,2,"quick_blade",10,PortfolioInventory(2,2,2),2,0,2,0)
+    ], responses);
+
+    private static string PortfolioInventory(int ore, int wood, int feather)
+    {
+        var stock = JsonNode.Parse(GearInventory(0))!.AsArray();
+        foreach (var item in new[] { ("ore", ore), ("wood", wood), ("feather", feather) })
+            if (item.Item2 > 0) stock.Add(new JsonObject { ["slot"] = stock.Count + 1, ["code"] = item.Item1, ["quantity"] = item.Item2 });
+        return stock.ToJsonString();
+    }
 
     public static void AssertResponses(bool gear, IReadOnlyList<(string Path, string Body)> responses)
     {
@@ -81,6 +105,8 @@ internal static class ExpectedCombat
             var character = JsonNode.Parse(Character)!;
             character["level"] = frame.Level; character["xp"] = frame.Xp; character["hp"] = frame.Hp;
             character["map_id"] = frame.Map; character["x"] = frame.Map - 1;
+            character["mining_level"] = frame.MiningLevel; character["mining_xp"] = frame.MiningXp;
+            character["woodcutting_level"] = frame.WoodLevel; character["woodcutting_xp"] = frame.WoodXp;
             if (crafting && frame.End >= 26) character["weaponcrafting_xp"] = 1;
             character["weapon_slot"] = frame.Weapon; character["attack_fire"] = frame.Attack;
             character["inventory"] = JsonNode.Parse(frame.Inventory);
@@ -108,6 +134,14 @@ internal static class ExpectedCombat
                 {"map_id":3,"name":"Workshop","skin":"plain","x":2,"y":0,"layer":"overworld","access":{"type":"standard","conditions":[]},"interactions":{"content":{"type":"workshop","code":"weaponcrafting"},"transition":null}}
                 """);
             if (frame.Action == "crafting") data["details"] = JsonNode.Parse("""{"xp":1,"items":[{"code":"crafted_blade","quantity":1}]}""");
+            if (frame.Action == "move" && frame.Map == 4) data["destination"] = JsonNode.Parse("""
+                {"map_id":4,"name":"Mine","skin":"plain","x":3,"y":0,"layer":"overworld","access":{"type":"standard","conditions":[]},"interactions":{"content":{"type":"resource","code":"ore_node"},"transition":null}}
+                """);
+            if (frame.Action == "move" && frame.Map == 5) data["destination"] = JsonNode.Parse("""
+                {"map_id":5,"name":"Forest","skin":"plain","x":4,"y":0,"layer":"overworld","access":{"type":"standard","conditions":[]},"interactions":{"content":{"type":"resource","code":"wood_node"},"transition":null}}
+                """);
+            if (frame.Action == "gathering") data["details"] = new JsonObject { ["xp"] = 5,
+                ["items"] = new JsonArray(new JsonObject { ["code"] = frame.Map == 4 ? "ore" : "wood", ["quantity"] = 1 }) };
             Assert.True(JsonNode.DeepEquals(new JsonObject { ["data"] = data }, JsonNode.Parse(responses[i].Body)),
                 $"Complete response mismatch at command {i + 1}: {frame.Action}");
         }

@@ -4,7 +4,7 @@ This list records behavior visible in the current source. It is not a roadmap an
 
 ## Planning and domain
 
-- Goal selection supports only one configured mining milestone. The deterministic MiningDestinationResolver ranks eligible catalog coordinates each cycle. There is no generic optimizer or autonomous inventory remediation. Blocked/Completed stops the worker; external changes are not polled and restart is required to reevaluate.
+- Default worker goal selection supports one configured mining milestone; explicit StrategySessionFactory adds skill/combat/equipment competition (see strategy-portfolio.md). The deterministic MiningDestinationResolver ranks eligible catalog coordinates each cycle. There is no generic optimizer or autonomous inventory remediation. Blocked/Completed stops the worker; external changes are not polled and restart is required to reevaluate.
 - Mining destination eligibility uses the existing coordinate-only catalog. Layers, access conditions and transitions are not represented; duplicate coordinates fail validation instead of guessing a layer. A selected coordinate is not proof of real-world reachability or optimal XP/hour.
 - Mining progression stops on target, inventory pressure, invalid progress/catalog, missing destination, wrong movement result, no progress or cycle limit. Finite inventory and limits do not guarantee reaching the target; automatic banking/crafting/remediation is deferred.
 - `LevelUpGoal` exists but is not decomposed or built into steps.

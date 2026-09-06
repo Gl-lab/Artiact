@@ -15,6 +15,7 @@ This directory is the source-grounded guide for developers and AI agents working
 | [Known limitations](known-limitations.md) | Deliberate limits, incomplete paths and operational risks |
 | [Combat/equipment research](research/combat-equipment/comparison.md) | Epic 5 evidence, isolated experiments and alternatives |
 | [Combat viability ADR](decisions/0001-combat-viability-and-recovery.md) | Research decision and bounded Epic 6 handoff; live execution remains no-go |
+| [Strategy portfolio](strategy-portfolio.md) | Explicit competing goals, atomic commands and reconciliation |
 | [Deterministic combat progression](combat-progression.md) | Explicit bounded sessions, equipment, recovery and synthetic HTTP acceptance |
 
 ## Repository map

@@ -38,7 +38,7 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
                 }
                 catch (System.Text.Json.JsonException) { return null; }
                 if (scenario is "basic-mining" or "mining-progression") { _scenario = null; return null; }
-                if (scenario is not ("combat-progression" or "combat-equipment" or "combat-crafting")) return null;
+                if (scenario is not ("combat-progression" or "combat-equipment" or "combat-crafting" or "strategy-portfolio")) return null;
                 _scenario = scenario;
                 _character = null;
                 _seconds = 0;
@@ -58,7 +58,7 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
             if (method == "GET" && path is "/maps" or "/monsters" or "/items" or "/resources")
             {
                 if (query is not ("" or "?page=1")) return Error(400, "invalid_page");
-                var data = _fixture[path[1..]]!.DeepClone();
+                var data = Catalog(path[1..]);
                 return (200, new JsonObject { ["data"] = data, ["total"] = data.AsArray().Count,
                     ["page"] = 1, ["size"] = 50, ["pages"] = 1 });
             }
@@ -78,21 +78,39 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
                         if (move is not JsonObject moveObject || moveObject.Count != 1)
                             return Error(422, "destination_not_found");
                         int mapId = move["map_id"]!.GetValue<int>();
-                        if (mapId != 2 && !(mapId == 3 && _scenario == "combat-crafting")) return Error(422, "destination_not_found");
+                        if (mapId != 2 && !(mapId == 3 && _scenario == "combat-crafting") &&
+                            !(_scenario == "strategy-portfolio" && mapId is 4 or 5)) return Error(422, "destination_not_found");
                         next["map_id"] = mapId; next["x"] = mapId - 1;
-                        dataResult["destination"] = _fixture["maps"]![mapId - 1]!.DeepClone();
+                        dataResult["destination"] = Catalog("maps")[mapId - 1]!.DeepClone();
                         duration = 7; break;
+                    case "gathering":
+                        if (_scenario != "strategy-portfolio" || !EmptyRequest(body) || Used(next) >= 10)
+                            return Error(422, "gather_not_available");
+                        int gatherMap = next["map_id"]!.GetValue<int>();
+                        if (gatherMap is not (4 or 5)) return Error(422, "gather_not_available");
+                        string skill = gatherMap == 4 ? "mining" : "woodcutting";
+                        string output = gatherMap == 4 ? "ore" : "wood";
+                        if (next[skill + "_level"]!.GetValue<int>() >= 2) return Error(422, "gather_not_available");
+                        int skillXp = next[skill + "_xp"]!.GetValue<int>() + 5;
+                        next[skill + "_level"] = next[skill + "_level"]!.GetValue<int>() + skillXp / 10;
+                        next[skill + "_xp"] = skillXp % 10;
+                        Add(next, output, 1);
+                        dataResult["details"] = new JsonObject { ["xp"] = 5, ["items"] = new JsonArray(new JsonObject {
+                            ["code"] = output, ["quantity"] = 1 }) };
+                        duration = 5; break;
                     case "fight":
                         if (!EmptyRequest(body)) return Error(422, "invalid_request");
                         if (next["map_id"]!.GetValue<int>() != 2 || next["hp"]!.GetValue<int>() != 20 ||
                             (next["weapon_slot"]!.GetValue<string>() != "quick_blade" &&
+                                !(_scenario == "strategy-portfolio" && next["weapon_slot"]!.GetValue<string>() == "old") &&
                                 !(_scenario == "combat-crafting" && next["weapon_slot"]!.GetValue<string>() == "crafted_blade")) || Used(next) >= 10 ||
                             next["level"]!.GetValue<int>() >= (_scenario == "combat-crafting" ? 3 : 2)) return Error(422, "fight_not_available");
                         int xp = next["xp"]!.GetValue<int>() + 5;
-                        int finalHp = next["weapon_slot"]!.GetValue<string>() == "crafted_blade" ? 17 : 14;
+                        int finalHp = next["weapon_slot"]!.GetValue<string>() == "crafted_blade" ? 17 :
+                            next["weapon_slot"]!.GetValue<string>() == "old" ? 8 : 14;
                         next["xp"] = xp % 10; next["level"] = next["level"]!.GetValue<int>() + xp / 10; next["hp"] = finalHp;
                         Add(next, "feather", 1);
-                        dataResult["fight"] = new JsonObject { ["result"] = "win", ["turns"] = 2, ["opponent"] = "dummy",
+                        dataResult["fight"] = new JsonObject { ["result"] = "win", ["turns"] = finalHp == 8 ? 4 : 2, ["opponent"] = "dummy",
                             ["logs"] = new JsonArray(), ["characters"] = new JsonArray(new JsonObject {
                                 ["character_name"] = "researcher", ["xp"] = 5, ["gold"] = 0, ["final_hp"] = finalHp,
                                 ["drops"] = new JsonArray(new JsonObject { ["code"] = "feather", ["quantity"] = 1 }) }) };
@@ -157,12 +175,28 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
     private JsonNode Initial()
     {
         var state = _fixture["character"]!.DeepClone();
-        if (_scenario == "combat-equipment")
+        if (_scenario is "combat-equipment" or "strategy-portfolio")
         {
             state["weapon_slot"] = "old"; state["attack_fire"] = 5;
             Add(state, "quick_blade", 1); Add(state, "heavy_blade", 1);
         }
         return state;
+    }
+    private JsonArray Catalog(string name)
+    {
+        var data = _fixture[name]!.DeepClone().AsArray();
+        if (_scenario != "strategy-portfolio") return data;
+        if (name == "maps")
+        {
+            data.Add(JsonNode.Parse("""{"map_id":4,"name":"Mine","skin":"plain","x":3,"y":0,"layer":"overworld","access":{"type":"standard","conditions":[]},"interactions":{"content":{"type":"resource","code":"ore_node"},"transition":null}}"""));
+            data.Add(JsonNode.Parse("""{"map_id":5,"name":"Forest","skin":"plain","x":4,"y":0,"layer":"overworld","access":{"type":"standard","conditions":[]},"interactions":{"content":{"type":"resource","code":"wood_node"},"transition":null}}"""));
+        }
+        if (name == "resources")
+        {
+            data.Add(JsonNode.Parse("""{"name":"Ore","code":"ore_node","skill":"mining","level":1,"drops":[{"code":"ore","rate":1,"min_quantity":1,"max_quantity":1}]}"""));
+            data.Add(JsonNode.Parse("""{"name":"Wood","code":"wood_node","skill":"woodcutting","level":1,"drops":[{"code":"wood","rate":1,"min_quantity":1,"max_quantity":1}]}"""));
+        }
+        return data;
     }
     private static int Used(JsonNode state) => state["inventory"]!.AsArray().Sum(x => x!["quantity"]!.GetValue<int>());
     private static bool EmptyRequest(string body)

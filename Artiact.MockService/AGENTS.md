@@ -13,7 +13,7 @@ Read `../docs/mock-service.md` before changes.
 - Verify behavior through `Artiact.MockService.Tests` and its TestServer compatibility suite. Keep expected contract values independent of the fixture being tested; assert inventory ordering explicitly where contractual.
 - Fixed tokens and development data are not authentication evidence.
 - Add tests before relying on a new endpoint for an end-to-end main-app check.
-- Combat scenarios use `CombatScenario.json` and `CombatScenarioStore`/middleware. They support `researcher`, named combat-progression/combat-equipment/combat-crafting reset, map-id movement and scripted fight/rest/equipment/crafting. Preserve mining reset/error behavior; see `../docs/combat-progression.md`.
+- Combat scenarios use `CombatScenario.json` and `CombatScenarioStore`/middleware. They support `researcher`, named combat-progression/combat-equipment/combat-crafting reset, map-id movement and scripted fight/rest/equipment/crafting. Additional strategy-portfolio reset adds gathering for mining/woodcutting and old-weapon combat; its independent oracle is documented in ../docs/strategy-portfolio.md. Preserve mining reset/error behavior; see `../docs/combat-progression.md`.
 - Update `docs/mock-service.md` whenever supported endpoints or deliberate divergences change.
 
 ## Run

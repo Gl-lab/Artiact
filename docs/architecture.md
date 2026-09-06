@@ -126,3 +126,7 @@ Action calls dispatch once. Network/timeout/read/JSON failures and HTTP 5xx prod
 - `/health` returns a static healthy response and UTC timestamp; it does not probe the game API, cache, worker state or Zipkin.
 
 `docker-compose.yml` starts Prometheus on 9090, Grafana on 3000 and Zipkin on 9411. Artiact itself runs outside Compose. The committed Prometheus target `localhost:5000` resolves inside the Prometheus container and does not reach a host-run Artiact process as configured.
+
+## Explicit strategy sessions
+
+StrategySessionFactory registers the portfolio described in [Strategy portfolio](strategy-portfolio.md). Observation, deterministic candidate strategies and the serialized one-command coordinator are separate from the legacy ActionService worker. Each tick performs fresh preflight; unknown outcomes require read-only reconciliation. Compatibility paths remain until parity.
