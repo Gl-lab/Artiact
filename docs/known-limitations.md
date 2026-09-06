@@ -51,7 +51,7 @@ This list records behavior visible in the current source. It is not a roadmap an
 - The mock supports basic-mining/mining-progression and the additional scripted combat-progression/combat-equipment/combat-crafting/strategy-portfolio scenarios; unsupported routes return a local 404. Legacy Swagger/YARP dependencies and configuration were removed in `8171c6e`.
 - Compose uses mutable image tags and development credentials; no production deployment definition is present.
 - Prometheus runs in a container but scrapes `localhost:5000`, which points back into that container rather than to a host-run Artiact process. Port 5000 is also the documented mock-service port.
-- `Artiact/Dockerfile` now uses repository-root context and a non-root runtime user. Docker is unavailable in the implementation environment; its build gate is configured in CI, with no local container execution evidence.
+- `Artiact/Dockerfile` now uses repository-root context and a non-root runtime user. Docker is unavailable in the implementation environment; its image build passed in CI at 920e406, but container execution remains unverified.
 - CI now runs the solution and the separate `Category=RealApiOffline` suite, but branch protection is not documented or enforced by this repository.
 - Default tests now cover bounded orchestration, hosted-worker cancellation/recovery, optional tracing and step cancellation/reconciliation. Transport/auth refresh, cache filesystem behavior and staged execution are covered offline. Real-character execution, deployed health routing, container execution and telemetry delivery remain unverified.
 

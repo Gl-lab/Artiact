@@ -8,4 +8,4 @@
 - [x] 3.2 Warning/advisory remediation, Docker and CI gates.
 ## 4. Completion
 - [x] 4.1 Independent final review, resolve blockers, broad checks and docs/evidence.
-- [ ] 4.2 Commit/push final epic and publish roadmap handoff; separately approved real-character run remains not performed.
+- [x] 4.2 Commit/push final epic and publish roadmap handoff; separately approved real-character run remains not performed.
