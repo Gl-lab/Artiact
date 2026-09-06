@@ -62,7 +62,7 @@ The application-local decision factory also accepts six progression-only Blocked
 
 Wearable types are currently hard-coded: `weapon`, `boots`, `helmet`, `body_armor`, `leg_armor`, `ring`, `amulet`, and `shield`.
 
-`CraftChainBuilder` recursively expands recipes, rejects repeated dependencies through a request-wide visited set, puts prerequisite crafts before their consumers, and fails when a leaf ingredient is unavailable. The set is not unwound after a branch, so a shared dependency may be rejected as if it were a cycle. `CraftTargetEvaluator` currently chooses by item level; character state is supplied to the interface but is not used by that implementation.
+`CraftChainBuilder` recursively expands recipes with path-local cycle detection and a single working stock shared across branches. It reserves each ingredient once, retains batch surplus, puts dependency crafts before consumers, and leaves caller inventory unchanged on success or failure. Invalid quantities, overflow and missing leaves reject the plan. `CraftTargetEvaluator` currently chooses by item level; character state is supplied to the interface but is not used by that implementation.
 
 ## Looting-aware crafting
 
@@ -72,7 +72,7 @@ The branch implements this bounded scenario:
 2. A candidate is eligible for looting only when exactly one distinct leaf item is missing. Two different missing mob drops fail closed.
 3. `TargetLootingResolver` accepts only items whose subtype is `mob`.
 4. It filters monsters to `monster.Level <= character.Level + 1` and monsters that drop the item.
-5. Candidates are ordered by descending drop rate; the first candidate with a map point is selected.
+5. Candidates rank by ascending positive reciprocal drop rate, then ordinal monster code; the first candidate with a map point is selected.
 6. The finder augments a planning-only resource copy with the required absolute inventory quantity and builds the normal craft chain.
 7. The resulting `CraftTarget` carries a `LootPrerequisite`; real inventory accounting remains separate so planning cannot create free reusable resources.
 8. `StepBuilder` conditionally moves to the monster and calls `Fight()` until live inventory reaches `RequiredQuantity`.

@@ -9,7 +9,28 @@ namespace Artiact.Tests.Services;
 public class TargetLootingResolverTests
 {
     [Fact]
-    public async Task Resolve_ChoosesHighestRateEligibleMonster()
+    public async Task Resolve_RejectsNonpositiveRatesAndUsesStableCodeTieBreak()
+    {
+        var client = new Mock<IGameClient>();
+        client.Setup(x => x.GetMonsters()).ReturnsAsync([Monster("zero",1,0), Monster("negative",1,-1), Monster("b",1,5), Monster("a",1,5)]);
+        var maps = new Mock<IMapService>();
+        maps.Setup(x => x.GetByContentCode(It.IsAny<ContentCode>())).ReturnsAsync(new MapPoint { X = 1, Y = 1 });
+        var state = new CharacterService(); state.SaveCharacter(new Character { Level = 1 });
+        var result = await new TargetLootingResolver(client.Object, maps.Object).Resolve(MobItem(), 1, state);
+        Assert.Equal("a", result!.MonsterCode);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public async Task Resolve_NonpositiveRequestDoesNotLoadMonsters(int quantity)
+    {
+        var client = new Mock<IGameClient>(MockBehavior.Strict);
+        Assert.Null(await new TargetLootingResolver(client.Object, Mock.Of<IMapService>()).Resolve(MobItem(), quantity, Mock.Of<ICharacterService>()));
+        client.VerifyNoOtherCalls();
+    }
+    [Fact]
+    public async Task Resolve_ChoosesLowestReciprocalRateEligibleMonster()
     {
         Mock<IGameClient> gameClient = new();
         gameClient.Setup( x => x.GetMonsters() ).ReturnsAsync( new List<MonsterDatum>
@@ -28,16 +49,16 @@ public class TargetLootingResolverTests
         LootPrerequisite? result = await resolver.Resolve( MobItem(), 1, characterService.Object );
 
         Assert.NotNull( result );
-        Assert.Equal( "eligible_high_rate", result.MonsterCode );
+        Assert.Equal( "eligible_low_rate", result.MonsterCode );
     }
 
     [Fact]
-    public async Task Resolve_HigherRateMonsterWithoutMapPoint_ChoosesReachableMonster()
+    public async Task Resolve_MoreFrequentMonsterWithoutMapPoint_ChoosesReachableMonster()
     {
         Mock<IGameClient> gameClient = new();
         gameClient.Setup( x => x.GetMonsters() ).ReturnsAsync( new List<MonsterDatum>
         {
-            Monster( "unreachable_high_rate", 5, 50 ),
+            Monster( "unreachable_high_rate", 5, 5 ),
             Monster( "reachable_low_rate", 5, 10 )
         } );
         Mock<IMapService> mapService = new();

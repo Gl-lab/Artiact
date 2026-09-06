@@ -11,19 +11,19 @@ This list records behavior visible in the current source. It is not a roadmap an
 - `SpendMethod.Recycle` throws `NotImplementedException`; delete is the only directly built spend step.
 - `CraftTargetEvaluator` chooses the highest item level and does not use the supplied character.
 - Wearable item types are a hard-coded string set.
-- `CraftChainBuilder` keeps a request-wide visited set without removing completed nodes. Shared craftable dependencies can therefore be rejected even when they are not a cycle.
+- CraftChainBuilder uses path-local cycle detection and shared transactional stock; shared dependencies and sibling ingredient conservation are covered. Craft execution still trusts action responses and has no concurrent reservation service.
 - If a selected target fails the finder's consumption simulation, target selection stops instead of trying the next candidate.
 - Independently supplied low-inventory gathering goals can retain an empty legacy spend prerequisite. Autonomous selection blocks inventory pressure before decomposition, and live gather guards refuse invalid inventory or fewer than ten free units.
 
 ## Looting-aware crafting
 
 - Dated [combat contract research](research/combat-equipment/contract-matrix.md) and offline fragment probes establish gaps against OpenAPI 8.2.3: fight returns `data.characters`/`data.fight`, equip/unequip require arrays with named slots, and map content is nested in `interactions`. Fight participant adaptation and named equipment arrays are now implemented, with rest/equipment details retained. The explicit combat session now normalizes a fire-only, effect-free subset and validates standard-access map identities; broader mechanics and live compatibility remain unverified.
-- The current loot resolver sorts drop `rate` descending, while the inspected upstream schema defines probability as `1/rate`. This legacy selection behavior remains characterized by tests; correcting it belongs to an explicit implementation slice.
+- The legacy loot resolver now ranks positive reciprocal drop rates ascending with an ordinal code tie-break. Its level-only eligibility remains unsuitable as a standalone live combat safety policy.
 - [ADR 0001](decisions/0001-combat-viability-and-recovery.md) proves only a narrow synthetic offline model. Missing complete effects/conditions/stat normalization, map access and ambiguous-action reconciliation prevent live combat readiness. Official sources disagree on rest timing; research uses returned cooldowns.
 
 - Only one distinct missing loot leaf is supported per target.
 - Combat eligibility is approximated by `monster.Level <= character.Level + 1`; equipment, HP, resistances and recovery are not evaluated.
-- The resolver picks the reachable eligible monster with the highest numeric `rate` field; distance and combat cost are ignored.
+- The legacy resolver picks the reachable eligible monster with the lowest positive numeric reciprocal rate; distance and combat cost are ignored.
 - Legacy fight execution is bounded to ten attempts and stops on a returned defeat, retaining the authoritative character without revenge or recovery. There is no rest/heal/death-recovery flow.
 - Execution trusts the API's returned inventory state and does not reserve ingredients against concurrent consumers.
 

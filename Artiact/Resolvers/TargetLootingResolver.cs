@@ -19,7 +19,7 @@ public class TargetLootingResolver : ITargetLootingResolver
                                                   int requiredQuantity,
                                                   ICharacterService characterService )
     {
-        if ( craftComponent.Subtype != "mob" )
+        if ( craftComponent.Subtype != "mob" || requiredQuantity <= 0 )
         {
             return null;
         }
@@ -27,9 +27,10 @@ public class TargetLootingResolver : ITargetLootingResolver
         Character character = characterService.GetCharacter();
         List<MonsterDatum> allMonsters = await _gameClient.GetMonsters();
         IEnumerable<MonsterDatum> candidates = allMonsters
-            .Where( monster => monster.Level <= character.Level + 1 )
-            .Where( monster => monster.Drops.Exists( drop => drop.Code == craftComponent.Code ) )
-            .OrderByDescending( monster => monster.Drops.Find( drop => drop.Code == craftComponent.Code )!.Rate );
+            .Where( monster => monster.Level <= (long)character.Level + 1 )
+            .Where( monster => monster.Drops.Exists( drop => drop.Code == craftComponent.Code && drop.Rate > 0 ) )
+            .OrderBy( monster => monster.Drops.Where( drop => drop.Code == craftComponent.Code && drop.Rate > 0 ).Min(drop => drop.Rate) )
+            .ThenBy( monster => monster.Code, StringComparer.Ordinal );
 
         foreach ( MonsterDatum monster in candidates )
         {

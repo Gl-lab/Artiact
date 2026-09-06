@@ -1,5 +1,13 @@
 # Epic 6 execution evidence — 2026-09-06
 
+## Craft-accounting prerequisites
+
+Base `e7d1f56`. Replaced request-wide recursion history and per-branch stock copies with path-local cycle detection and a transactional shared working stock. Caller inventory is unchanged; batch surplus is reusable, real ingredients are consumed once. Reciprocal drop ranking now uses ascending positive rates with ordinal ties; nonpositive requested quantities fail before catalog access.
+
+`dotnet test Artiact.Tests/Artiact.Tests.csproj --no-restore --filter "FullyQualifiedName~CraftConservationTests|FullyQualifiedName~TargetLootingResolverTests" --verbosity quiet` initially failed4/passed4: shared dependency, caller-stock mutation/double-use, and reciprocal ranking defects. Final focused suite passes16 including added surplus, partial intermediate, invalid/overflow, invalid-rate/request and tie coverage. Added coverage was already GREEN on the corrected implementation.
+
+Final `dotnet build Artiact.sln --no-restore --verbosity quiet` passed; `dotnet test Artiact.sln --no-restore --verbosity quiet` passed392 application +101 mock, zero failed/skipped; `git diff --check` passed. Existing NU1902 remains. Independent review found no concrete implementation blocker in CraftChainBuilder blob7e7cabd and TargetLootingResolver blob158b8d9 against e7d1f56; it requested the additional boundary coverage above, supplied by the parent. Its earlier focused craft/finder check passed18. No complete combat loot/craft integration is claimed by this prerequisite slice. [Craft extension](craft-extension.md) defines that remaining scenario before implementation.
+
 ## Combat/equipment HTTP slice
 
 Base `6e2b04f`; this slice adds presence-aware fire-only normalization, conservative predictor, explicit session factory/DI, finite one-command combat run, current-map catalog resolver, pre-owned gear comparison, response-validation port and scripted combat mock scenarios. Default autonomous mining remains unchanged. Loot/craft and Epics 7–8 are still pending.

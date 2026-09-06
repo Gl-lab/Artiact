@@ -18,7 +18,7 @@
 
 ## 4. Loot/craft prerequisites
 
-- [ ] 4.1 Test and repair shared craft dependency conservation and reciprocal loot ranking.
+- [x] 4.1 Test and repair shared craft dependency conservation and reciprocal loot ranking.
 - [ ] 4.2 Integrate bounded loot/craft/workshop/equipment prerequisites with deterministic full-client acceptance.
 - [ ] 4.3 Run focused and full gates, document final behavior and commit/push.
 
