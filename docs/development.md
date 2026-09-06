@@ -151,6 +151,8 @@ The current `Artiact/Dockerfile` does not have a working obvious build context f
 
 ## Test map
 
+`SingleDispatchTests` covers action POST failures, response loss, token rejection and terminal worker behavior. `CombatContractTests` covers controlled fight identity and equipment/rest wire details. Run both with `dotnet test Artiact.Tests/Artiact.Tests.csproj --no-restore --filter "FullyQualifiedName~SingleDispatchTests|FullyQualifiedName~CombatContractTests"`. These authored fragment tests do not establish complete combat compatibility.
+
 | Test class | Main responsibility |
 |---|---|
 | `CraftChainBuilderTests` | Recipe expansion and insufficient-resource behavior |

@@ -11,8 +11,8 @@ public interface IGameClient
     public Task<ActionResponse> Fight();
     public Task<ActionResponse> Rest();
     public Task<ActionResponse> Crafting( Item item );
-    public Task<ActionResponse> EquipItem( Inventory inventory );
-    public Task<ActionResponse> UnequipItem( Inventory inventory );
+    public Task<ActionResponse> EquipItem( EquipRequest equipment );
+    public Task<ActionResponse> UnequipItem( UnequipRequest equipment );
     public Task<ActionResponse> UseItem( Item item );
     public Task<ActionResponse> Recycling( Item item );
     public Task<ActionResponse> DeleteItem( Item item );

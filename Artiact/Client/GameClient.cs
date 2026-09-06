@@ -1,5 +1,4 @@
-﻿using System.Diagnostics;
-using System.Net;
+using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using Artiact.Contracts.Client;
@@ -70,7 +69,7 @@ public class GameClient : IGameClient
     public async Task<ActionResponse> Fight()
     {
         string detailsUrl = $"/my/{_characterName}/action/fight";
-        return await GetAction( detailsUrl );
+        return await GetAction( detailsUrl, fight: true );
     }
 
     public async Task<ActionResponse> Rest()
@@ -87,19 +86,19 @@ public class GameClient : IGameClient
         return await GetAction( detailsUrl, content );
     }
 
-    public async Task<ActionResponse> EquipItem( Inventory inventory )
+    public async Task<ActionResponse> EquipItem( EquipRequest equipment )
     {
         string detailsUrl = $"/my/{_characterName}/action/equip";
 
-        StringContent content = new( JsonSerializer.Serialize( inventory ), Encoding.UTF8, "application/json" );
+        StringContent content = new( JsonSerializer.Serialize( new[] { equipment } ), Encoding.UTF8, "application/json" );
         return await GetAction( detailsUrl, content );
     }
 
-    public async Task<ActionResponse> UnequipItem( Inventory inventory )
+    public async Task<ActionResponse> UnequipItem( UnequipRequest equipment )
     {
         string detailsUrl = $"/my/{_characterName}/action/unequip";
 
-        StringContent content = new( JsonSerializer.Serialize( inventory ), Encoding.UTF8, "application/json" );
+        StringContent content = new( JsonSerializer.Serialize( new[] { equipment } ), Encoding.UTF8, "application/json" );
         return await GetAction( detailsUrl, content );
     }
 
@@ -258,60 +257,31 @@ public class GameClient : IGameClient
             throw new InvalidOperationException();
     }
 
-    private async Task<ActionResponse> GetAction( string detailsUrl, HttpContent? content = null )
+    private async Task<ActionResponse> GetAction( string detailsUrl, HttpContent? content = null, bool fight = false )
     {
-        const int maxRetries = 3;
-        const int retryDelayMs = 1000;
-
-        for ( int attempt = 1; attempt <= maxRetries; attempt++ )
+        try
         {
-            try
+            using HttpResponseMessage response = await _httpClient.PostAsync( detailsUrl, content );
+            if ( !response.IsSuccessStatusCode )
+                throw new ActionFailureException( (int)response.StatusCode >= 500
+                    ? ActionFailureKind.UnknownOutcome : ActionFailureKind.Rejected, (int)response.StatusCode );
+
+            var result = JsonSerializer.Deserialize<ActionResponse>( await response.Content.ReadAsStringAsync() );
+            if ( fight )
             {
-                _logger.LogDebug( detailsUrl );
-                HttpResponseMessage response = await _httpClient.PostAsync( detailsUrl, content );
-
-                string context = await response.Content.ReadAsStringAsync();
-                if ( response.IsSuccessStatusCode )
-                {
-                    ActionResponse? actionResponse =
-                        JsonSerializer.Deserialize<ActionResponse>( context );
-
-                    return actionResponse ?? throw new InvalidOperationException();
-                }
-
-                _logger.LogError( "Request failed: {Url}, Status: {StatusCode}, Response: {Context}",
-                    detailsUrl, response.StatusCode, context );
-
-                if ( response.StatusCode == HttpStatusCode.GatewayTimeout ||
-                    response.StatusCode == HttpStatusCode.BadGateway )
-                {
-                    if ( attempt < maxRetries )
-                    {
-                        _logger.LogWarning( "Retrying request after {Delay}ms (attempt {Attempt}/{MaxRetries})",
-                            retryDelayMs, attempt, maxRetries );
-                        await Task.Delay( retryDelayMs );
-                        continue;
-                    }
-                }
-
-                throw new Exception(
-                    $"Request failed: {detailsUrl}, Status: {response.StatusCode}, Response: {context}" );
+                var matches = result?.Data?.Characters?.Where(c => c is not null &&
+                    string.Equals(c.Name, _characterName, StringComparison.Ordinal)).ToArray();
+                if ( matches?.Length != 1 || result?.Data?.Fight is not { Result: "win" or "loss" } )
+                    throw new ActionFailureException( ActionFailureKind.UnknownOutcome );
+                result.Data.Character = matches[0];
             }
-            catch ( Exception ex ) when ( ex is HttpRequestException || ex is TaskCanceledException )
-            {
-                if ( attempt < maxRetries )
-                {
-                    _logger.LogWarning( ex,
-                        "Network error occurred. Retrying request after {Delay}ms (attempt {Attempt}/{MaxRetries})",
-                        retryDelayMs, attempt, maxRetries );
-                    await Task.Delay( retryDelayMs );
-                    continue;
-                }
-
-                throw;
-            }
+            if ( result?.Data?.Character is null || result.Data.Cooldown is null )
+                throw new ActionFailureException( ActionFailureKind.UnknownOutcome );
+            return result;
         }
-
-        throw new Exception( $"Request failed after {maxRetries} attempts: {detailsUrl}" );
+        catch ( Exception ex ) when ( ex is HttpRequestException or OperationCanceledException or JsonException or IOException )
+        {
+            throw new ActionFailureException( ActionFailureKind.UnknownOutcome );
+        }
     }
 }

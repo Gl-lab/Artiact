@@ -15,4 +15,16 @@ public class ActionData
 
     [JsonPropertyName( "character" )]
     public Character Character { get; set; }
+
+    [JsonPropertyName( "characters" )]
+    public List<Character>? Characters { get; set; }
+
+    [JsonPropertyName( "fight" )]
+    public FightDetails? Fight { get; set; }
+
+    [JsonPropertyName( "hp_restored" )]
+    public int? HpRestored { get; set; }
+
+    [JsonPropertyName( "items" )]
+    public System.Text.Json.JsonElement? EquipmentItems { get; set; }
 }

@@ -110,7 +110,7 @@ Subgoals are built before their parent goal, so prerequisite craft or inventory 
 
 `GameHttpClient` obtains a token from `/token` using Basic authentication, then uses the returned Bearer token. `GameClient` exposes character actions and paginated map/resource/item/monster reads.
 
-Action calls retry up to three times with a one-second delay for `HttpRequestException`, `TaskCanceledException`, HTTP 502 and HTTP 504. Other unsuccessful responses fail immediately. Reference-data GETs do not use this retry path. Retries do not receive a cancellation token from the hosted worker, and expired Bearer tokens are not refreshed after a 401.
+Action calls dispatch once. Network/timeout/read/JSON failures and HTTP 5xx produce sanitized `ActionFailureException(UnknownOutcome)`; other unsuccessful responses produce `Rejected` with the status code. Both stop the worker without recovery repetition. Token rejection prevents action dispatch. Calls remain tokenless and expired Bearer tokens are not refreshed after a 401. Fight adapts exactly one ordinal-name participant from `data.characters` into `Data.Character` and retains `data.fight`; named equipment requests use one-element arrays. Full combat normalization and progression are not yet implemented.
 
 `CacheService` stores one JSON file per reference-data element type under a relative `cache` directory and treats it as fresh for 48 hours. The cache path therefore depends on the process working directory.
 

@@ -17,7 +17,7 @@ This list records behavior visible in the current source. It is not a roadmap an
 
 ## Looting-aware crafting
 
-- Dated [combat contract research](research/combat-equipment/contract-matrix.md) and offline fragment probes establish gaps against OpenAPI 8.2.3: fight returns `data.characters`/`data.fight`, equip/unequip require arrays with named slots, and map content is nested in `interactions`. Current DTO/client shapes remain unchanged and cannot be treated as current combat compatibility.
+- Dated [combat contract research](research/combat-equipment/contract-matrix.md) and offline fragment probes establish gaps against OpenAPI 8.2.3: fight returns `data.characters`/`data.fight`, equip/unequip require arrays with named slots, and map content is nested in `interactions`. Fight participant adaptation and named equipment arrays are now implemented, with rest/equipment details retained. Full presence/stat/access normalization and deterministic combat acceptance remain incomplete.
 - The current loot resolver sorts drop `rate` descending, while the inspected upstream schema defines probability as `1/rate`. This legacy selection behavior remains characterized by tests; correcting it belongs to an explicit implementation slice.
 - [ADR 0001](decisions/0001-combat-viability-and-recovery.md) proves only a narrow synthetic offline model. Missing complete effects/conditions/stat normalization, map access and ambiguous-action reconciliation prevent live combat readiness. Official sources disagree on rest timing; research uses returned cooldowns.
 
@@ -32,8 +32,8 @@ This list records behavior visible in the current source. It is not a roadmap an
 - The background service uses one DI scope for its full lifetime.
 - Mining invokes each Move/Gathering method at most once per cycle; generic craft/loot graphs can still contain several actions. Finite attempt bounds do not time out hung tokenless client calls or reconcile unknown server outcomes.
 - Cancellation reaches orchestration, worker recovery and step cooldown delays, but current `IGameClient` methods remain tokenless and cannot abort an already-started HTTP call. A successful in-flight action response is saved before cancellation prevents its cooldown wait, repeat or following child.
-- The action client retries operations that may be non-idempotent after network failures; the server may have completed an action before a retry.
-- Token retrieval does not throw on a non-success response at the point of authentication; the later request proceeds with the previous Basic header.
+- Action POSTs dispatch once and typed action failures stop the worker. Unknown outcomes still require external state inspection; durable reconciliation across process restart is absent.
+- Token rejection now stops before action dispatch; expired Bearer token refresh remains unimplemented.
 - Cache freshness and location rely on local file timestamps and process working directory.
 - `/health` reports a static healthy payload and does not reflect worker/API/cache status.
 - Tracing is optional for action execution and gathering decomposition; a missing activity listener does not block game behavior.
@@ -55,7 +55,7 @@ This list records behavior visible in the current source. It is not a roadmap an
 - Prometheus runs in a container but scrapes `localhost:5000`, which points back into that container rather than to a host-run Artiact process. Port 5000 is also the documented mock-service port.
 - `Artiact/Dockerfile` has no dependable build context for the current multi-project layout: the repository root has no matching root project file, while an `Artiact/` context omits `Artiact.Contracts`.
 - CI now runs the solution and the separate `Category=RealApiOffline` suite, but branch protection is not documented or enforced by this repository.
-- Default tests now cover bounded orchestration, hosted-worker cancellation/recovery, optional tracing and step cancellation/reconciliation. They still do not cover controllers, production HTTP authentication/token refresh, retry behavior, cache filesystem behavior, Docker or end-to-end execution.
+- Default tests now cover bounded orchestration, hosted-worker cancellation/recovery, optional tracing and step cancellation/reconciliation. They still do not cover controllers, token refresh, cache filesystem behavior, Docker or end-to-end execution.
 
 ## Documentation maintenance
 

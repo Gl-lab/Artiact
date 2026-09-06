@@ -51,12 +51,16 @@ public class GameHttpClient : IGameHttpClient
 
         _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue( "Basic", authHeader );
 
-        HttpResponseMessage response = await _httpClient.PostAsync( tokenUrl, null );
+        using HttpResponseMessage response = await _httpClient.PostAsync( tokenUrl, null );
+        if ( !response.IsSuccessStatusCode )
+            throw new AuthenticationException( "Token request failed." );
         if ( response.IsSuccessStatusCode )
         {
             string jsonResponse = await response.Content.ReadAsStringAsync();
             // Десериализуем JSON в объект TokenContainer
             TokenContainer? tokenContainer = JsonSerializer.Deserialize<TokenContainer>( jsonResponse );
+            if ( string.IsNullOrWhiteSpace( tokenContainer?.Token ) )
+                throw new AuthenticationException( "Token is missing." );
 
             // Возвращаем токен
 

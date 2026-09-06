@@ -44,6 +44,11 @@ public class ArtiactBackgroundService : BackgroundService
                 {
                     break;
                 }
+                catch (Artiact.Contracts.Client.ActionFailureException ex)
+                {
+                    _logger.LogError(ex, "Action failed; autonomous execution stopped pending state inspection");
+                    return;
+                }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Error during action execution");
@@ -62,4 +67,4 @@ public class ArtiactBackgroundService : BackgroundService
             throw;
         }
     }
-} 
+}
