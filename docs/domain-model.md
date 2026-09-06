@@ -18,11 +18,28 @@ These definitions describe the current implementation. There is no repository-le
 
 `Goal` owns `SubGoals` and sets `ParentGoal` through `AddSubGoal`. `GoalDecomposer` currently handles:
 
-- `GatheringGoal`: continue gathering while inventory has at least ten free units; otherwise add a resource-spending subgoal.
+- `GatheringGoal`: independently supplied goals retain the legacy inventory-spending decomposition. Autonomous selection blocks insufficient inventory before reaching this path. Gathering execution checks mining below its target and valid free inventory of at least ten before the first gather and every repeat.
 - `SpendResourcesGoal`: find wearable craft targets from resources marked `Craft`, then add one `GearCraftingGoal` per target.
 - `GearCraftingGoal`: already contains a planned `CraftTarget`; execution is built by `StepBuilder`.
 
 `LevelUpGoal` exists as a contract type but is not handled by `GoalDecomposer` or `StepBuilder`. `SpendMethod.Recycle` is also not implemented in step building.
+
+## Explainable mining selection
+
+`GoalService.Evaluate(Character?)` makes a pure deterministic decision using one snapshot and a configured target. The application-owned immutable `GoalDecision` has validated factories, no public constructor/setters and no mutable goal. It records status, typed reason, stable reason code, target, nullable current mining level, nullable capacity/used/free as a group, required free inventory `10`, and nullable `SelectedGoalType`. Only Selected contains `GoalType.Gathering`; ActionService creates a fresh execution goal after selection.
+
+Evaluation precedence is fixed:
+
+1. Target <= 0: Blocked / `invalid_goal_policy`, no observed level or inventory facts.
+2. Missing character or negative mining: Blocked / `invalid_character_snapshot`, nullable or observed negative level, no inventory facts.
+3. Mining >= target: Completed / `mining_target_reached`, no inventory access or inventory facts.
+4. Invalid inventory: Blocked / `invalid_inventory_snapshot`, no inventory facts.
+5. Free capacity < 10: Blocked / `inventory_pressure`, exact inventory facts.
+6. Otherwise: Selected / `mining_below_target`, exact inventory facts and gathering type.
+
+The shared selection/live inventory rule rejects null lists/elements, negative capacity/quantity, positive quantity with blank/null item code, checked integer sum overflow, and used capacity greater than capacity. Zero-quantity slots contribute zero regardless of code. At target 20, mining 19 with capacity 20 and used 10 selects; used 11 blocks. Mining 20 or 21 completes even with malformed inventory.
+
+`ConditionalStep` applies the live predicate after any move and before the first gather; the ActionStep repeat predicate applies it after each saved response. Negative mining or invalid inventory returns false without authorizing another gather. Reaching target or falling from ten to nine free units stops repeats. The authoritative response remains stored, the selected cycle returns normally, and one next cycle emits Completed/Blocked before the worker stops. Blocked requires intervention/restart; no crafting, deletion, banking or other remediation is selected.
 
 ## Craft planning
 

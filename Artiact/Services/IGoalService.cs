@@ -1,8 +1,10 @@
-﻿using Artiact.Contracts.Models;
+using Artiact.Contracts.Models;
+using Artiact.Contracts.Models.Api;
+using Artiact.Models;
 
 namespace Artiact.Services;
 
 public interface IGoalService
 {
-    Goal GetGoal( ICharacterService character );
+    GoalDecision Evaluate(Character? character);
 }

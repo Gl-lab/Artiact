@@ -51,11 +51,11 @@ Unit and flow-oriented tests using xUnit and Moq. Tests focus on craft-chain con
 
 1. Builds configuration from output-directory `appsettings.json`, optional environment-specific JSON and user secrets.
 2. Registers logging, `HttpClient`, settings and OpenTelemetry.
-3. Registers application services as scoped; `ActivitySource` is singleton.
+3. Registers application services as scoped; `ActivitySource` is singleton. `AddGoalSelection` binds and validates the positive mining target on startup before worker initialization.
 4. Registers `ArtiactBackgroundService`.
 5. Maps `/metrics` and `/health`, then starts the web host.
 
-`ArtiactBackgroundService.ExecuteAsync` creates one dependency-injection scope for its lifetime. It calls `IActionService.InitializeAsync(stoppingToken)` once, then continuously calls `ExecuteCycleAsync(stoppingToken)` until cancellation. Each call selects and executes one top-level goal; its step graph may contain multiple actions. A cycle failure is logged and followed by a cancellable 30-second recovery delay. Shutdown cancellation exits normally; other initialization failures are critical and terminate the hosted service.
+`ArtiactBackgroundService.ExecuteAsync` creates one dependency-injection scope for its lifetime. It calls `IActionService.InitializeAsync(stoppingToken)` once, then calls `ExecuteCycleAsync(stoppingToken)` serially while decisions are Selected. Each call reads one snapshot, evaluates once and returns that exact immutable decision. Selected constructs a private gathering goal and executes its graph; Completed/Blocked performs no downstream work and terminates the worker normally without recovery delay. A selected graph may contain multiple actions. A cycle failure is logged and followed by a cancellable 30-second recovery delay. Shutdown cancellation exits normally; other initialization failures are critical and terminate the hosted service.
 
 > Running the main application is a side effect: the worker begins issuing game actions immediately after initialization.
 
@@ -73,18 +73,24 @@ sequenceDiagram
     B->>A: InitializeAsync(stoppingToken)
     A->>C: WarmUpCache()
     A->>C: GetCharacter()
-    loop continuous worker
+    loop while Selected
         B->>A: ExecuteCycleAsync(stoppingToken)
-        A->>G: GetGoal(character)
-        G-->>A: Goal
-        A->>D: DecomposeGoal(goal)
-        A->>S: BuildStep(goal)
-        S-->>A: IStep graph
-        A->>C: Execute step graph with cancellation checks
+        A->>G: Evaluate(snapshot)
+        G-->>A: Immutable GoalDecision
+        alt Selected
+            A->>D: DecomposeGoal(new GatheringGoal(target))
+            A->>S: BuildStep(private goal)
+            S-->>A: IStep graph
+            A->>C: Execute with live target/reserve checks
+        else Completed or Blocked
+            Note over A,C: No decomposition, building or actions
+        end
+        A-->>B: Exact decision
+        Note over B: Stop normally on Completed/Blocked
     end
 ```
 
-The current goal provider always returns `GatheringGoal(20)`. Decomposition adds `SpendResourcesGoal` when fewer than ten inventory units remain available. Craftable inventory resources may become `GearCraftingGoal` subgoals.
+The selector fails closed before decomposition when below-target inventory is invalid or has fewer than ten free units. Existing independently supplied goal decomposition/crafting remains available; it is not an autonomous inventory-remediation fallback. After movement and each gather response, the gather predicate rechecks non-negative mining below the selected target and valid free capacity of at least ten. The next cycle reports the resulting terminal decision.
 
 ## Step execution model
 
@@ -107,6 +113,7 @@ Action calls retry up to three times with a one-second delay for `HttpRequestExc
 ## Observability
 
 - Console and NLog logging.
+- `ActionService` alone emits one Information `GoalDecision` event per evaluated cycle and matching activity tags: `goal.decision.status`, `goal.decision.reason`, `goal.mining.target_level`; observed current level adds `goal.mining.current_level`. Valid inventory facts add `goal.inventory.capacity`, `.used`, `.free`, `.required_free` (each with the `goal.inventory` prefix). Completed/invalid snapshots omit inventory fields; absent characters omit current level. No character/account/inventory contents enter the decision event. Worker logs do not duplicate it; tracing listeners are optional.
 - W3C activity IDs and `ActivitySource("Artiact.Client")`.
 - ASP.NET Core and `HttpClient` tracing.
 - Console and Zipkin trace exporters.

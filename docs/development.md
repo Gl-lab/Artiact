@@ -41,6 +41,19 @@ dotnet test Artiact.MockService.Tests/Artiact.MockService.Tests.csproj --no-rest
 2. optional `appsettings.{environment-name-lowercase}.json`;
 3. .NET user secrets.
 
+`GoalSelection:MiningTargetLevel` is the only goal-selection option; tracked `appsettings.json` sets `20`. `Program` and safe DI tests call the same `AddGoalSelection(IServiceCollection, IConfiguration)` extension. Missing, non-integer, zero or negative targets fail binding/validation during startup before autonomous initialization. No fallback target or configurable inventory threshold exists. Direct selector evaluation of a non-positive target returns typed Blocked instead.
+
+Focused offline decision checks (no host, credentials or network):
+
+```text
+dotnet test Artiact.Tests/Artiact.Tests.csproj --no-restore --filter "FullyQualifiedName~GoalServiceTests|FullyQualifiedName~GoalDecisionFactoryTests"
+dotnet test Artiact.Tests/Artiact.Tests.csproj --no-restore --filter FullyQualifiedName~MiningBoundaryTests
+dotnet test Artiact.Tests/Artiact.Tests.csproj --no-restore --filter FullyQualifiedName~DecisionObservabilityTests
+dotnet test Artiact.Tests/Artiact.Tests.csproj --no-restore --filter FullyQualifiedName~GoalSelectionConfigurationTests
+```
+
+Completed/Blocked terminates autonomous repetition normally without recovery delay. Inspect the single ActionService `GoalDecision` event for typed reason/facts. Inventory-pressure remediation and periodic refresh are deferred; restart reloads server state and reevaluates. A still-running web host does not imply a still-running worker.
+
 `ApiSettings` requires:
 
 - `BaseUrl`;
@@ -134,7 +147,11 @@ The current `Artiact/Dockerfile` does not have a working obvious build context f
 | `TargetLootingResolverTests` | Mob subtype, level policy, drop rate and reachable map selection |
 | `LootingCraftPlanningTests` | Missing mob leaves, nested recipes, resource accounting and fail-closed multiple leaves |
 | `StepBuilderTests` | Craft order, workshop movement, live loot predicates and ten-fight bound |
-| `ActionServiceTests` | Single-cycle orchestration, initialization cancellation and optional tracing |
+| `ActionServiceTests` | Exact decision identity, terminal isolation, fresh execution graphs, cancellation and optional tracing |
+| `GoalServiceTests` / `GoalDecisionFactoryTests` | Deterministic precedence, malformed snapshots and immutable construction invariants |
+| `MiningBoundaryTests` | Live move/gather responses, target/reserve boundaries and two-cycle terminal worker flows |
+| `DecisionObservabilityTests` | Exact structured event/activity fields, omission, cardinality and listener equivalence |
+| `GoalSelectionConfigurationTests` | Production registration and startup validation without hosting |
 | `GoalDecomposerTests` | Gathering decomposition without a trace listener |
 | `ArtiactBackgroundServiceTests` | Worker repetition, recovery delay and normal cancellation |
 | `StepCancellationTests` | Pre-action cancellation, cooldown cancellation and authoritative-state reconciliation |

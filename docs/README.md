@@ -29,7 +29,7 @@ This directory is the source-grounded guide for developers and AI agents working
 
 ## Current product behavior
 
-Artiact starts a hosted worker automatically. It warms reference data, loads the configured character, repeatedly selects a goal, decomposes it into subgoals, builds executable steps and calls the game API. The current `GoalService` always returns `GatheringGoal(20)`; this is current implementation behavior, not a general-purpose scheduler.
+Artiact starts a hosted worker automatically. It warms reference data, loads the configured character, repeatedly selects a goal, decomposes it into subgoals, builds executable steps and calls the game API. `GoalService.Evaluate` returns an immutable decision for `GoalSelection:MiningTargetLevel` (tracked default `20`). Below target, valid inventory with at least ten free units selects gathering. Reaching the target completes the milestone; malformed state or inventory pressure blocks progress. Completed/Blocked stops the worker normally. Every gather rechecks the selected target and the same inventory reserve against live state.
 
 The bounded looting-aware craft path can plan one missing non-craftable mob drop, acquire it through fights, and then consume it through a craft chain. See [Domain model](domain-model.md#looting-aware-crafting).
 

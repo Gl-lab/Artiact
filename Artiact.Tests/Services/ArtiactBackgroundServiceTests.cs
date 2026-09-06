@@ -1,3 +1,4 @@
+using Artiact.Models;
 using Artiact.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -92,6 +93,32 @@ public class ArtiactBackgroundServiceTests
         Assert.Equal( TimeSpan.FromSeconds( 30 ), requestedDelay );
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Worker_TerminalFirstCycleStopsWithoutRecoveryOrDuplicateEvent(bool completed)
+    {
+        using CancellationTokenSource stop = new();
+        var action = new Moq.Mock<IActionService>();
+        action.Setup(x=>x.InitializeAsync(Moq.It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        int calls=0, delays=0;
+        GoalDecision decision=completed
+            ? GoalDecision.Create(GoalDecisionStatus.Completed,GoalDecisionReason.MiningTargetReached,20,20)
+            : GoalDecision.Create(GoalDecisionStatus.Blocked,GoalDecisionReason.InventoryPressure,20,19,20,11,9);
+        action.Setup(x=>x.ExecuteCycleAsync(Moq.It.IsAny<CancellationToken>())).Returns(()=>
+        {
+            calls++; if(calls>1) stop.Cancel();
+            return Task.FromResult(decision);
+        });
+        using ServiceProvider provider=new ServiceCollection().AddSingleton(action.Object).BuildServiceProvider();
+        DecisionLogger<ArtiactBackgroundService> logger=new();
+        using ArtiactBackgroundService worker=new(logger,provider,(_,_)=>{delays++;stop.Cancel();return Task.CompletedTask;});
+        await worker.StartAsync(stop.Token);
+        await worker.ExecuteTask!;
+        Assert.Equal(1,calls);Assert.Equal(0,delays);
+        Assert.DoesNotContain(logger.Events,e=>e.Event.Name=="GoalDecision" || e.Fields.Keys.Any(k=>k.StartsWith("goal.")));
+    }
+
     private sealed class RecordingActionService(
         CancellationTokenSource cancellation,
         int cancelAfterCycles ) : IActionService
@@ -106,7 +133,7 @@ public class ArtiactBackgroundServiceTests
             return Task.CompletedTask;
         }
 
-        public Task ExecuteCycleAsync( CancellationToken cancellationToken )
+        public Task<GoalDecision> ExecuteCycleAsync( CancellationToken cancellationToken )
         {
             cancellationToken.ThrowIfCancellationRequested();
             CycleCalls++;
@@ -114,7 +141,7 @@ public class ArtiactBackgroundServiceTests
             {
                 cancellation.Cancel();
             }
-            return Task.CompletedTask;
+            return Task.FromResult(GoalDecision.Create(GoalDecisionStatus.Selected, GoalDecisionReason.MiningBelowTarget,20,19,20,10,10,Artiact.Contracts.Models.GoalType.Gathering));
         }
     }
 
@@ -125,7 +152,7 @@ public class ArtiactBackgroundServiceTests
 
         public Task InitializeAsync( CancellationToken cancellationToken ) => Task.CompletedTask;
 
-        public Task ExecuteCycleAsync( CancellationToken cancellationToken )
+        public Task<GoalDecision> ExecuteCycleAsync( CancellationToken cancellationToken )
         {
             CycleCalls++;
             cancellation.Cancel();
@@ -140,7 +167,7 @@ public class ArtiactBackgroundServiceTests
 
         public Task InitializeAsync( CancellationToken cancellationToken ) => Task.CompletedTask;
 
-        public Task ExecuteCycleAsync( CancellationToken cancellationToken )
+        public Task<GoalDecision> ExecuteCycleAsync( CancellationToken cancellationToken )
         {
             CycleCalls++;
             if ( CycleCalls == 1 )
@@ -149,7 +176,7 @@ public class ArtiactBackgroundServiceTests
             }
 
             cancellation.Cancel();
-            return Task.CompletedTask;
+            return Task.FromResult(GoalDecision.Create(GoalDecisionStatus.Selected, GoalDecisionReason.MiningBelowTarget,20,19,20,10,10,Artiact.Contracts.Models.GoalType.Gathering));
         }
     }
 }

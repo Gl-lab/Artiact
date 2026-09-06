@@ -4,15 +4,15 @@ This list records behavior visible in the current source. It is not a roadmap an
 
 ## Planning and domain
 
-- `GoalService` always returns `GatheringGoal(20)`; there is no dynamic goal policy.
-- The `GatheringGoal.TargetLevel` value is not used by `StepBuilder` when selecting a resource.
+- Goal selection supports only one configured mining milestone. It has no resource ranking, generic optimizer or autonomous inventory remediation. Blocked/Completed stops the worker; external changes are not polled and restart is required to reevaluate.
+- `GatheringGoal.TargetLevel` stops gathering at the selected target, but does not alter resource or movement selection. One selected cycle does not guarantee reaching the milestone.
 - `LevelUpGoal` exists but is not decomposed or built into steps.
 - `SpendMethod.Recycle` throws `NotImplementedException`; delete is the only directly built spend step.
 - `CraftTargetEvaluator` chooses the highest item level and does not use the supplied character.
 - Wearable item types are a hard-coded string set.
 - `CraftChainBuilder` keeps a request-wide visited set without removing completed nodes. Shared craftable dependencies can therefore be rejected even when they are not a cycle.
 - If a selected target fails the finder's consumption simulation, target selection stops instead of trying the next candidate.
-- Low inventory with no craftable wearable target produces an empty spend step and still proceeds to gathering.
+- Independently supplied low-inventory gathering goals can retain an empty legacy spend prerequisite. Autonomous selection blocks inventory pressure before decomposition, and live gather guards refuse invalid inventory or fewer than ten free units.
 
 ## Looting-aware crafting
 

@@ -2,6 +2,7 @@
 using Artiact.Contracts.Models;
 using Artiact.Contracts.Models.Api;
 using Artiact.Models.Steps;
+using Artiact.Models;
 
 namespace Artiact.Services;
 
@@ -43,8 +44,8 @@ public class StepBuilder : IStepBuilder
     {
         switch ( goal )
         {
-            case GatheringGoal:
-                return await BuildMiningSteps( characterService );
+            case GatheringGoal gatheringGoal:
+                return await BuildMiningSteps( gatheringGoal, characterService );
             case SpendResourcesGoal spendGoal:
                 return await BuildSpendResourcesStep( spendGoal, characterService );
             case GearCraftingGoal craftingGoal:
@@ -54,7 +55,7 @@ public class StepBuilder : IStepBuilder
         }
     }
 
-    private async Task<IStep> BuildMiningSteps( ICharacterService characterService )
+    private async Task<IStep> BuildMiningSteps( GatheringGoal gatheringGoal, ICharacterService characterService )
     {
         Character character = characterService.GetCharacter();
         ResourceDatum? resCandidate = await FindResourceCandidate( character );
@@ -69,10 +70,16 @@ public class StepBuilder : IStepBuilder
         }
 
 
-        steps.Add( new ActionStep( characterService, client => client.Gathering(), characterService =>
-            characterService.GetCharacter().InventoryMaxItems - 2 >=
-            characterService.GetCharacter().Inventory.Sum( x => x.Quantity )
-        ) );
+        bool CanGather(ICharacterService service)
+        {
+            Character live = service.GetCharacter();
+            return live is not null && live.MiningLevel >= 0 && live.MiningLevel < gatheringGoal.TargetLevel &&
+                   MiningInventory.TryRead(live, out _, out int free) && free >= GoalDecision.InventoryReserve;
+        }
+
+        steps.Add(new ConditionalStep(
+            new ActionStep(characterService, client => client.Gathering(), CanGather),
+            CanGather, characterService));
 
 
         if ( steps.Count > 1 )

@@ -85,7 +85,7 @@ internal class Program
         builder.Services.AddScoped<ICacheService, CacheService>();
         builder.Services.AddScoped<IGameHttpClient, GameHttpClient>();
         builder.Services.AddScoped<IGameClient, GameClient>();
-        builder.Services.AddScoped<IGoalService, GoalService>();
+        builder.Services.AddGoalSelection( builder.Configuration );
         builder.Services.AddScoped<IMapService, MapService>();
         builder.Services.AddScoped<IStepBuilder, StepBuilder>();
         builder.Services.AddScoped<ICharacterService, CharacterService>();

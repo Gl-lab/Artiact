@@ -36,7 +36,9 @@ public class ArtiactBackgroundService : BackgroundService
             {
                 try
                 {
-                    await actionService.ExecuteCycleAsync(stoppingToken);
+                    var decision = await actionService.ExecuteCycleAsync(stoppingToken);
+                    if (decision.Status != Artiact.Models.GoalDecisionStatus.Selected)
+                        return;
                 }
                 catch (Exception) when (stoppingToken.IsCancellationRequested)
                 {
