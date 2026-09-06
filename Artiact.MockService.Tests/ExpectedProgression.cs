@@ -10,8 +10,8 @@ internal static class ExpectedProgression
     {
         var character = ExpectedScenario.Character();
         character.MiningMaxXp = 10; character.X = x; character.MiningLevel = level; character.MiningXp = xp;
-        if(copper > 0) { character.Inventory[0].Code = "copper_ore"; character.Inventory[0].Quantity = copper; }
-        if(iron > 0) { character.Inventory[1].Code = "iron_ore"; character.Inventory[1].Quantity = iron; }
+        if(copper > 0) { character.Inventory![0].Code = "copper_ore"; character.Inventory![0].Quantity = copper; }
+        if(iron > 0) { character.Inventory![1].Code = "iron_ore"; character.Inventory![1].Quantity = iron; }
         return character;
     }
     public static BasicMiningDefinition Definition(bool progression = true)
@@ -19,12 +19,12 @@ internal static class ExpectedProgression
         var maps = ExpectedScenario.Maps(); var resources = ExpectedScenario.Resources(); var items = ExpectedScenario.Items();
         if(progression)
         {
-            maps.Data.Add(new() { Name = "Iron Rocks", Skin = "rocks", X = 4, Y = 0, Content = new() { Type = "resource", Code = "iron_rocks" } });
+            maps.Data!.Add(new() { Name = "Iron Rocks", Skin = "rocks", X = 4, Y = 0, Content = new() { Type = "resource", Code = "iron_rocks" } });
             maps.Total = maps.Size = 3;
-            resources.Data.Add(new() { Name = "Iron Rocks", Code = "iron_rocks", Skill = "mining", Level = 2,
+            resources.Data!.Add(new() { Name = "Iron Rocks", Code = "iron_rocks", Skill = "mining", Level = 2,
                 Drops = [new() { Code = "iron_ore", Rate = 1, MinQuantity = 1, MaxQuantity = 1 }] });
             resources.Total = resources.Size = 2;
-            items.Data.Add(new() { Name = "Iron Ore", Code = "iron_ore", Level = 2, Type = "resource", Subtype = "mining",
+            items.Data!.Add(new() { Name = "Iron Ore", Code = "iron_ore", Level = 2, Type = "resource", Subtype = "mining",
                 Description = "Progression mining ore.", Effects = [], Craft = null, Tradeable = false });
             items.Total = items.Size = 2;
         }
@@ -72,7 +72,7 @@ internal static class ExpectedProgression
     {
         var expected = Action(index);
         Assert.Equivalent(expected, actual, strict: true);
-        ScenarioAssertions.CharacterEquals(expected.Data.Character, actual.Data.Character);
-        Assert.Equal(expected.Data.Details.Items.Select(i => (i.Code, i.Quantity)), actual.Data.Details.Items.Select(i => (i.Code, i.Quantity)));
+        ScenarioAssertions.CharacterEquals(expected.Data!.Character!, actual.Data!.Character!);
+        Assert.Equal(expected.Data!.Details!.Items.Select(i => (i.Code, i.Quantity)), actual.Data!.Details!.Items.Select(i => (i.Code, i.Quantity)));
     }
 }

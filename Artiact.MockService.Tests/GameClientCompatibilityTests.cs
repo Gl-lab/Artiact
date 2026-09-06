@@ -46,7 +46,7 @@ public sealed class GameClientCompatibilityTests : IAsyncLifetime
 
         using HttpResponseMessage tokenResponse = await transport.PostAsync( "/token", null );
         tokenResponse.EnsureSuccessStatusCode();
-        TokenContainer? sentinelToken = System.Text.Json.JsonSerializer.Deserialize<TokenContainer>( await tokenResponse.Content.ReadAsStringAsync() );
+        TokenContainer? sentinelToken = System.Text.Json.JsonSerializer.Deserialize<TokenContainer>( await tokenResponse.Content!.ReadAsStringAsync() );
         Assert.Equal( "mock-token", sentinelToken?.Token );
 
         await game.WarmUpCache();
@@ -57,17 +57,17 @@ public sealed class GameClientCompatibilityTests : IAsyncLifetime
         ActionResponse gather = await game.Gathering();
         using HttpResponseMessage stateResponse = await transport.GetAsync( "/__mock/state/MockHero" );
         using HttpResponseMessage traceResponse = await transport.GetAsync( "/__mock/trace" );
-        string stateJson = await stateResponse.Content.ReadAsStringAsync();
-        string traceJson = await traceResponse.Content.ReadAsStringAsync();
+        string stateJson = await stateResponse.Content!.ReadAsStringAsync();
+        string traceJson = await traceResponse.Content!.ReadAsStringAsync();
 
         Assert.Equal( 4, catalogRequestsAfterFirstWarmup );
         Assert.Equal( 4, recorder.Paths.Count( IsCatalog ) );
         Assert.Equal( 4, cache.SaveCount );
         Assert.Equal( "MockHero", character.Name );
-        Assert.Equal( 7, move.Data.Cooldown.TotalSeconds );
-        Assert.Equal( 5, gather.Data.Cooldown.TotalSeconds );
-        Assert.Equal( 6, gather.Data.Character.MiningXp );
-        Assert.Equal( "copper_ore", gather.Data.Character.Inventory[ 0 ].Code );
+        Assert.Equal( 7, move.Data!.Cooldown!.TotalSeconds );
+        Assert.Equal( 5, gather.Data!.Cooldown!.TotalSeconds );
+        Assert.Equal( 6, gather.Data!.Character!.MiningXp );
+        Assert.Equal( "copper_ore", gather.Data!.Character!.Inventory![ 0 ].Code );
         Assert.Contains( "\"phase\":\"Gathered\"", stateJson, StringComparison.Ordinal );
         Assert.Contains( "\"virtual_time\":\"2000-01-01T00:00:12.0000000Z\"", stateJson, StringComparison.Ordinal );
         Assert.Contains( "\"sequence\":1", traceJson, StringComparison.Ordinal );
@@ -81,9 +81,9 @@ public sealed class GameClientCompatibilityTests : IAsyncLifetime
         ActionResponse replayGather = await game.Gathering();
         string replayState = await transport.GetStringAsync( "/__mock/state/MockHero" );
         string replayTrace = await transport.GetStringAsync( "/__mock/trace" );
-        Assert.Equal( move.Data.Cooldown.TotalSeconds, replayMove.Data.Cooldown.TotalSeconds );
-        Assert.Equal( move.Data.Cooldown.StartedAt, replayMove.Data.Cooldown.StartedAt );
-        Assert.Equal( gather.Data.Cooldown.Expiration, replayGather.Data.Cooldown.Expiration );
+        Assert.Equal( move.Data!.Cooldown!.TotalSeconds, replayMove.Data!.Cooldown!.TotalSeconds );
+        Assert.Equal( move.Data!.Cooldown!.StartedAt, replayMove.Data!.Cooldown!.StartedAt );
+        Assert.Equal( gather.Data!.Cooldown!.Expiration, replayGather.Data!.Cooldown!.Expiration );
         Assert.Equal( NormalizeGeneration( stateJson ), NormalizeGeneration( replayState ) );
         Assert.Equal( NormalizeGeneration( traceJson ), NormalizeGeneration( replayTrace ) );
         Assert.All( recorder.Uris, uri => Assert.Equal( "http://localhost", uri.GetLeftPart( UriPartial.Authority ) ) );

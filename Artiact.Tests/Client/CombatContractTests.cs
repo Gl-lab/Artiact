@@ -18,8 +18,8 @@ public class CombatContractTests
              "characters":[{"name":"other","hp":99},{"name":"test","hp":14}]}}
             """);
         var response = await client.Fight();
-        Assert.Equal("test", response.Data.Character.Name);
-        Assert.Equal(14, response.Data.Character.Hp);
+        Assert.Equal("test", response.Data!.Character!.Name);
+        Assert.Equal(14, response.Data!.Character!.Hp);
     }
 
     [Theory]
@@ -57,7 +57,7 @@ public class CombatContractTests
         Assert.Equal("weapon", item.GetProperty("slot").GetString());
         Assert.Equal(1, item.GetProperty("quantity").GetInt32());
         Assert.Equal(!unequip, item.TryGetProperty("code", out _));
-        Assert.Equal("blade", response.Data.EquipmentItems!.Value[0].GetProperty("code").GetString());
+        Assert.Equal("blade", response.Data!.EquipmentItems!.Value[0].GetProperty("code").GetString());
     }
 
     [Fact]
@@ -66,8 +66,8 @@ public class CombatContractTests
         var response = await FromJson("""
             {"data":{"cooldown":{},"character":{"name":"test","hp":20},"hp_restored":6}}
             """).Rest();
-        Assert.Equal(6, response.Data.HpRestored);
-        Assert.Equal(20, response.Data.Character.Hp);
+        Assert.Equal(6, response.Data!.HpRestored);
+        Assert.Equal(20, response.Data!.Character!.Hp);
     }
 
     private static GameClient FromJson(string json)

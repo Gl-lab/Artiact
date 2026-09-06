@@ -120,7 +120,7 @@ public sealed partial class MockScenarioStore : IMockScenarioStore
             DateTime started = _virtualTime;
             _virtualTime = _virtualTime.AddSeconds( 5 );
             _character.MiningXp += 6;
-            Inventory slot = _character.Inventory.First( item => item.Code == "copper_ore" || item.Quantity == 0 );
+            Inventory slot = (_character.Inventory ?? throw new InvalidOperationException("Validated scenario inventory is missing.")).First( item => item.Code == "copper_ore" || item.Quantity == 0 );
             slot.Code = "copper_ore";
             slot.Quantity += 1;
             _phase = "Gathered";

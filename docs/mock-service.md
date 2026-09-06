@@ -126,7 +126,7 @@ dotnet test Artiact.sln --no-restore
 
 ## Deliberate non-goals
 
-Unsupported: combat, rest, crafting, equipment, item use, recycling, deletion, bank, tasks, marketplace, multi-character simulation, real authentication, production networking, persistence, full economy/world simulation, and scheduler-independent ordering for overlapping requests.
+Outside the scripted combat scenarios described in [combat progression](combat-progression.md), combat/rest/crafting/equipment are unsupported. General unsupported features: item use, recycling, deletion, bank, tasks, marketplace, multi-character simulation, real authentication, production networking, persistence, full economy/world simulation, and scheduler-independent ordering for overlapping requests.
 
 ## Mining progression scenario
 
@@ -141,3 +141,5 @@ Responses contain the complete committed character, unchanged embedded character
 ## Strategy portfolio scenario
 
 The additional named strategy-portfolio reset uses researcher with the combat-equipment starting state, mine map 4 and forest map 5. It adds gathering for two professions and an old-weapon fight outcome. It preserves existing scenario responses. See [Strategy portfolio](strategy-portfolio.md) for the literal 12-action/69-second oracle and supported subset.
+
+Only strategy-portfolio also serves GET /openapi.json from StrategyOpenApiSubset.json. This authored subset supports staged drift/shape tests; it is not a full upstream specification or mechanics emulator. StagedOperationTests verify zero-action inspection, one-action execution, read-only loss reconciliation, schema/freshness refusal and readiness state.

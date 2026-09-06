@@ -1,4 +1,4 @@
-﻿using System.Text.Json.Serialization;
+using System.Text.Json.Serialization;
 
 namespace Artiact.Contracts.Models.Api;
 
@@ -17,5 +17,5 @@ public class Cooldown
     public DateTime Expiration { get; set; }
 
     [JsonPropertyName( "reason" )]
-    public string Reason { get; set; }
+    public string Reason { get; set; } = string.Empty;
 }

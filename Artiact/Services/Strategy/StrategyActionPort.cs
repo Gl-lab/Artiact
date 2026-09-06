@@ -18,8 +18,9 @@ public sealed class StrategyActionPort(GameClient client, ICharacterService char
         new("Gather:" + skill, observation.Fingerprint, true, postcondition, async token =>
         {
             token.ThrowIfCancellationRequested();
+            using var operation = client.BeginOperation(token);
             var response = await client.Gathering();
-            characters.SaveCharacter(response.Data.Character);
+            characters.SaveCharacter(response.RequireCharacter());
             bool valid;
             try
             {
@@ -44,6 +45,6 @@ public sealed class StrategyActionPort(GameClient client, ICharacterService char
                         !string.IsNullOrWhiteSpace(x.GetProperty("code").GetString()) && x.GetProperty("quantity").GetInt32() > 0);
             }
             catch (Exception) { valid = false; }
-            return new(observation.WithCharacter(client.LastCharacterPayload!.Value), response.Data.Cooldown.TotalSeconds, valid);
+            return new(observation.WithCharacter(client.LastCharacterPayload!.Value), response.RequireCooldown().TotalSeconds, valid);
         });
 }

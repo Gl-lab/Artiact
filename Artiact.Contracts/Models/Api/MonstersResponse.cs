@@ -1,11 +1,11 @@
-﻿using System.Text.Json.Serialization;
+using System.Text.Json.Serialization;
 
 namespace Artiact.Contracts.Models.Api;
 
 public class MonstersResponse
 {
     [JsonPropertyName( "data" )]
-    public List<MonsterDatum> Data { get; set; }
+    public List<MonsterDatum>? Data { get; set; }
 
     [JsonPropertyName( "total" )]
     public int Total { get; set; }

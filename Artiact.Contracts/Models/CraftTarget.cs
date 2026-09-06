@@ -1,10 +1,10 @@
-﻿using Artiact.Contracts.Models.Api;
+using Artiact.Contracts.Models.Api;
 
 namespace Artiact.Contracts.Models;
 
 public class CraftTarget
 {
-    public ItemDatum FinalItem { get; set; }
+    public required ItemDatum FinalItem { get; set; }
     public LootPrerequisite? LootPrerequisite { get; set; }
     public List<CraftStep> Steps { get; set; } = new();
 }

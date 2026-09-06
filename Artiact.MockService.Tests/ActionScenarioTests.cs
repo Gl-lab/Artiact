@@ -33,7 +33,7 @@ public sealed class ActionScenarioTests : IAsyncLifetime
         using HttpResponseMessage response = await PostJson( "/my/mockhero/action/move", "{\"x\":2,\"y\":0}" );
 
         Assert.Equal( HttpStatusCode.OK, response.StatusCode );
-        using JsonDocument action = JsonDocument.Parse( await response.Content.ReadAsStringAsync() );
+        using JsonDocument action = JsonDocument.Parse( await response.Content!.ReadAsStringAsync() );
         JsonElement data = action.RootElement.GetProperty( "data" );
         JsonElement cooldown = data.GetProperty( "cooldown" );
         Assert.Equal( 7, cooldown.GetProperty( "total_seconds" ).GetInt32() );
@@ -55,11 +55,11 @@ public sealed class ActionScenarioTests : IAsyncLifetime
         Character expectedCharacter = ExpectedScenario.Character();
         expectedCharacter.X = 2;
         ActionResponse actionDto = JsonSerializer.Deserialize<ActionResponse>( action.RootElement.GetRawText(), JsonOptions )!;
-        ScenarioAssertions.CharacterEquals( expectedCharacter, actionDto.Data.Character );
+        ScenarioAssertions.CharacterEquals( expectedCharacter, actionDto.Data!.Character! );
 
         using HttpResponseMessage traceResponse = await _client.GetAsync( "/__mock/trace" );
         traceResponse.EnsureSuccessStatusCode();
-        using JsonDocument trace = JsonDocument.Parse( await traceResponse.Content.ReadAsStringAsync() );
+        using JsonDocument trace = JsonDocument.Parse( await traceResponse.Content!.ReadAsStringAsync() );
         Assert.Equal( 1, trace.RootElement.GetArrayLength() );
         Assert.Equal( "move", trace.RootElement[ 0 ].GetProperty( "action" ).GetString() );
         Assert.Equal( 1, trace.RootElement[ 0 ].GetProperty( "sequence" ).GetInt64() );
@@ -86,7 +86,7 @@ public sealed class ActionScenarioTests : IAsyncLifetime
         using HttpResponseMessage response = await _client.PostAsync( "/my/mockhero/action/gathering", null );
 
         Assert.Equal( HttpStatusCode.OK, response.StatusCode );
-        using JsonDocument action = JsonDocument.Parse( await response.Content.ReadAsStringAsync() );
+        using JsonDocument action = JsonDocument.Parse( await response.Content!.ReadAsStringAsync() );
         JsonElement data = action.RootElement.GetProperty( "data" );
         JsonElement cooldown = data.GetProperty( "cooldown" );
         Assert.Equal( 5, cooldown.GetProperty( "total_seconds" ).GetInt32() );
@@ -105,13 +105,13 @@ public sealed class ActionScenarioTests : IAsyncLifetime
         Character expectedCharacter = ExpectedScenario.Character();
         expectedCharacter.X = 2;
         expectedCharacter.MiningXp = 6;
-        expectedCharacter.Inventory[ 0 ].Code = "copper_ore";
-        expectedCharacter.Inventory[ 0 ].Quantity = 1;
+        expectedCharacter.Inventory![ 0 ].Code = "copper_ore";
+        expectedCharacter.Inventory![ 0 ].Quantity = 1;
         ActionResponse actionDto = JsonSerializer.Deserialize<ActionResponse>( action.RootElement.GetRawText(), JsonOptions )!;
-        ScenarioAssertions.CharacterEquals( expectedCharacter, actionDto.Data.Character );
+        ScenarioAssertions.CharacterEquals( expectedCharacter, actionDto.Data!.Character! );
 
         using HttpResponseMessage traceResponse = await _client.GetAsync( "/__mock/trace" );
-        using JsonDocument trace = JsonDocument.Parse( await traceResponse.Content.ReadAsStringAsync() );
+        using JsonDocument trace = JsonDocument.Parse( await traceResponse.Content!.ReadAsStringAsync() );
         Assert.Equal( 2, trace.RootElement.GetArrayLength() );
         Assert.Equal( "gathering", trace.RootElement[ 1 ].GetProperty( "action" ).GetString() );
         Assert.Equal( 2, trace.RootElement[ 1 ].GetProperty( "sequence" ).GetInt64() );
@@ -140,7 +140,7 @@ public sealed class ActionScenarioTests : IAsyncLifetime
         using HttpResponseMessage response = await _client.GetAsync( "/__mock/state/mockhero" );
 
         Assert.Equal( HttpStatusCode.OK, response.StatusCode );
-        using JsonDocument state = JsonDocument.Parse( await response.Content.ReadAsStringAsync() );
+        using JsonDocument state = JsonDocument.Parse( await response.Content!.ReadAsStringAsync() );
         Assert.Equal( "basic-mining", state.RootElement.GetProperty( "scenario" ).GetString() );
         Assert.Equal( 1, state.RootElement.GetProperty( "generation" ).GetInt64() );
         Assert.Equal( "Gathered", state.RootElement.GetProperty( "phase" ).GetString() );
@@ -150,10 +150,10 @@ public sealed class ActionScenarioTests : IAsyncLifetime
         Character expectedCharacter = ExpectedScenario.Character();
         expectedCharacter.X = 2;
         expectedCharacter.MiningXp = 6;
-        expectedCharacter.Inventory[ 0 ].Code = "copper_ore";
-        expectedCharacter.Inventory[ 0 ].Quantity = 1;
+        expectedCharacter.Inventory![ 0 ].Code = "copper_ore";
+        expectedCharacter.Inventory![ 0 ].Quantity = 1;
         StateSummary stateDto = JsonSerializer.Deserialize<StateSummary>( state.RootElement.GetRawText(), JsonOptions )!;
-        ScenarioAssertions.CharacterEquals( expectedCharacter, stateDto.Character );
+        ScenarioAssertions.CharacterEquals( expectedCharacter, stateDto.Character! );
     }
 
     private async Task<HttpResponseMessage> PostJson( string path, string json )

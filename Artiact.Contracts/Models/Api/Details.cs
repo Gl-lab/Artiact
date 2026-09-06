@@ -1,4 +1,4 @@
-﻿using System.Text.Json.Serialization;
+using System.Text.Json.Serialization;
 
 namespace Artiact.Contracts.Models.Api;
 
@@ -8,5 +8,5 @@ public class Details
     public int Xp { get; set; }
 
     [JsonPropertyName( "items" )]
-    public List<Item> Items { get; set; }
+    public List<Item> Items { get; set; } = [];
 }

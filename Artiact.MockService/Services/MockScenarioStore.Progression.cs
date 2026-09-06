@@ -51,7 +51,7 @@ public sealed partial class MockScenarioStore
 
     private StoreResult<ActionResponse> ProgressionMove(int x, int y)
     {
-        var map = _definition.Maps.Data.FirstOrDefault(m => m.X == x && m.Y == y);
+        var map = (_definition.Maps.Data ?? throw new InvalidOperationException("Validated maps are missing.")).FirstOrDefault(m => m.X == x && m.Y == y);
         if (map is null) return StoreResult<ActionResponse>.Failure("destination_not_found", 422);
         if (_character!.X == x && _character.Y == y) return StoreResult<ActionResponse>.Failure("invalid_transition", 409);
         Character candidate = Clone(_character);
@@ -65,16 +65,17 @@ public sealed partial class MockScenarioStore
 
     private StoreResult<ActionResponse> ProgressionGather()
     {
-        var map = _definition.Maps.Data.FirstOrDefault(m => m.X == _character!.X && m.Y == _character.Y);
+        var map = (_definition.Maps.Data ?? throw new InvalidOperationException("Validated maps are missing.")).FirstOrDefault(m => m.X == _character!.X && m.Y == _character.Y);
         var resource = map?.Content?.Type == "resource"
-            ? _definition.Resources.Data.FirstOrDefault(r => r.Code == map.Content.Code && r.Skill == "mining") : null;
+            ? (_definition.Resources.Data ?? throw new InvalidOperationException("Validated resources are missing.")).FirstOrDefault(r => r.Code == map.Content.Code && r.Skill == "mining") : null;
         if (resource is null) return StoreResult<ActionResponse>.Failure("gathering_not_available", 422);
         if (_character!.MiningLevel < resource.Level) return StoreResult<ActionResponse>.Failure("insufficient_mining_level", 422);
         string ore = resource.Drops![0].Code;
         var candidate = Clone(_character);
-        Inventory? slot = candidate.Inventory.FirstOrDefault(i => i.Code == ore)
-            ?? candidate.Inventory.FirstOrDefault(i => i.Quantity == 0);
-        if (candidate.Inventory.Sum(i => (long)i.Quantity) >= candidate.InventoryMaxItems || slot is null)
+        var inventory = candidate.Inventory ?? throw new InvalidOperationException("Validated scenario inventory is missing.");
+        Inventory? slot = inventory.FirstOrDefault(i => i.Code == ore)
+            ?? inventory.FirstOrDefault(i => i.Quantity == 0);
+        if (inventory.Sum(i => (long)i.Quantity) >= candidate.InventoryMaxItems || slot is null)
             return StoreResult<ActionResponse>.Failure("inventory_full", 422);
         try
         {

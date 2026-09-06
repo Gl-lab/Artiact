@@ -4,7 +4,7 @@ This list records behavior visible in the current source. It is not a roadmap an
 
 ## Planning and domain
 
-- Default worker goal selection supports one configured mining milestone; explicit StrategySessionFactory adds skill/combat/equipment competition (see strategy-portfolio.md). The deterministic MiningDestinationResolver ranks eligible catalog coordinates each cycle. There is no generic optimizer or autonomous inventory remediation. Blocked/Completed stops the worker; external changes are not polled and restart is required to reevaluate.
+- Default staged execution inspects a configured strategy portfolio without actions; explicit Legacy worker goal selection supports one mining milestone (see staged-operation.md and strategy-portfolio.md). The deterministic MiningDestinationResolver ranks eligible catalog coordinates each cycle. There is no generic optimizer or autonomous inventory remediation. Blocked/Completed stops the worker; external changes are not polled and restart is required to reevaluate.
 - Mining destination eligibility uses the existing coordinate-only catalog. Layers, access conditions and transitions are not represented; duplicate coordinates fail validation instead of guessing a layer. A selected coordinate is not proof of real-world reachability or optimal XP/hour.
 - Mining progression stops on target, inventory pressure, invalid progress/catalog, missing destination, wrong movement result, no progress or cycle limit. Finite inventory and limits do not guarantee reaching the target; automatic banking/crafting/remediation is deferred.
 - `LevelUpGoal` exists but is not decomposed or built into steps.
@@ -30,32 +30,30 @@ This list records behavior visible in the current source. It is not a roadmap an
 ## Runtime and resilience
 
 - The background service uses one DI scope for its full lifetime.
-- Mining invokes each Move/Gathering method at most once per cycle; generic craft/loot graphs can still contain several actions. Finite attempt bounds do not time out hung tokenless client calls or reconcile unknown server outcomes.
-- Cancellation reaches orchestration, worker recovery and step cooldown delays, but current `IGameClient` methods remain tokenless and cannot abort an already-started HTTP call. A successful in-flight action response is saved before cancellation prevents its cooldown wait, repeat or following child.
-- Action POSTs dispatch once and typed action failures stop the worker. Unknown outcomes still require external state inspection; durable reconciliation across process restart is absent.
-- Token rejection now stops before action dispatch; expired Bearer token refresh remains unimplemented.
-- Cache freshness and location rely on local file timestamps and process working directory.
-- `/health` reports a static healthy payload and does not reflect worker/API/cache status.
+- Mining invokes each Move/Gathering method at most once per cycle; generic craft/loot graphs can still contain several actions. Concrete transport has a 30-second HTTP timeout; custom tokenless client implementations remain outside this bound. Legacy graphs do not reconcile unknown server outcomes.
+- Cancellation reaches orchestration, cooldown delays and concrete GET/auth operations through operation scopes. The public IGameClient interface remains tokenless; custom implementations do not inherit those scopes. An already-dispatched POST is allowed to return within its HTTP timeout. A successful in-flight action response is saved before cancellation prevents its cooldown wait, repeat or following child.
+- Action POSTs dispatch once and typed action failures stop the worker. Portfolio/OneShot supports bounded in-session read-only reconciliation. Unresolved outcomes and Legacy require external inspection; durable reconciliation across process restart is absent.
+- Token rejection stops before action dispatch. Read/auth refresh and transient retries share a two-send GET budget; action POSTs never replay.
+- Versioned local-application-data cache has a 48-hour TTL; it is not a distributed cache or concurrent inventory reservation system.
+- Staged readiness reflects probe/observation freshness and outcome, but does not continuously probe the API or report legacy worker readiness.
 - Tracing is optional for action execution and gathering decomposition; a missing activity listener does not block game behavior.
-- Character state is loaded once and then refreshed only from action responses; unrelated external character changes are not polled.
+- Legacy character state is loaded once and then refreshed from action responses. Portfolio ticks reread observations/preflight; changes after preflight remain an external concurrency boundary.
 - Autonomous mining returns typed catalog/destination failures. Independently supplied unresolvable gathering goals and missing crafting workshops still throw.
 
 ## Build and dependency baseline
 
-- The solution builds with many nullable-initialization warnings in API DTOs and several warnings in `StepBuilder`. Test totals belong in dated verification evidence, not in this limitations list.
-- `Program.cs` triggers ASP.NET analyzer warning `ASP0000` because it calls `BuildServiceProvider` while configuring the Zipkin exporter.
-- NuGet reports `NU1902` for `OpenTelemetry.Exporter.Zipkin` 1.12.0 and advisory `GHSA-88hf-wf7h-7w4m` (moderate severity).
-- These warnings predate this documentation and should not be hidden when evaluating future build output.
+- Warning sources and the vulnerable Zipkin exporter were removed in Epic 8. CI treats build warnings as errors. Exact build/audit results belong in dated change evidence.
+- Tracing now requires an OTLP receiver; the retained Compose Zipkin service is not directly compatible with the new exporter. Actual trace delivery is unverified.
 
 ## Mock and operations
 
 - MockService proves scripted combat/equipment and bounded loot/craft/equip progression through real clients. Independent legacy multi-action step graphs remain a separate compatibility path.
-- The mock supports basic-mining/mining-progression and the additional scripted combat-progression/combat-equipment/combat-crafting scenarios; unsupported routes return a local 404. Legacy Swagger/YARP dependencies and configuration were removed in `8171c6e`.
+- The mock supports basic-mining/mining-progression and the additional scripted combat-progression/combat-equipment/combat-crafting/strategy-portfolio scenarios; unsupported routes return a local 404. Legacy Swagger/YARP dependencies and configuration were removed in `8171c6e`.
 - Compose uses mutable image tags and development credentials; no production deployment definition is present.
 - Prometheus runs in a container but scrapes `localhost:5000`, which points back into that container rather than to a host-run Artiact process. Port 5000 is also the documented mock-service port.
-- `Artiact/Dockerfile` has no dependable build context for the current multi-project layout: the repository root has no matching root project file, while an `Artiact/` context omits `Artiact.Contracts`.
+- `Artiact/Dockerfile` now uses repository-root context and a non-root runtime user. Docker is unavailable in the implementation environment; its build gate is configured in CI, with no local container execution evidence.
 - CI now runs the solution and the separate `Category=RealApiOffline` suite, but branch protection is not documented or enforced by this repository.
-- Default tests now cover bounded orchestration, hosted-worker cancellation/recovery, optional tracing and step cancellation/reconciliation. They still do not cover controllers, token refresh, cache filesystem behavior, Docker or end-to-end execution.
+- Default tests now cover bounded orchestration, hosted-worker cancellation/recovery, optional tracing and step cancellation/reconciliation. Transport/auth refresh, cache filesystem behavior and staged execution are covered offline. Real-character execution, deployed health routing, container execution and telemetry delivery remain unverified.
 
 ## Documentation maintenance
 

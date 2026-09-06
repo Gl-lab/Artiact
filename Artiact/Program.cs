@@ -4,6 +4,7 @@ using Artiact.Client;
 using Artiact.Contracts.Client;
 using Artiact.Models;
 using Artiact.Services;
+using Artiact.Services.Operation;
 using Microsoft.Extensions.Options;
 using NLog.Extensions.Logging;
 using OpenTelemetry;
@@ -31,6 +32,8 @@ internal class Program
                .AddJsonFile( "appsettings.json", false, true )
                .AddJsonFile( $"appsettings.{environment.ToLower()}.json", true, true )
                .AddUserSecrets<Program>()
+               .AddEnvironmentVariables()
+               .AddCommandLine(args)
                .Build();
 
         // Добавляем сервисы
@@ -48,11 +51,8 @@ internal class Program
 
         // Настройки API и Zipkin
         IConfigurationSection apiSettings = builder.Configuration.GetSection( "ApiSettings" );
-        IConfigurationSection zipkinSettings = builder.Configuration.GetSection( "ZipkinSettings" );
         builder.Services.Configure<ApiSettings>( apiSettings );
-        builder.Services.Configure<ZipkinSettings>( zipkinSettings );
         builder.Services.AddSingleton( resolver => resolver.GetRequiredService<IOptions<ApiSettings>>().Value );
-        builder.Services.AddSingleton( resolver => resolver.GetRequiredService<IOptions<ZipkinSettings>>().Value );
 
         // Телеметрия
         string artiactClientSourceName = "Artiact.Client";
@@ -72,17 +72,16 @@ internal class Program
                                        .AddAspNetCoreInstrumentation()
                                        .AddHttpClientInstrumentation()
                                        .AddConsoleExporter()
-                                       .AddZipkinExporter( options =>
+                                       .AddOtlpExporter( options =>
                                         {
-                                            ZipkinSettings zipkinConfig = ServiceCollectionContainerBuilderExtensions
-                                                                         .BuildServiceProvider( builder.Services )
-                                                                         .GetRequiredService<ZipkinSettings>();
-                                            options.Endpoint = new Uri( zipkinConfig.Endpoint );
-                                            options.ExportProcessorType = ExportProcessorType.Simple;
+                                            options.Endpoint = new Uri(builder.Configuration["Telemetry:Endpoint"] ?? "http://localhost:4318/v1/traces");
+                                            options.Protocol = OtlpExportProtocol.HttpProtobuf;
                                         } ) );
 
         // Регистрация сервисов
-        builder.Services.AddScoped<ICacheService, CacheService>();
+        builder.Services.AddScoped<ICacheService>(services => new CacheService(services.GetRequiredService<ILogger<ICacheService>>(),
+            identity: new CacheIdentity(services.GetRequiredService<ApiSettings>().BaseUrl,
+                services.GetRequiredService<ExecutionSettings>().ExpectedApiVersion)));
         builder.Services.AddScoped<IGameHttpClient, GameHttpClient>();
         builder.Services.AddScoped<GameClient>();
         builder.Services.AddScoped<IGameClient>(services => services.GetRequiredService<GameClient>());
@@ -103,7 +102,7 @@ internal class Program
         builder.Services.AddSingleton( new ActivitySource( artiactClientSourceName ) );
 
         // Добавляем фоновый сервис
-        builder.Services.AddHostedService<ArtiactBackgroundService>();
+        builder.Services.AddStagedOperation(builder.Configuration);
 
         WebApplication app = builder.Build();
 
@@ -111,11 +110,17 @@ internal class Program
         app.UseOpenTelemetryPrometheusScrapingEndpoint();
 
         // Добавляем эндпоинт для информации о состоянии
-        app.MapGet( "/health", () => Results.Ok( new
+        app.MapGet("/health/live", () => Results.Ok(new { Status = "Alive" }));
+        app.MapGet("/health/ready", (OperationState state, ExecutionSettings settings) =>
         {
-            Status = "Healthy",
-            Timestamp = DateTime.UtcNow
-        } ) );
+            var snapshot = state.Snapshot(settings.FreshnessSeconds);
+            return Results.Json(snapshot, statusCode: snapshot.Ready ? 200 : 503);
+        });
+        app.MapGet("/health", (OperationState state, ExecutionSettings settings) =>
+        {
+            var snapshot = state.Snapshot(settings.FreshnessSeconds);
+            return Results.Json(snapshot, statusCode: snapshot.Ready ? 200 : 503);
+        });
 
         await app.RunAsync();
     }

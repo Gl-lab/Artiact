@@ -51,7 +51,7 @@ public class StepBuilder : IStepBuilder
             case GatheringGoal gatheringGoal:
                 return await BuildMiningSteps( gatheringGoal, characterService );
             case SpendResourcesGoal spendGoal:
-                return await BuildSpendResourcesStep( spendGoal, characterService );
+                return BuildSpendResourcesStep( spendGoal, characterService );
             case GearCraftingGoal craftingGoal:
                 return await BuildCraftingSteps( craftingGoal, characterService );
             default:
@@ -70,7 +70,7 @@ public class StepBuilder : IStepBuilder
         return new MiningStep(characterService, gatheringGoal.TargetLevel, destination, _runState, _delay);
     }
 
-    private async Task<IStep> BuildSpendResourcesStep( SpendResourcesGoal goal, ICharacterService character )
+    private IStep BuildSpendResourcesStep( SpendResourcesGoal goal, ICharacterService character )
     {
         MixedStep step = new( character );
         foreach ( ResourceToSpend resource in goal.Resources )
@@ -85,7 +85,6 @@ public class StepBuilder : IStepBuilder
                 case SpendMethod.Recycle:
                     throw new NotImplementedException();
                     //TODO: Сделать шаги поиск подходящей точки на карте, движение к ней и ActionStep с Recycle
-                    break;
             }
         }
 
@@ -111,7 +110,7 @@ public class StepBuilder : IStepBuilder
 
         foreach ( CraftStep craftStep in goal.Item.Steps )
         {
-            string skill = craftStep.Item.Craft.Skill;
+            string skill = (craftStep.Item.Craft ?? throw new InvalidOperationException("Craft step requires a recipe.")).Skill;
             MapPoint? workshop = await _mapService.GetWorkshopBySkillCode( new ContentCode( skill ) );
             if ( workshop == null )
             {

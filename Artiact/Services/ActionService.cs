@@ -37,6 +37,7 @@ public class ActionService : IActionService
 
     public async Task InitializeAsync( CancellationToken cancellationToken )
     {
+        using var operation = (_client as Artiact.Client.GameClient)?.BeginOperation(cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         await _client.WarmUpCache();
         cancellationToken.ThrowIfCancellationRequested();
@@ -47,6 +48,7 @@ public class ActionService : IActionService
 
     public async Task<GoalDecision> ExecuteCycleAsync( CancellationToken cancellationToken )
     {
+        using var operation = (_client as Artiact.Client.GameClient)?.BeginOperation(cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         using Activity? activity = _activitySource.StartActivity( "StartAction" );
         try

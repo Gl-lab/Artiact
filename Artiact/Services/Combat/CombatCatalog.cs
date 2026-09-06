@@ -88,7 +88,7 @@ public sealed class CombatCatalog(IGameHttpClient http)
         for (int page = 1; page <= expectedPages; page++)
         {
             token.ThrowIfCancellationRequested();
-            using var response = await http.GetAsync($"/{endpoint}?page={page}");
+            using var response = await http.ReadAsync($"/{endpoint}?page={page}", token);
             response.EnsureSuccessStatusCode();
             using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(token));
             var root = document.RootElement;

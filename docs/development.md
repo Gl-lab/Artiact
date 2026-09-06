@@ -50,9 +50,11 @@ Every deterministic fixture contains replay checks. Run this separate command wh
 
 1. `appsettings.json`;
 2. optional `appsettings.{environment-name-lowercase}.json`;
-3. .NET user secrets.
+3. .NET user secrets;
+4. environment variables;
+5. command-line arguments.
 
-`GoalSelection:MiningTargetLevel` is the only goal-selection option; tracked `appsettings.json` sets `20`. `Program` and safe DI tests call the same `AddGoalSelection(IServiceCollection, IConfiguration)` extension. Missing, non-integer, zero or negative targets fail binding/validation during startup before autonomous initialization. No fallback target or configurable inventory threshold exists. Direct selector evaluation of a non-positive target returns typed Blocked instead.
+In explicit Legacy mode, `GoalSelection:MiningTargetLevel` is the mining selection option; tracked `appsettings.json` sets `20`. `Program` and safe DI tests call the same `AddGoalSelection(IServiceCollection, IConfiguration)` extension. Missing, non-integer, zero or negative targets fail binding/validation during startup before autonomous initialization. No fallback target or configurable inventory threshold exists. Direct selector evaluation of a non-positive target returns typed Blocked instead.
 
 Focused offline decision checks (no host, credentials or network):
 
@@ -72,7 +74,7 @@ Completed/Blocked terminates autonomous repetition normally without recovery del
 - `Password`;
 - `Character`.
 
-`ZipkinSettings` requires `Endpoint`.
+Trace export uses `Telemetry:Endpoint` (OTLP HTTP/protobuf). See [staged operation](staged-operation.md) for Execution/Portfolio settings and migration.
 
 Tracked configuration intentionally contains only non-secret endpoints. Store credentials and character-specific values in user secrets or environment variables. Example commands:
 
@@ -103,7 +105,7 @@ The live smoke is a separate explicit command. In Git Bash:
 ARTIACT_REAL_API_READONLY=1 dotnet test Artiact.RealApiTests/Artiact.RealApiTests.csproj --no-build --filter Category=RealApiLive
 ```
 
-The live command reads the ignored root `.env` only after the exact opt-in guard passes. It accepts the `ApiSettings__*` keys or their documented `API_*` aliases, pins credentials to `https://api.artifactsmmo.com` with redirects disabled, performs only `POST /token` followed by GET requests for the character and one page each of maps, resources, items and monsters, and emits only status/count evidence. Any `/action/` request is prohibited. Running the normal `Artiact` host is not a read-only smoke test because its worker performs game actions.
+The live command reads the ignored root `.env` only after the exact opt-in guard passes. It accepts the `ApiSettings__*` keys or their documented `API_*` aliases, pins credentials to `https://api.artifactsmmo.com` with redirects disabled, performs only `POST /token` followed by GET requests for the character and one page each of maps, resources, items and monsters, and emits only status/count evidence. Any `/action/` request is prohibited. Use this dedicated verifier for live read-only checks; host behavior depends on explicit execution configuration.
 
 ## Running
 
@@ -113,9 +115,11 @@ The live command reads the ignored root `.env` only after the exact opt-in guard
 dotnet run --project Artiact/Artiact.csproj
 ```
 
-This starts the background worker and may immediately perform real game actions. Do not use it as a harmless compilation check.
+Default Inspect performs read-only planning; OneShot/Legacy can act when explicitly enabled. Do not use host execution as a compilation check.
 
 ### Against MockService
+
+For the staged portfolio profile, follow [staged operation](staged-operation.md#local-deterministic-rollout). The older Dev commands below configure only the endpoint; they do not supply Portfolio settings or enable actions.
 
 Use two terminals:
 
@@ -128,7 +132,7 @@ set ASPNETCORE_ENVIRONMENT=Dev
 dotnet run --project Artiact/Artiact.csproj
 ```
 
-On Bash/Git Bash, use `export ASPNETCORE_ENVIRONMENT=Dev` instead of `set`. The mock implements the deterministic `basic-mining` and `mining-progression` slices. The autonomous worker can still select an unsupported goal/action, so use the TestServer compatibility suite rather than starting the main host as a general smoke test. See [Mock service](mock-service.md).
+On Bash/Git Bash, use `export ASPNETCORE_ENVIRONMENT=Dev` instead of `set`. The mock implements the deterministic `basic-mining` and `mining-progression` slices. An explicitly enabled Legacy worker can still select an unsupported goal/action, so use the TestServer compatibility suite rather than starting the main host as a general smoke test. See [Mock service](mock-service.md).
 
 ### Monitoring
 
@@ -147,7 +151,7 @@ Default local endpoints:
 
 The Compose file contains development-only Grafana credentials (`admin`/`admin`) and uses mutable `latest` image tags. Do not reuse this configuration for production. Its Prometheus target is `localhost:5000` inside the Prometheus container, so it cannot scrape a host-run Artiact instance without a host-gateway or network target change.
 
-The current `Artiact/Dockerfile` does not have a working obvious build context for the multi-project solution: repository-root context lacks the project file expected by `COPY *.csproj`, while project-directory context excludes `Artiact.Contracts`. Treat container-image build as unresolved until the Dockerfile is corrected.
+The Dockerfile builds from repository-root context: `docker build -f Artiact/Dockerfile -t artiact:local .`. CI builds without running it. Local Docker verification depends on an installed daemon; see dated epic evidence.
 
 ## Test map
 

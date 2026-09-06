@@ -1,11 +1,11 @@
-﻿using System.Text.Json.Serialization;
+using System.Text.Json.Serialization;
 
 namespace Artiact.Contracts.Models.Api;
 
 public class ResourceResponse
 {
     [JsonPropertyName( "data" )]
-    public List<ResourceDatum> Data { get; set; }
+    public List<ResourceDatum>? Data { get; set; }
 
     [JsonPropertyName( "total" )]
     public int Total { get; set; }

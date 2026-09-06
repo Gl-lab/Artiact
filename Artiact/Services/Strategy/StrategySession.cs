@@ -44,8 +44,14 @@ public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IPro
         try { return await TickCoreAsync(token); }
         finally { _gate.Release(); }
     }
+    public async Task<StrategyDecision> InspectAsync(CancellationToken token = default)
+    {
+        await _gate.WaitAsync(CancellationToken.None);
+        try { return await TickCoreAsync(token, inspect: true); }
+        finally { _gate.Release(); }
+    }
 
-    private async Task<StrategyDecision> TickCoreAsync(CancellationToken token)
+    private async Task<StrategyDecision> TickCoreAsync(CancellationToken token, bool inspect = false)
     {
         if (_terminal is not null) return _terminal;
         if (token.IsCancellationRequested) return Stop(StrategyStatus.Cancelled, "Cancelled");
@@ -53,7 +59,7 @@ public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IPro
             return Stop(StrategyStatus.Blocked, "InvalidLimits");
         if (_pending is null && (_decisions >= _limits.Decisions || _noProgress >= _limits.NoProgress))
             return Stop(StrategyStatus.Blocked, "BudgetExhausted");
-        _decisions++;
+        if (!inspect) _decisions++;
         try { State = await observer.ObserveAsync(token); }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { return Stop(StrategyStatus.Cancelled, "Cancelled"); }
         catch (Exception) { return Stop(_pending is null ? StrategyStatus.Blocked : StrategyStatus.UnknownOutcome, "ObservationFailed"); }
@@ -83,6 +89,7 @@ public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IPro
             .OrderByDescending(x => x.Score).ThenBy(x => x.Id, StringComparer.Ordinal).FirstOrDefault();
         if (selected is null) return Stop(StrategyStatus.Blocked, "NoFeasibleCandidate");
         var command = selected.Command!;
+        if (inspect) return Decision(StrategyStatus.Selected, "InspectOnly", selected.Id, command.Id);
         if (command.SourceFingerprint != State.Fingerprint || _consumed.Contains(Key(command)))
             return Stop(StrategyStatus.Blocked, "ConsumedOrInvalidCommand");
         _baseline = State;

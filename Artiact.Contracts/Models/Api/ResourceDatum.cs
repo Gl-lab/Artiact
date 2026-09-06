@@ -1,14 +1,14 @@
-﻿using System.Text.Json.Serialization;
+using System.Text.Json.Serialization;
 
 namespace Artiact.Contracts.Models.Api;
 
 public class ResourceDatum
 {
     [JsonPropertyName( "name" )]
-    public string Name { get; set; }
+    public string Name { get; set; } = string.Empty;
 
     [JsonPropertyName( "code" )]
-    public string Code { get; set; }
+    public string Code { get; set; } = string.Empty;
 
     [JsonPropertyName( "skill" )]
     public string? Skill { get; set; }

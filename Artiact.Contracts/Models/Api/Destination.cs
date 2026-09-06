@@ -1,14 +1,14 @@
-﻿using System.Text.Json.Serialization;
+using System.Text.Json.Serialization;
 
 namespace Artiact.Contracts.Models.Api;
 
 public class Destination
 {
     [JsonPropertyName( "name" )]
-    public string Name { get; set; }
+    public string Name { get; set; } = string.Empty;
 
     [JsonPropertyName( "skin" )]
-    public string Skin { get; set; }
+    public string Skin { get; set; } = string.Empty;
 
     [JsonPropertyName( "x" )]
     public int X { get; set; }
@@ -17,5 +17,5 @@ public class Destination
     public int Y { get; set; }
 
     [JsonPropertyName( "content" )]
-    public Content Content { get; set; }
+    public Content? Content { get; set; }
 }

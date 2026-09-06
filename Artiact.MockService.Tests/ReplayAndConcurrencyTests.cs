@@ -29,11 +29,11 @@ public sealed class ReplayAndConcurrencyTests : IAsyncLifetime
 
         Assert.Equivalent( first.reset with { Generation = 0 }, second.reset with { Generation = 0 }, strict: true );
         Assert.Equivalent( first.move, second.move, strict: true );
-        ScenarioAssertions.CharacterEquals( first.move.Data.Character, second.move.Data.Character );
+        ScenarioAssertions.CharacterEquals( first.move.Data!.Character!, second.move.Data!.Character! );
         Assert.Equivalent( first.gather, second.gather, strict: true );
-        ScenarioAssertions.CharacterEquals( first.gather.Data.Character, second.gather.Data.Character );
+        ScenarioAssertions.CharacterEquals( first.gather.Data!.Character!, second.gather.Data!.Character! );
         Assert.Equivalent( first.state with { Generation = 0 }, second.state with { Generation = 0 }, strict: true );
-        ScenarioAssertions.CharacterEquals( first.state.Character, second.state.Character );
+        ScenarioAssertions.CharacterEquals( first.state.Character!, second.state.Character! );
         Assert.Equal( first.trace.Length, second.trace.Length );
         for ( int index = 0; index < first.trace.Length; index++ )
         {
@@ -53,7 +53,7 @@ public sealed class ReplayAndConcurrencyTests : IAsyncLifetime
         Assert.Single( responses, response => response.StatusCode == HttpStatusCode.OK );
         Assert.Single( responses, response => response.StatusCode == HttpStatusCode.Conflict );
         using HttpResponseMessage traceResponse = await _client.GetAsync( "/__mock/trace" );
-        using JsonDocument trace = JsonDocument.Parse( await traceResponse.Content.ReadAsStringAsync() );
+        using JsonDocument trace = JsonDocument.Parse( await traceResponse.Content!.ReadAsStringAsync() );
         Assert.Single( trace.RootElement.EnumerateArray() );
         Assert.Equal( 1, trace.RootElement[ 0 ].GetProperty( "sequence" ).GetInt64() );
         foreach ( HttpResponseMessage response in responses ) response.Dispose();
@@ -71,7 +71,7 @@ public sealed class ReplayAndConcurrencyTests : IAsyncLifetime
         using HttpResponseMessage state = await _client.GetAsync( "/__mock/state/MockHero" );
         Assert.Equal( HttpStatusCode.Conflict, state.StatusCode );
         using HttpResponseMessage traceResponse = await _client.GetAsync( "/__mock/trace" );
-        Assert.Equal( "[]", await traceResponse.Content.ReadAsStringAsync() );
+        Assert.Equal( "[]", await traceResponse.Content!.ReadAsStringAsync() );
         foreach ( HttpResponseMessage response in responses ) response.Dispose();
     }
 
@@ -84,13 +84,13 @@ public sealed class ReplayAndConcurrencyTests : IAsyncLifetime
         HttpResponseMessage[] responses = await Task.WhenAll( readTask, moveTask );
 
         using HttpResponseMessage read = responses[ 0 ];
-        using JsonDocument snapshot = JsonDocument.Parse( await read.Content.ReadAsStringAsync() );
+        using JsonDocument snapshot = JsonDocument.Parse( await read.Content!.ReadAsStringAsync() );
         string phase = snapshot.RootElement.GetProperty( "phase" ).GetString()!;
         int x = snapshot.RootElement.GetProperty( "character" ).GetProperty( "x" ).GetInt32();
         Assert.True( ( phase == "Ready" && x == 0 ) || ( phase == "Moved" && x == 2 ) );
 
         using HttpResponseMessage finalState = await _client.GetAsync( "/__mock/state/MockHero" );
-        string finalJson = await finalState.Content.ReadAsStringAsync();
+        string finalJson = await finalState.Content!.ReadAsStringAsync();
         Assert.Contains( "\"phase\":\"Moved\"", finalJson, StringComparison.Ordinal );
         Assert.Contains( "\"x\":2", finalJson, StringComparison.Ordinal );
         responses[ 1 ].Dispose();
@@ -105,8 +105,8 @@ public sealed class ReplayAndConcurrencyTests : IAsyncLifetime
         gather.EnsureSuccessStatusCode();
         return (
             reset,
-            Deserialize<ActionResponse>( await move.Content.ReadAsStringAsync() ),
-            Deserialize<ActionResponse>( await gather.Content.ReadAsStringAsync() ),
+            Deserialize<ActionResponse>( await move.Content!.ReadAsStringAsync() ),
+            Deserialize<ActionResponse>( await gather.Content!.ReadAsStringAsync() ),
             Deserialize<StateSummary>( await _client.GetStringAsync( "/__mock/state/MockHero" ) ),
             Deserialize<TraceEntry[]>( await _client.GetStringAsync( "/__mock/trace" ) ) );
     }
@@ -115,7 +115,7 @@ public sealed class ReplayAndConcurrencyTests : IAsyncLifetime
     {
         using HttpResponseMessage reset = await Post( "/__mock/reset", "{\"scenario\":\"basic-mining\"}" );
         reset.EnsureSuccessStatusCode();
-        ResetSummary summary = Deserialize<ResetSummary>( await reset.Content.ReadAsStringAsync() );
+        ResetSummary summary = Deserialize<ResetSummary>( await reset.Content!.ReadAsStringAsync() );
         using HttpResponseMessage load = await _client.GetAsync( "/characters/MockHero" );
         load.EnsureSuccessStatusCode();
         return summary;

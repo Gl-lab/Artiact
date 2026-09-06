@@ -1,11 +1,11 @@
-﻿using System.Text.Json.Serialization;
+using System.Text.Json.Serialization;
 
 namespace Artiact.Contracts.Models.Api;
 
 public class Drop
 {
     [JsonPropertyName( "code" )]
-    public string Code { get; set; }
+    public string Code { get; set; } = string.Empty;
 
     [JsonPropertyName( "rate" )]
     public int Rate { get; set; }

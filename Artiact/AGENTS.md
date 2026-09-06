@@ -27,4 +27,4 @@ Run the narrow test class for the changed service, then:
 dotnet test ../Artiact.sln --no-restore
 ```
 
-Running this project starts real background actions unless it is explicitly configured against a safe compatible service.
+Default Inspect does not dispatch actions. Explicit OneShot/Legacy settings can act; use the TestServer suite for verification. See ../docs/staged-operation.md for consent, origin and freshness guards.

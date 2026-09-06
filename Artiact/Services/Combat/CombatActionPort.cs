@@ -10,6 +10,7 @@ public sealed class CombatActionPort(GameClient client, ICharacterService charac
         string? equipment, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        using var operation = client.BeginOperation(cancellationToken);
         var before = characters.GetCharacter();
         ActionResponse response = command switch
         {
@@ -21,9 +22,9 @@ public sealed class CombatActionPort(GameClient client, ICharacterService charac
             CombatCommand.Craft => await client.Crafting(new Item { Code = destination.CraftCommand!.Code, Quantity = destination.CraftCommand.Quantity }),
             _ => throw new ArgumentOutOfRangeException(nameof(command))
         };
-        characters.SaveCharacter(response.Data.Character);
+        characters.SaveCharacter(response.RequireCharacter());
         var normalized = client.LastCharacterPayload is { } raw ? CombatObservation.Read(raw) : null;
-        return new(normalized, response.Data.Cooldown.TotalSeconds, response.Data.Fight?.Result == "loss",
+        return new(normalized, response.RequireCooldown().TotalSeconds, response.RequireData().Fight?.Result == "loss",
             ValidEnvelope(command, destination, equipment, before, response));
     }
 
@@ -42,7 +43,7 @@ public sealed class CombatActionPort(GameClient client, ICharacterService charac
             if (command == CombatCommand.Rest)
             {
                 int restored = raw.GetProperty("hp_restored").GetInt32();
-                return restored > 0 && (long)before.Hp + restored == response.Data.Character.Hp;
+                return restored > 0 && (long)before.Hp + restored == response.RequireCharacter().Hp;
             }
             if (command == CombatCommand.Fight)
             {
@@ -53,7 +54,7 @@ public sealed class CombatActionPort(GameClient client, ICharacterService charac
                     .Where(x => x.GetProperty("character_name").GetString() == before.Name).ToArray();
                 return participants.Length == 1 && participants[0].GetProperty("xp").GetInt32() >= 0 &&
                     participants[0].GetProperty("gold").GetInt32() >= 0 &&
-                    participants[0].GetProperty("final_hp").GetInt32() == response.Data.Character.Hp &&
+                    participants[0].GetProperty("final_hp").GetInt32() == response.RequireCharacter().Hp &&
                     participants[0].GetProperty("drops").ValueKind == JsonValueKind.Array &&
                     participants[0].GetProperty("drops").EnumerateArray().All(drop =>
                         !string.IsNullOrWhiteSpace(drop.GetProperty("code").GetString()) && drop.GetProperty("quantity").GetInt32() > 0);

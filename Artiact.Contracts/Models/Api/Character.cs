@@ -1,17 +1,17 @@
-﻿using System.Text.Json.Serialization;
+using System.Text.Json.Serialization;
 
 namespace Artiact.Contracts.Models.Api;
 
 public class Character
 {
     [JsonPropertyName( "name" )]
-    public string Name { get; set; }
+    public string Name { get; set; } = string.Empty;
 
     [JsonPropertyName( "account" )]
-    public string Account { get; set; }
+    public string Account { get; set; } = string.Empty;
 
     [JsonPropertyName( "skin" )]
-    public string Skin { get; set; }
+    public string Skin { get; set; } = string.Empty;
 
     [JsonPropertyName( "level" )]
     public int Level { get; set; }
@@ -170,64 +170,64 @@ public class Character
     public DateTime CooldownExpiration { get; set; }
 
     [JsonPropertyName( "weapon_slot" )]
-    public string WeaponSlot { get; set; }
+    public string WeaponSlot { get; set; } = string.Empty;
 
     [JsonPropertyName( "rune_slot" )]
-    public string RuneSlot { get; set; }
+    public string RuneSlot { get; set; } = string.Empty;
 
     [JsonPropertyName( "shield_slot" )]
-    public string ShieldSlot { get; set; }
+    public string ShieldSlot { get; set; } = string.Empty;
 
     [JsonPropertyName( "helmet_slot" )]
-    public string HelmetSlot { get; set; }
+    public string HelmetSlot { get; set; } = string.Empty;
 
     [JsonPropertyName( "body_armor_slot" )]
-    public string BodyArmorSlot { get; set; }
+    public string BodyArmorSlot { get; set; } = string.Empty;
 
     [JsonPropertyName( "leg_armor_slot" )]
-    public string LegArmorSlot { get; set; }
+    public string LegArmorSlot { get; set; } = string.Empty;
 
     [JsonPropertyName( "boots_slot" )]
-    public string BootsSlot { get; set; }
+    public string BootsSlot { get; set; } = string.Empty;
 
     [JsonPropertyName( "ring1_slot" )]
-    public string Ring1Slot { get; set; }
+    public string Ring1Slot { get; set; } = string.Empty;
 
     [JsonPropertyName( "ring2_slot" )]
-    public string Ring2Slot { get; set; }
+    public string Ring2Slot { get; set; } = string.Empty;
 
     [JsonPropertyName( "amulet_slot" )]
-    public string AmuletSlot { get; set; }
+    public string AmuletSlot { get; set; } = string.Empty;
 
     [JsonPropertyName( "artifact1_slot" )]
-    public string Artifact1Slot { get; set; }
+    public string Artifact1Slot { get; set; } = string.Empty;
 
     [JsonPropertyName( "artifact2_slot" )]
-    public string Artifact2Slot { get; set; }
+    public string Artifact2Slot { get; set; } = string.Empty;
 
     [JsonPropertyName( "artifact3_slot" )]
-    public string Artifact3Slot { get; set; }
+    public string Artifact3Slot { get; set; } = string.Empty;
 
     [JsonPropertyName( "utility1_slot" )]
-    public string Utility1Slot { get; set; }
+    public string Utility1Slot { get; set; } = string.Empty;
 
     [JsonPropertyName( "utility1_slot_quantity" )]
     public int Utility1SlotQuantity { get; set; }
 
     [JsonPropertyName( "utility2_slot" )]
-    public string Utility2Slot { get; set; }
+    public string Utility2Slot { get; set; } = string.Empty;
 
     [JsonPropertyName( "utility2_slot_quantity" )]
     public int Utility2SlotQuantity { get; set; }
 
     [JsonPropertyName( "bag_slot" )]
-    public string BagSlot { get; set; }
+    public string BagSlot { get; set; } = string.Empty;
 
     [JsonPropertyName( "task" )]
-    public string Task { get; set; }
+    public string Task { get; set; } = string.Empty;
 
     [JsonPropertyName( "task_type" )]
-    public string TaskType { get; set; }
+    public string TaskType { get; set; } = string.Empty;
 
     [JsonPropertyName( "task_progress" )]
     public int TaskProgress { get; set; }
@@ -239,5 +239,5 @@ public class Character
     public int InventoryMaxItems { get; set; }
 
     [JsonPropertyName( "inventory" )]
-    public List<Inventory> Inventory { get; set; }
+    public List<Inventory>? Inventory { get; set; }
 }

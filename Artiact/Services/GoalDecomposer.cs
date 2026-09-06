@@ -43,7 +43,7 @@ public class GoalDecomposer : IGoalDecomposer
 
         // Проверяем текущее состояние инвентаря
         int currentInventorySpace = character.InventoryMaxItems;
-        int usedInventorySpace = character.Inventory.Sum( item => item.Quantity );
+        int usedInventorySpace = (character.Inventory ?? throw new InvalidOperationException("Inventory is missing.")).Sum( item => item.Quantity );
         int availableSpace = currentInventorySpace - usedInventorySpace;
 
         _logger.LogDebug( $"Checking inventory space: {availableSpace} slots available" );

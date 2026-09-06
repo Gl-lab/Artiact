@@ -1,17 +1,17 @@
-﻿using System.Text.Json.Serialization;
+using System.Text.Json.Serialization;
 
 namespace Artiact.Contracts.Models.Api;
 
 public class Craft
 {
     [JsonPropertyName( "skill" )]
-    public string Skill { get; set; }
+    public string Skill { get; set; } = string.Empty;
 
     [JsonPropertyName( "level" )]
     public int Level { get; set; }
 
     [JsonPropertyName( "items" )]
-    public List<Item> Items { get; set; }
+    public List<Item> Items { get; set; } = [];
 
     [JsonPropertyName( "quantity" )]
     public int Quantity { get; set; }

@@ -102,7 +102,7 @@ public class MiningDestinationResolverTests
         List<MapPlace> maps = [Map("z", 0, 1), Map("a", 0, -1), Map("A", -1, 0), Map("A", 0, 2), Map("near", 0, 0)];
         Assert.Equal(new MiningDestination("A", 2, -1, 0), MiningDestinationResolver.Rank(Character(2), resources, maps).Destination);
         maps.Add(Map("z", 0, 0)); // distance wins over ordinal code
-        maps.RemoveAll(map => map.Content.Code == "near");
+        maps.RemoveAll(map => map.Content!.Code == "near");
         Assert.Equal(new MiningDestination("z", 2, 0, 0), MiningDestinationResolver.Rank(Character(2), resources, maps).Destination);
         maps = [Map("A", 1, 0), Map("A", 0, 1), Map("A", 0, -1)];
         Assert.Equal(new MiningDestination("A", 2, 0, -1), MiningDestinationResolver.Rank(Character(2), resources, maps).Destination);

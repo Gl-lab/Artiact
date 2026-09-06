@@ -59,8 +59,8 @@ public class MiningProgressionFlowTests
             var trace = (await h.Transport.GetFromJsonAsync<List<TraceEntry>>("/__mock/trace"))!;
             Assert.Equal(Enumerable.Range(0,6).Select(i => ExpectedProgression.Trace(i,replay + 1)), trace);
             Assert.Equal("2000-01-01T00:00:34.0000000Z", state.VirtualTime); Assert.Equal("Gathered", state.Phase);
-            ScenarioAssertions.CharacterEquals(ExpectedProgression.Character(4,3,4,2,2), state.Character);
-            ScenarioAssertions.CharacterEquals(state.Character, scope.ServiceProvider.GetRequiredService<ICharacterService>().GetCharacter());
+            ScenarioAssertions.CharacterEquals(ExpectedProgression.Character(4,3,4,2,2), state.Character!);
+            ScenarioAssertions.CharacterEquals(state.Character!, scope.ServiceProvider.GetRequiredService<ICharacterService>().GetCharacter());
             Assert.Equal(4, h.Cache.SaveCount); Assert.Equal(4, h.Handler.Paths.Count(p => p is "/resources" or "/maps" or "/items" or "/monsters"));
             Assert.Equal(5, h.Logger.Events.Count);
             Assert.Equal(new[] { "copper_rocks", "copper_rocks", "iron_rocks", "iron_rocks" }, h.Logger.Events.Take(4).Select(e => e["goal.mining.resource_code"]));
@@ -244,15 +244,15 @@ public class MiningProgressionFlowTests
             var response = await base.SendAsync(request, token);
             if(response.IsSuccessStatusCode && request.RequestUri.AbsolutePath.Contains("/action/", StringComparison.Ordinal))
             {
-                var body = JsonSerializer.Deserialize<ActionResponse>(await response.Content.ReadAsStringAsync(token))!;
+                var body = JsonSerializer.Deserialize<ActionResponse>(await response.Content!.ReadAsStringAsync(token))!;
                 bool gather = request.RequestUri.AbsolutePath.EndsWith("/gathering", StringComparison.Ordinal);
-                if(ChangeResponse == "wrong_move" && !gather) body.Data.Character.X = 0;
-                if(ChangeResponse == "unchanged" && gather) { body.Data.Character.MiningLevel = 1; body.Data.Character.MiningXp = 0; }
-                if(ChangeResponse == "pressure" && gather) body.Data.Character.Inventory[0].Quantity = 11;
-                if(ChangeResponse == "invalid_xp" && gather) body.Data.Character.MiningXp = -1;
+                if(ChangeResponse == "wrong_move" && !gather) body.Data!.Character!.X = 0;
+                if(ChangeResponse == "unchanged" && gather) { body.Data!.Character!.MiningLevel = 1; body.Data!.Character!.MiningXp = 0; }
+                if(ChangeResponse == "pressure" && gather) body.Data!.Character!.Inventory![0].Quantity = 11;
+                if(ChangeResponse == "invalid_xp" && gather) body.Data!.Character!.MiningXp = -1;
                 if(ChangeResponse is not null)
                 {
-                    response.Content.Dispose();
+                    response.Content!.Dispose();
                     response.Content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json");
                 }
                 Actions.Add(body);

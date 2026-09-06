@@ -1,0 +1,24 @@
+{
+  "openapi": "3.1.0",
+  "info": { "title": "Synthetic supported subset, not full upstream OpenAPI", "version": "8.2.3" },
+  "paths": {
+    "/characters/{name}": { "get": {} }, "/maps": { "get": {} }, "/resources": { "get": {} }, "/items": { "get": {} }, "/monsters": { "get": {} },
+    "/my/{name}/action/move": { "post": { "requestBody": { "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DestinationSchema" } } } } } },
+    "/my/{name}/action/gathering": { "post": {} }, "/my/{name}/action/fight": { "post": {} }, "/my/{name}/action/rest": { "post": {} },
+    "/my/{name}/action/equip": { "post": { "requestBody": { "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/EquipSchema" } } } } } } },
+    "/my/{name}/action/unequip": { "post": { "requestBody": { "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/UnequipSchema" } } } } } } },
+    "/my/{name}/action/crafting": { "post": {} }
+  },
+  "components": { "schemas": {
+    "CharacterSchema": { "type": "object", "properties": {
+      "name": { "type": "string" }, "level": { "type": "integer" }, "xp": { "type": "integer" }, "hp": { "type": "integer" }, "max_hp": { "type": "integer" },
+      "map_id": { "type": "integer" }, "layer": { "type": "string" }, "weapon_slot": { "type": "string" }, "inventory": { "type": "array", "items": { "type": "object" } }
+    } },
+    "MapSchema": { "type": "object", "properties": { "map_id": { "type": "integer" }, "layer": { "type": "string" }, "access": { "$ref": "#/components/schemas/AccessSchema" }, "interactions": { "$ref": "#/components/schemas/InteractionSchema" } } },
+    "CharacterFightDataSchema": { "type": "object", "properties": { "characters": { "type": "array", "items": { "$ref": "#/components/schemas/CharacterSchema" } }, "fight": { "$ref": "#/components/schemas/FightDetailsSchema" }, "cooldown": { "$ref": "#/components/schemas/CooldownSchema" } } },
+    "SkillDataSchema": { "type": "object", "properties": { "character": { "$ref": "#/components/schemas/CharacterSchema" }, "cooldown": { "$ref": "#/components/schemas/CooldownSchema" }, "details": { "$ref": "#/components/schemas/SkillInfoSchema" } } },
+    "DestinationSchema": { "type": "object", "properties": { "map_id": { "type": "integer" } } },
+    "AccessSchema": { "type": "object" }, "InteractionSchema": { "type": "object" }, "FightDetailsSchema": { "type": "object" },
+    "CooldownSchema": { "type": "object" }, "SkillInfoSchema": { "type": "object" }, "EquipSchema": { "type": "object" }, "UnequipSchema": { "type": "object" }
+  } }
+}

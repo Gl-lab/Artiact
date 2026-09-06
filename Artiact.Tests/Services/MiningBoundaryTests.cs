@@ -31,11 +31,11 @@ public class MiningBoundaryTests
     {
         Assert.NotEmpty(name);
         Fixture f = new(response,move);
-        var step = await f.Builder.BuildStep(new GatheringGoal(20),f.Character);
+        var step = await f.Builder.BuildStep(new GatheringGoal(20),f.Character!);
         await step.Execute(f.Client.Object,CancellationToken.None);
-        Assert.Same(response,f.Character.GetCharacter());
+        Assert.Same(response,f.Character!.GetCharacter());
         Assert.Equal(move ? 0 : 1,f.Gathers);
-        Assert.Equal(reason,f.Selector.Evaluate(f.Character.GetCharacter()).Reason);
+        Assert.Equal(reason,f.Selector.Evaluate(f.Character!.GetCharacter()).Reason);
         f.Map.VerifyNoOtherCalls();
         f.Client.Verify(x=>x.Move(It.IsAny<MapPoint>()),move ? Times.Once() : Times.Never());
     }
@@ -48,9 +48,9 @@ public class MiningBoundaryTests
     {
         Character response = GoalServiceTests.Snapshot(20);
         Fixture f = new(response,false);
-        f.Character.GetCharacter().Inventory.Add(new(){Code=code!,Quantity=0});
-        Assert.Equal(GoalDecisionStatus.Selected,f.Selector.Evaluate(f.Character.GetCharacter()).Status);
-        var step = await f.Builder.BuildStep(new GatheringGoal(20),f.Character);
+        f.Character!.GetCharacter().Inventory!.Add(new(){Code=code!,Quantity=0});
+        Assert.Equal(GoalDecisionStatus.Selected,f.Selector.Evaluate(f.Character!.GetCharacter()).Status);
+        var step = await f.Builder.BuildStep(new GatheringGoal(20),f.Character!);
         await step.Execute(f.Client.Object,CancellationToken.None);
         Assert.Equal(1,f.Gathers);
     }
@@ -103,7 +103,7 @@ public class MiningBoundaryTests
         using ActivitySource source = new("MiningBoundaryTests.Flow");
         DecisionLogger<ActionService> logger = new();
         ActionService action = new(TestMining.State(), f.Client.Object,f.Selector,f.Builder,
-            new GoalDecomposer(NullLogger<GoalDecomposer>.Instance,Mock.Of<IWearCraftTargetFinder>(),source),f.Character,source,logger);
+            new GoalDecomposer(NullLogger<GoalDecomposer>.Instance,Mock.Of<IWearCraftTargetFinder>(),source),f.Character!,source,logger);
         CountingCycles cycles = new(action,stop);
         using ServiceProvider provider = new ServiceCollection().AddSingleton<IActionService>(cycles).BuildServiceProvider();
         int delays=0;
@@ -116,7 +116,7 @@ public class MiningBoundaryTests
         Assert.Equal(0,delays);
         Assert.Equal(new[]{GoalDecisionStatus.Selected,reason==GoalDecisionReason.MiningTargetReached ? GoalDecisionStatus.Completed : GoalDecisionStatus.Blocked},cycles.Decisions.Select(d=>d.Status));
         Assert.Equal(reason,cycles.Decisions[1].Reason);
-        Assert.Same(response,f.Character.GetCharacter());
+        Assert.Same(response,f.Character!.GetCharacter());
         Assert.Equal(move ? 0 : 1,f.Gathers);
     }
 

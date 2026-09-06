@@ -32,7 +32,7 @@ public class GoalServiceTests
             yield return new object?[] { 20, c, GoalDecisionReason.InvalidInventorySnapshot, 19, null };
         foreach (string? code in new string?[] {null,""," "})
         {
-            Character c = Snapshot(19,0); c.Inventory[0].Code = code!;
+            Character c = Snapshot(19,0); c.Inventory![0].Code = code!;
             yield return new object?[] {20,c,GoalDecisionReason.MiningBelowTarget,19,20};
         }
     }
@@ -40,14 +40,14 @@ public class GoalServiceTests
     public static IEnumerable<Character> Malformed()
     {
         Character c = Snapshot(); c.Inventory = null!; yield return c;
-        c = Snapshot(); c.Inventory.Add(null!); yield return c;
+        c = Snapshot(); c.Inventory!.Add(null!); yield return c;
         c = Snapshot(); c.InventoryMaxItems = -1; yield return c;
         yield return Snapshot(19,-1);
         yield return Snapshot(19,21);
         c = Snapshot(19,int.MaxValue); c.InventoryMaxItems = int.MaxValue;
-        c.Inventory.Add(new() {Code="ore",Quantity=1}); yield return c;
+        c.Inventory!.Add(new() {Code="ore",Quantity=1}); yield return c;
         foreach (string? code in new string?[] {null,""," "})
-        { c = Snapshot(); c.Inventory[0].Code = code!; yield return c; }
+        { c = Snapshot(); c.Inventory![0].Code = code!; yield return c; }
     }
 
     [Fact]
@@ -57,10 +57,10 @@ public class GoalServiceTests
         GoalService service=new(Options.Create(new GoalSelectionSettings{MiningTargetLevel=27}));
         GoalDecision original=service.Evaluate(snapshot);
         Assert.Equal(19,snapshot.MiningLevel);
-        Assert.Equal(10,Assert.Single(snapshot.Inventory).Quantity);
-        Assert.Equal("ore",snapshot.Inventory[0].Code);
+        Assert.Equal(10,Assert.Single(snapshot.Inventory!).Quantity);
+        Assert.Equal("ore",snapshot.Inventory![0].Code);
         snapshot.MiningLevel=27;
-        snapshot.Inventory.Clear();
+        snapshot.Inventory!.Clear();
         Assert.Equal(19,original.CurrentMiningLevel);
         Assert.Equal(10,original.InventoryUsed);
         Assert.Equal(27,original.MiningTargetLevel);

@@ -1,0 +1,12 @@
+.git
+.serena
+.hermes
+.env
+**/.env
+**/bin
+**/obj
+**/cache
+**/*.log
+**/*.pfx
+**/*.pem
+**/*.key

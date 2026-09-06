@@ -1,4 +1,4 @@
-﻿using Artiact.Contracts.Client;
+using Artiact.Contracts.Client;
 using Artiact.Contracts.Models.Api;
 using Artiact.Services;
 
@@ -12,9 +12,10 @@ public class GatheringStep : BaseStep, IStep
 
     public async Task Execute( IGameClient client, CancellationToken cancellationToken )
     {
+        using var operation = (client as Artiact.Client.GameClient)?.BeginOperation(cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         ActionResponse actionResponse = await client.Gathering();
-        CharacterService.SaveCharacter( actionResponse.Data.Character );
-        await Delay( actionResponse.Data.Cooldown.TotalSeconds, cancellationToken );
+        CharacterService.SaveCharacter( actionResponse.RequireCharacter() );
+        await Delay( actionResponse.RequireCooldown().TotalSeconds, cancellationToken );
     }
 }

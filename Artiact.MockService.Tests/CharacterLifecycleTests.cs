@@ -37,7 +37,7 @@ public sealed class CharacterLifecycleTests : IAsyncLifetime
 
         using HttpResponseMessage loaded = await _client.GetAsync( "/characters/mockhero" );
         Assert.Equal( HttpStatusCode.OK, loaded.StatusCode );
-        using JsonDocument character = JsonDocument.Parse( await loaded.Content.ReadAsStringAsync() );
+        using JsonDocument character = JsonDocument.Parse( await loaded.Content!.ReadAsStringAsync() );
         JsonElement data = character.RootElement.GetProperty( "data" );
         Assert.Equal( "MockHero", data.GetProperty( "name" ).GetString() );
         Assert.Equal( 0, data.GetProperty( "x" ).GetInt32() );
@@ -45,11 +45,11 @@ public sealed class CharacterLifecycleTests : IAsyncLifetime
         Assert.Equal( 20, data.GetProperty( "inventory" ).GetArrayLength() );
         Assert.Equal( 1, data.GetProperty( "inventory" )[ 0 ].GetProperty( "slot" ).GetInt32() );
         CharacterResponse loadedDto = JsonSerializer.Deserialize<CharacterResponse>( character.RootElement.GetRawText(), JsonOptions )!;
-        ScenarioAssertions.CharacterEquals( ExpectedScenario.Character(), loadedDto.Data );
+        ScenarioAssertions.CharacterEquals( ExpectedScenario.Character(), loadedDto.Data! );
 
         using HttpResponseMessage repeated = await _client.GetAsync( "/characters/MockHero" );
-        CharacterResponse repeatedDto = JsonSerializer.Deserialize<CharacterResponse>( await repeated.Content.ReadAsStringAsync(), JsonOptions )!;
-        ScenarioAssertions.CharacterEquals( ExpectedScenario.Character(), repeatedDto.Data );
+        CharacterResponse repeatedDto = JsonSerializer.Deserialize<CharacterResponse>( await repeated.Content!.ReadAsStringAsync(), JsonOptions )!;
+        ScenarioAssertions.CharacterEquals( ExpectedScenario.Character(), repeatedDto.Data! );
     }
 
     [Fact]
@@ -79,8 +79,8 @@ public sealed class CharacterLifecycleTests : IAsyncLifetime
     private static void AssertProblem( HttpResponseMessage response, HttpStatusCode status, string code )
     {
         Assert.Equal( status, response.StatusCode );
-        Assert.Equal( "application/problem+json", response.Content.Headers.ContentType?.MediaType );
-        using JsonDocument problem = JsonDocument.Parse( response.Content.ReadAsStringAsync().GetAwaiter().GetResult() );
+        Assert.Equal( "application/problem+json", response.Content!.Headers.ContentType?.MediaType );
+        using JsonDocument problem = JsonDocument.Parse( response.Content!.ReadAsStringAsync().GetAwaiter().GetResult() );
         Assert.Equal( code, problem.RootElement.GetProperty( "code" ).GetString() );
     }
 

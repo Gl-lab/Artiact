@@ -1,4 +1,4 @@
-﻿using Artiact.Contracts.Client;
+using Artiact.Contracts.Client;
 using Artiact.Contracts.Models.Api;
 using Artiact.Services;
 
@@ -22,15 +22,16 @@ public class ActionStep : BaseStep, IStep
 
     public async Task Execute( IGameClient client, CancellationToken cancellationToken )
     {
+        using var operation = (client as Artiact.Client.GameClient)?.BeginOperation(cancellationToken);
         int attempts = 0;
         do
         {
             cancellationToken.ThrowIfCancellationRequested();
             ActionResponse actionResponse = await _action( client );
-            CharacterService.SaveCharacter( actionResponse.Data.Character );
-            if ( actionResponse.Data.Fight?.Result == "loss" )
+            CharacterService.SaveCharacter( actionResponse.RequireCharacter() );
+            if ( actionResponse.RequireData().Fight?.Result == "loss" )
                 throw new ActionFailureException( ActionFailureKind.Defeat );
-            await Delay( actionResponse.Data.Cooldown.TotalSeconds, cancellationToken );
+            await Delay( actionResponse.RequireCooldown().TotalSeconds, cancellationToken );
             attempts++;
 
             if ( _needRepeat?.Invoke( CharacterService ) != true )

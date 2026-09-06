@@ -25,7 +25,7 @@ public class MiningProgressionScenarioTests
             Assert.Equal(JsonSerializer.Serialize(expected.Items), JsonSerializer.Serialize(await client.GetFromJsonAsync<ItemsResponse>("/items?page=1")));
             Assert.Equal(JsonSerializer.Serialize(expected.Monsters), JsonSerializer.Serialize(await client.GetFromJsonAsync<MonstersResponse>("/monsters?page=1")));
             var character = await client.GetFromJsonAsync<CharacterResponse>("/characters/MockHero");
-            ScenarioAssertions.CharacterEquals(expected.Character, character!.Data);
+            ScenarioAssertions.CharacterEquals(expected.Character!, character!.Data!);
             if(!progression)
             {
                 (await client.PostAsJsonAsync("/my/MockHero/action/move", new { x = 2, y = 0 })).EnsureSuccessStatusCode();
@@ -49,7 +49,7 @@ public class MiningProgressionScenarioTests
                 var response = i is 0 or 3 or 6
                     ? await client.PostAsJsonAsync("/my/MockHero/action/move", new { x = i == 0 ? 2 : i == 3 ? 4 : 0, y = 0 })
                     : await client.PostAsync("/my/MockHero/action/gathering", null);
-                response.EnsureSuccessStatusCode(); ExpectedProgression.AssertAction(i, (await response.Content.ReadFromJsonAsync<ActionResponse>())!);
+                response.EnsureSuccessStatusCode(); ExpectedProgression.AssertAction(i, (await response.Content!.ReadFromJsonAsync<ActionResponse>())!);
                 var trace = (await client.GetFromJsonAsync<List<TraceEntry>>("/__mock/trace"))!;
                 Assert.Equal(Enumerable.Range(0, i + 1).Select(n => ExpectedProgression.Trace(n, replay + 1)), trace);
             }
@@ -77,9 +77,9 @@ public class MiningProgressionScenarioTests
     public void RejectionIsAtomicAcrossCompleteStateAndTrace(string cause, string code)
     {
         var definition = ExpectedProgression.Definition();
-        if(cause == "capacity") definition.Character.InventoryMaxItems = 0;
-        if(cause == "slots") { definition.Character.Inventory = [new() { Slot = 1, Code = "other", Quantity = 1 }]; }
-        if(cause == "xp_overflow") { definition.Character.MiningLevel = int.MaxValue; definition.Character.MiningXp = 8; }
+        if(cause == "capacity") definition.Character!.InventoryMaxItems = 0;
+        if(cause == "slots") { definition.Character!.Inventory = [new() { Slot = 1, Code = "other", Quantity = 1 }]; }
+        if(cause == "xp_overflow") { definition.Character!.MiningLevel = int.MaxValue; definition.Character!.MiningXp = 8; }
         var store = new MockScenarioStore(ExpectedProgression.Definition(false), definition);
         store.Reset("mining-progression"); store.GetCharacter("MockHero");
         Assert.NotNull(store.Move("MockHero", cause == "level" ? "{\"x\":4,\"y\":0}" : "{\"x\":2,\"y\":0}").Value);
@@ -102,13 +102,13 @@ public class MiningProgressionScenarioTests
         var definition = ExpectedProgression.Definition();
         switch(cause)
         {
-            case "resource_code": definition.Resources.Data[1].Code = "copper_rocks"; break;
-            case "coordinates": definition.Maps.Data[1].X = 0; break;
-            case "slots": definition.Character.Inventory[1].Slot = 1; break;
-            case "item_reference": definition.Resources.Data[0].Drops![0].Code = "unknown"; break;
-            case "map_reference": definition.Maps.Data[1].Content.Code = "unknown"; break;
-            case "xp": definition.Character.MiningXp = 10; break;
-            case "capacity": definition.Character.InventoryMaxItems = -1; break;
+            case "resource_code": definition.Resources.Data![1].Code = "copper_rocks"; break;
+            case "coordinates": definition.Maps.Data![1].X = 0; break;
+            case "slots": definition.Character!.Inventory![1].Slot = 1; break;
+            case "item_reference": definition.Resources.Data![0].Drops![0].Code = "unknown"; break;
+            case "map_reference": definition.Maps.Data![1].Content!.Code = "unknown"; break;
+            case "xp": definition.Character!.MiningXp = 10; break;
+            case "capacity": definition.Character!.InventoryMaxItems = -1; break;
         }
         Assert.Throws<InvalidOperationException>(() => new MockScenarioStore(ExpectedProgression.Definition(false), definition));
     }
@@ -116,13 +116,13 @@ public class MiningProgressionScenarioTests
     [Fact]
     public void ExistingItemWinsOverEarlierEmptySlotAndObservationsAreCopies()
     {
-        var definition = ExpectedProgression.Definition(); definition.Character.Inventory[2].Code = "copper_ore";
-        definition.Character.Inventory[2].Quantity = 1;
+        var definition = ExpectedProgression.Definition(); definition.Character!.Inventory![2].Code = "copper_ore";
+        definition.Character!.Inventory![2].Quantity = 1;
         var store = new MockScenarioStore(ExpectedProgression.Definition(false), definition); store.Reset("mining-progression");
         store.GetCharacter("MockHero"); store.Move("MockHero", "{\"x\":2,\"y\":0}");
         var response = store.Gather("MockHero").Value!;
-        Assert.Equal("", response.Data.Character.Inventory[0].Code); Assert.Equal(2, response.Data.Character.Inventory[2].Quantity);
-        string before = Snapshot(store); response.Data.Character.Inventory.Clear(); store.GetMaps().Value!.Data.Clear();
+        Assert.Equal("", response.Data!.Character!.Inventory![0].Code); Assert.Equal(2, response.Data!.Character!.Inventory![2].Quantity);
+        string before = Snapshot(store); response.Data!.Character!.Inventory!.Clear(); store.GetMaps().Value!.Data!.Clear();
         Assert.Equal(before, Snapshot(store));
     }
 

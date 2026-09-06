@@ -29,7 +29,7 @@ Start with [`docs/README.md`](docs/README.md). Use [`docs/external-references.md
 - Record exact verification commands, results, reviewed revision/diff and unverified scope in the change evidence or final handoff; `[verified]` alone is not evidence.
 - Check affected diagrams, nested instructions and known limitations against the final code. Store changing test totals in dated evidence rather than duplicating them across guides.
 - Do not add secrets, `.env`, logs, `bin/`, `obj/`, certificates or generated artifacts.
-- Do not run the main app merely to test compilation: its hosted worker starts game actions automatically.
+- Do not run the main app merely to test compilation: explicit OneShot/Legacy settings can start game actions; default Inspect still accesses configured API data.
 
 ## Commands
 

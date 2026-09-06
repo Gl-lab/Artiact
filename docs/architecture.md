@@ -2,11 +2,15 @@
 
 ## System context
 
-Artiact is an ASP.NET Core application that hosts both operational HTTP endpoints and an autonomous `BackgroundService`. Its outward dependency is the Artifacts MMO-compatible HTTP API. For local development, `Artiact.MockService` implements only a subset of that API.
+Artiact is an ASP.NET Core application that hosts operational HTTP endpoints and a staged worker (Inspect by default), with an explicit legacy autonomous mode. Its outward dependency is the Artifacts MMO-compatible HTTP API. For local development, `Artiact.MockService` implements only a subset of that API.
 
 ```mermaid
 flowchart LR
-    Host[ASP.NET Core host] --> Worker[ArtiactBackgroundService]
+    Host[ASP.NET Core host] --> Mode{Execution mode}
+    Mode --> Staged[StagedWorker: Inspect or OneShot]
+    Staged --> Portfolio[StrategySession]
+    Portfolio --> Client
+    Mode --> Worker[Explicit legacy ArtiactBackgroundService]
     Worker --> Action[ActionService]
     Action --> Goal[GoalService]
     Action --> Decomposer[GoalDecomposer]
@@ -18,7 +22,7 @@ flowchart LR
     Client --> Cache[JSON reference-data cache]
     Host --> Health[/health]
     Host --> Metrics[/metrics]
-    Host --> Telemetry[Console + Zipkin + Prometheus]
+    Host --> Telemetry[Console + OTLP + Prometheus]
 ```
 
 ## Project boundaries
@@ -49,17 +53,17 @@ Unit and flow-oriented tests using xUnit and Moq. Tests focus on craft-chain con
 
 `Program.Main` performs these steps:
 
-1. Builds configuration from output-directory `appsettings.json`, optional environment-specific JSON and user secrets.
+1. Builds configuration from output-directory `appsettings.json`, optional environment-specific JSON, user secrets, environment variables and CLI (last wins).
 2. Registers logging, `HttpClient`, settings and OpenTelemetry.
 3. Registers application services as scoped; `ActivitySource` is singleton. `AddGoalSelection` binds and validates the positive mining target on startup before worker initialization.
-4. Registers `ArtiactBackgroundService`.
-5. Maps `/metrics` and `/health`, then starts the web host.
+4. Registers StagedWorker by default; explicit validated Legacy mode registers ArtiactBackgroundService.
+5. Maps metrics, liveness and freshness-sensitive readiness, then starts the web host.
 
-`ArtiactBackgroundService.ExecuteAsync` creates one dependency-injection scope for its lifetime. It calls `IActionService.InitializeAsync(stoppingToken)` once, then calls `ExecuteCycleAsync(stoppingToken)` serially while decisions are Selected. Each call reads one planning snapshot, evaluates the pure selector and finalizes Selected through run guards and catalog resolution. It explains and returns the exact final immutable decision. Selected constructs a private ResolvedMiningGoal and executes one MiningStep; final Completed/Blocked performs no execution and terminates the worker normally without recovery delay. Mining invokes Move zero/one times and Gathering zero/one times; a later cycle reselects resources. AddMiningProgression binds validated limits and registers the scoped run state shared by ActionService/StepBuilder plus the production cooldown wait. A cycle failure is logged and followed by a cancellable 30-second recovery delay. Shutdown cancellation exits normally; other initialization failures are critical and terminate the hosted service.
+In explicit Legacy mode, `ArtiactBackgroundService.ExecuteAsync` creates one dependency-injection scope for its lifetime. It calls `IActionService.InitializeAsync(stoppingToken)` once, then calls `ExecuteCycleAsync(stoppingToken)` serially while decisions are Selected. Each call reads one planning snapshot, evaluates the pure selector and finalizes Selected through run guards and catalog resolution. It explains and returns the exact final immutable decision. Selected constructs a private ResolvedMiningGoal and executes one MiningStep; final Completed/Blocked performs no execution and terminates the worker normally without recovery delay. Mining invokes Move zero/one times and Gathering zero/one times; a later cycle reselects resources. AddMiningProgression binds validated limits and registers the scoped run state shared by ActionService/StepBuilder plus the production cooldown wait. A cycle failure is logged and followed by a cancellable 30-second recovery delay. Shutdown cancellation exits normally; other initialization failures are critical and terminate the hosted service.
 
-> Running the main application is a side effect: the worker begins issuing game actions immediately after initialization.
+> Default Inspect performs read-only planning. Explicit OneShot/Legacy modes can act; see [staged operation](staged-operation.md).
 
-## Action pipeline
+## Retained legacy action pipeline
 
 ```mermaid
 sequenceDiagram
@@ -110,9 +114,9 @@ Subgoals are built before their parent goal, so prerequisite craft or inventory 
 
 `GameHttpClient` obtains a token from `/token` using Basic authentication, then uses the returned Bearer token. `GameClient` exposes character actions and paginated map/resource/item/monster reads.
 
-Action calls dispatch once. Network/timeout/read/JSON failures and HTTP 5xx produce sanitized `ActionFailureException(UnknownOutcome)`; other unsuccessful responses produce `Rejected` with the status code. Both stop the worker without recovery repetition. Token rejection prevents action dispatch. Calls remain tokenless and expired Bearer tokens are not refreshed after a 401. Fight adapts exactly one ordinal-name participant from `data.characters` into `Data.Character` and retains `data.fight`; named equipment requests use one-element arrays. The explicit CombatSessionFactory provides a bounded fire-only deterministic combat path with presence-aware observations and current map identities; see [combat progression](combat-progression.md). Default autonomous startup still selects mining.
+Action calls dispatch once. Network/timeout/read/JSON failures and HTTP 5xx produce sanitized `ActionFailureException(UnknownOutcome)`; other unsuccessful responses produce `Rejected` with the status code. Both stop the worker without recovery repetition. Token rejection prevents action dispatch. Concrete operation scopes propagate cancellation through reads/authentication; GET has a shared two-send budget and bounded token refresh. POST never retries. Fight adapts exactly one ordinal-name participant from `data.characters` into `Data.Character` and retains `data.fight`; named equipment requests use one-element arrays. The explicit CombatSessionFactory provides a bounded fire-only deterministic combat path with presence-aware observations and current map identities; see [combat progression](combat-progression.md). Default startup inspects the explicit portfolio.
 
-`CacheService` stores one JSON file per reference-data element type under a relative `cache` directory and treats it as fresh for 48 hours. The cache path therefore depends on the process working directory.
+CacheService stores atomic versioned envelopes in OS local application data, partitioned by endpoint/version. Default TTL is 48 hours; malformed, future and mismatched entries miss. Tracked snapshots are untouched.
 
 ## Observability
 
@@ -121,9 +125,9 @@ Action calls dispatch once. Network/timeout/read/JSON failures and HTTP 5xx prod
 - Final Selected adds resource code/level and destination X/Y. Selected and progression-only Blocked add attempted_cycles, max_cycles, consecutive_no_progress and max_no_progress under goal.mining. Other terminal decisions omit these fields. Failed catalog loading emits no fabricated decision; it retains the attempt and propagates through existing error recovery.
 - W3C activity IDs and `ActivitySource("Artiact.Client")`.
 - ASP.NET Core and `HttpClient` tracing.
-- Console and Zipkin trace exporters.
+- Console and OTLP HTTP/protobuf trace exporters; Telemetry:Endpoint replaces ZipkinSettings.
 - `Meter("Artiact.Application")` and Prometheus exporter.
-- `/health` returns a static healthy response and UTC timestamp; it does not probe the game API, cache, worker state or Zipkin.
+- `/health/live` reports process liveness; `/health` and `/health/ready` expose staged state and freshness-sensitive readiness without calling the API.
 
 `docker-compose.yml` starts Prometheus on 9090, Grafana on 3000 and Zipkin on 9411. Artiact itself runs outside Compose. The committed Prometheus target `localhost:5000` resolves inside the Prometheus container and does not reach a host-run Artiact process as configured.
 

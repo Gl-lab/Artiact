@@ -23,3 +23,5 @@ dotnet run --project Artiact.MockService.csproj --launch-profile http
 ```
 
 The HTTP profile listens on `http://localhost:5000`.
+
+The strategy-portfolio scenario alone serves GET /openapi.json from the authored StrategyOpenApiSubset.json. Preserve its explicitly partial scope; do not describe it as full upstream OpenAPI coverage.

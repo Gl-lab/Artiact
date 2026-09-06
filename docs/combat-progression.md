@@ -1,6 +1,6 @@
 # Bounded deterministic combat progression
 
-Epic 6's first HTTP slice is available through `CombatSessionFactory`. It is registered in DI but is not selected by the default mining worker. Creating a session reads the character and fresh combat catalogs; repeatedly call `CombatRun.ExecuteCycleAsync` until Completed or Blocked. Callers supply `CombatLevelGoal`, monster code and `CombatLimits`; no default live-combat startup or durable recovery is provided.
+Epic 6's first HTTP slice is available through `CombatSessionFactory`. It is registered in DI but is available separately from default staged portfolio inspection. Creating a session reads the character and fresh combat catalogs; repeatedly call `CombatRun.ExecuteCycleAsync` until Completed or Blocked. Callers supply `CombatLevelGoal`, monster code and `CombatLimits`; no default live-combat startup or durable recovery is provided.
 
 The factory and port share the same scoped `GameClient` as `IGameClient`. The client retains exact last character/action JSON for presence-aware normalization; do not log these payloads. Combat catalogs bypass legacy coordinate-only cache DTOs, preserving map identity, layer, access and interactions. Mining keeps its existing cache path.
 

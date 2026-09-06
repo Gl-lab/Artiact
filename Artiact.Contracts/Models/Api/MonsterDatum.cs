@@ -1,14 +1,14 @@
-﻿using System.Text.Json.Serialization;
+using System.Text.Json.Serialization;
 
 namespace Artiact.Contracts.Models.Api;
 
 public class MonsterDatum
 {
     [JsonPropertyName( "name" )]
-    public string Name { get; set; }
+    public string Name { get; set; } = string.Empty;
 
     [JsonPropertyName( "code" )]
-    public string Code { get; set; }
+    public string Code { get; set; } = string.Empty;
 
     [JsonPropertyName( "level" )]
     public int Level { get; set; }
@@ -44,7 +44,7 @@ public class MonsterDatum
     public int CriticalStrike { get; set; }
 
     [JsonPropertyName( "effects" )]
-    public List<Effect> Effects { get; set; }
+    public List<Effect>? Effects { get; set; }
 
     [JsonPropertyName( "min_gold" )]
     public int MinGold { get; set; }
@@ -53,5 +53,5 @@ public class MonsterDatum
     public int MaxGold { get; set; }
 
     [JsonPropertyName( "drops" )]
-    public List<Drop> Drops { get; set; }
+    public List<Drop>? Drops { get; set; }
 }

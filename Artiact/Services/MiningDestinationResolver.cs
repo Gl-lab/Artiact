@@ -41,7 +41,7 @@ public sealed class MiningDestinationResolver(IGameClient gameClient)
                                  && (long)character.MiningLevel < (long)resource.Level + 10
                            join map in maps.Where(map => map.Content?.Type == "resource" &&
                                !string.IsNullOrWhiteSpace(map.Content.Code))
-                               on resource.Code equals map.Content.Code
+                               on resource.Code equals map.Content?.Code
                            select new MiningDestination(resource.Code, resource.Level, map.X, map.Y);
 
         var selected = destinations.OrderByDescending(destination => destination.ResourceLevel)

@@ -9,6 +9,14 @@ namespace Artiact.Client;
 
 public class GameClient : IGameClient
 {
+    private readonly AsyncLocal<CancellationToken> _operationToken = new();
+    public IDisposable BeginOperation(CancellationToken token)
+    {
+        var previous = _operationToken.Value;
+        _operationToken.Value = token;
+        return new OperationScope(() => _operationToken.Value = previous);
+    }
+    private sealed class OperationScope(Action restore) : IDisposable { public void Dispose() => restore(); }
     // Exact wire snapshot for presence-aware combat normalization; never log this payload.
     public JsonElement? LastCharacterPayload { get; private set; }
     public JsonElement? LastActionPayload { get; private set; }
@@ -37,7 +45,7 @@ public class GameClient : IGameClient
         string detailsUrl = $"/characters/{_characterName}";
 
         _logger.LogInformation( detailsUrl );
-        HttpResponseMessage response = await _httpClient.GetAsync( detailsUrl );
+        using HttpResponseMessage response = await _httpClient.ReadAsync( detailsUrl, _operationToken.Value );
         if ( response.IsSuccessStatusCode )
         {
             string details = await response.Content.ReadAsStringAsync();
@@ -147,11 +155,11 @@ public class GameClient : IGameClient
         }
 
         Map map = await GetPage<Map>( "maps", 1 );
-        List<MapPlace> result = map.Data;
+        List<MapPlace> result = map.Data ?? throw new InvalidOperationException("Map data is missing.");
         for ( int i = 2; i <= map.Pages; i++ )
         {
             map = await GetPage<Map>( "maps", i );
-            result.AddRange( map.Data );
+            result.AddRange( map.Data ?? throw new InvalidOperationException("Map data is missing.") );
         }
 
         await _cacheService.SaveToCache( result );
@@ -258,7 +266,7 @@ public class GameClient : IGameClient
     {
         string requestUri = $"/{endpoint}?page={page}";
         _logger.LogDebug( requestUri );
-        HttpResponseMessage response = await _httpClient.GetAsync( requestUri );
+        using HttpResponseMessage response = await _httpClient.ReadAsync( requestUri, _operationToken.Value );
         if ( !response.IsSuccessStatusCode )
         {
             throw new Exception( $"Unable to get {endpoint}" );
@@ -272,7 +280,7 @@ public class GameClient : IGameClient
     {
         try
         {
-            using HttpResponseMessage response = await _httpClient.PostAsync( detailsUrl, content );
+            using HttpResponseMessage response = await _httpClient.SendAsync( detailsUrl, content, _operationToken.Value );
             if ( !response.IsSuccessStatusCode )
                 throw new ActionFailureException( (int)response.StatusCode >= 500
                     ? ActionFailureKind.UnknownOutcome : ActionFailureKind.Rejected, (int)response.StatusCode );

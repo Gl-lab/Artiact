@@ -43,9 +43,9 @@ public class PayloadProbeTests
         for ( int replay = 0; replay < 2; replay++ )
         {
             ActionResponse response = JsonSerializer.Deserialize<ActionResponse>( Fight )!;
-            Assert.Null( response.Data.Character );
-            Assert.Equal( 7, response.Data.Cooldown.TotalSeconds );
-            Assert.Null( response.Data.Details );
+            Assert.Null( response.Data!.Character! );
+            Assert.Equal( 7, response.Data!.Cooldown!.TotalSeconds );
+            Assert.Null( response.Data!.Details );
         }
     }
 
@@ -110,9 +110,9 @@ public class PayloadProbeTests
         for ( int replay = 0; replay < 2; replay++ )
         {
             ActionResponse response = JsonSerializer.Deserialize<ActionResponse>( json )!;
-            Assert.Equal( 20, response.Data.Character.Hp );
-            Assert.Equal( 13, response.Data.Cooldown.TotalSeconds );
-            Assert.Null( response.Data.Details );
+            Assert.Equal( 20, response.Data!.Character!.Hp );
+            Assert.Equal( 13, response.Data!.Cooldown!.TotalSeconds );
+            Assert.Null( response.Data!.Details );
         }
     }
 }

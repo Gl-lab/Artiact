@@ -29,10 +29,19 @@ jobs:
         run: dotnet restore Artiact.sln
 
       - name: Build solution
-        run: dotnet build Artiact.sln --no-restore
+        run: dotnet build Artiact.sln --no-restore --warnaserror
 
       - name: Test solution
         run: dotnet test Artiact.sln --no-build --no-restore
+
+      - name: Deterministic staged HTTP acceptance
+        run: >-
+          dotnet test Artiact.MockService.Tests/Artiact.MockService.Tests.csproj
+          --no-build --no-restore
+          --filter "FullyQualifiedName~StrategyPortfolioFlowTests|FullyQualifiedName~StagedOperationTests"
+
+      - name: Build default-inspect container without running it
+        run: docker build --file Artiact/Dockerfile --tag artiact:ci .
 
   real-api-offline:
     name: Real API boundary tests (offline)

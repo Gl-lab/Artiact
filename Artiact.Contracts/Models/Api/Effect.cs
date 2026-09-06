@@ -1,11 +1,11 @@
-﻿using System.Text.Json.Serialization;
+using System.Text.Json.Serialization;
 
 namespace Artiact.Contracts.Models.Api;
 
 public class Effect
 {
     [JsonPropertyName( "code" )]
-    public string Code { get; set; }
+    public string Code { get; set; } = string.Empty;
 
     [JsonPropertyName( "value" )]
     public int Value { get; set; }

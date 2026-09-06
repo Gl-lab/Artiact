@@ -18,6 +18,7 @@ public sealed class MiningStep(ICharacterService characterService, int target,
 
     public async Task Execute(IGameClient client, CancellationToken cancellationToken)
     {
+        using var operation = (client as Artiact.Client.GameClient)?.BeginOperation(cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         Character before = characterService.GetCharacter();
         if (!CanMine(before)) return;
@@ -25,10 +26,10 @@ public sealed class MiningStep(ICharacterService characterService, int target,
         if (!AtDestination(before))
         {
             var move = await client.Move(new MapPoint { X = destination.X, Y = destination.Y });
-            characterService.SaveCharacter(move.Data.Character);
-            if (move.Data.Character is not null && !AtDestination(move.Data.Character)) runState.RecordMovementFailure();
+            characterService.SaveCharacter(move.RequireCharacter());
+            if (move.RequireCharacter() is not null && !AtDestination(move.RequireCharacter())) runState.RecordMovementFailure();
             cancellationToken.ThrowIfCancellationRequested();
-            await delay.WaitAsync(move.Data.Cooldown.TotalSeconds, cancellationToken);
+            await delay.WaitAsync(move.RequireCooldown().TotalSeconds, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             before = characterService.GetCharacter();
             if (!CanMine(before) || before.MiningLevel != selectedLevel || !AtDestination(before)) return;
@@ -38,10 +39,10 @@ public sealed class MiningStep(ICharacterService characterService, int target,
         int xp = before.MiningXp;
         cancellationToken.ThrowIfCancellationRequested();
         var gather = await client.Gathering();
-        characterService.SaveCharacter(gather.Data.Character);
-        if (gather.Data.Character is not null) runState.RecordGather(level, xp, gather.Data.Character);
+        characterService.SaveCharacter(gather.RequireCharacter());
+        if (gather.RequireCharacter() is not null) runState.RecordGather(level, xp, gather.RequireCharacter());
         cancellationToken.ThrowIfCancellationRequested();
-        await delay.WaitAsync(gather.Data.Cooldown.TotalSeconds, cancellationToken);
+        await delay.WaitAsync(gather.RequireCooldown().TotalSeconds, cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
     }
 }

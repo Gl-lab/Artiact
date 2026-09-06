@@ -1,4 +1,4 @@
-﻿using Artiact.Contracts.Client;
+using Artiact.Contracts.Client;
 using Artiact.Contracts.Models;
 using Artiact.Contracts.Models.Api;
 
@@ -28,8 +28,8 @@ public class TargetLootingResolver : ITargetLootingResolver
         List<MonsterDatum> allMonsters = await _gameClient.GetMonsters();
         IEnumerable<MonsterDatum> candidates = allMonsters
             .Where( monster => monster.Level <= (long)character.Level + 1 )
-            .Where( monster => monster.Drops.Exists( drop => drop.Code == craftComponent.Code && drop.Rate > 0 ) )
-            .OrderBy( monster => monster.Drops.Where( drop => drop.Code == craftComponent.Code && drop.Rate > 0 ).Min(drop => drop.Rate) )
+            .Where( monster => monster.Drops?.Exists( drop => drop.Code == craftComponent.Code && drop.Rate > 0 ) == true )
+            .OrderBy( monster => monster.Drops!.Where( drop => drop.Code == craftComponent.Code && drop.Rate > 0 ).Min(drop => drop.Rate) )
             .ThenBy( monster => monster.Code, StringComparer.Ordinal );
 
         foreach ( MonsterDatum monster in candidates )

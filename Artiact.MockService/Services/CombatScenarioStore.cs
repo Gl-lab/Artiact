@@ -46,6 +46,8 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
                 return (200, new JsonObject { ["scenario"] = scenario, ["trace_count"] = 0 });
             }
             if (_scenario is null || path == "/token") return null;
+            if (_scenario == "strategy-portfolio" && method == "GET" && path == "/openapi.json")
+                return (200, JsonNode.Parse(File.ReadAllText(Path.Combine(environment.ContentRootPath, "StrategyOpenApiSubset.json")))!);
             if (method == "GET" && path == "/characters/researcher")
             {
                 _character ??= Initial();
