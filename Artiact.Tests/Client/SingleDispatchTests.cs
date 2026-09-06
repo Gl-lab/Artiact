@@ -78,6 +78,7 @@ public class SingleDispatchTests
     [Theory]
     [InlineData(ActionFailureKind.UnknownOutcome)]
     [InlineData(ActionFailureKind.Rejected)]
+    [InlineData(ActionFailureKind.Defeat)]
     public async Task WorkerDoesNotRepeatFailedActionCycle(ActionFailureKind kind)
     {
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));

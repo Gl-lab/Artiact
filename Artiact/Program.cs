@@ -84,7 +84,10 @@ internal class Program
         // Регистрация сервисов
         builder.Services.AddScoped<ICacheService, CacheService>();
         builder.Services.AddScoped<IGameHttpClient, GameHttpClient>();
-        builder.Services.AddScoped<IGameClient, GameClient>();
+        builder.Services.AddScoped<GameClient>();
+        builder.Services.AddScoped<IGameClient>(services => services.GetRequiredService<GameClient>());
+        builder.Services.AddScoped<Artiact.Services.Combat.CombatCatalog>();
+        builder.Services.AddScoped<Artiact.Services.Combat.CombatSessionFactory>();
         builder.Services.AddGoalSelection( builder.Configuration );
         builder.Services.AddMiningProgression( builder.Configuration );
         builder.Services.AddScoped<IMapService, MapService>();

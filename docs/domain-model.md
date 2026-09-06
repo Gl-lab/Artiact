@@ -2,6 +2,8 @@
 
 ## Core language
 
+An additional explicit [combat session](combat-progression.md) uses immutable CombatObservation/CombatDecision records and one-command transitions. It does not activate legacy LevelUpGoal or replace the mining goal tree.
+
 | Term | Meaning in current code | Primary types |
 |---|---|---|
 | Character | Mutable snapshot of the configured game character, including position, levels and inventory | `Character`, `CharacterService` |

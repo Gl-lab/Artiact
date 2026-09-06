@@ -3,7 +3,8 @@ namespace Artiact.Contracts.Client;
 public enum ActionFailureKind
 {
     Rejected,
-    UnknownOutcome
+    UnknownOutcome,
+    Defeat
 }
 
 // Deliberately carries no response body, request URI or transport exception:

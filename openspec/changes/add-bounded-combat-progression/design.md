@@ -17,4 +17,6 @@ Before each production slice, add behavior tests and record actual RED or alread
 
 ## Risks
 
+Implementation refinement: the first normalized single-element subset is fire-only, with explicitly zero secondary attacks. CombatSessionFactory is registered but must be invoked explicitly; the autonomous mining worker is unchanged. Combat catalogs bypass the legacy DTO cache to preserve required field presence. Gear free capacity is 6 at completion because both old and heavy_blade remain in inventory alongside two feathers. Independent complete action response oracles and full decision replay live in ExpectedCombat/CombatProgressionFlowTests.
+
 Changing all action failures affects the mining worker recovery path: unknown outcomes must terminate repetition, not just remove a retry loop inside GameClient. Legacy synthetic fight envelopes are not current-API evidence. Research fragment probes may need updating when the formerly missing shape is implemented; retain historical evidence as dated research.

@@ -1,5 +1,30 @@
 # Epic 6 execution evidence — 2026-09-06
 
+## Combat/equipment HTTP slice
+
+Base `6e2b04f`; this slice adds presence-aware fire-only normalization, conservative predictor, explicit session factory/DI, finite one-command combat run, current-map catalog resolver, pre-owned gear comparison, response-validation port and scripted combat mock scenarios. Default autonomous mining remains unchanged. Loot/craft and Epics 7–8 are still pending.
+
+RED/GREEN observations:
+
+- `dotnet test Artiact.Tests/Artiact.Tests.csproj --no-restore --filter FullyQualifiedName~FightDefeatTests --verbosity quiet`: initial one failure confirmed two fight calls after loss; after fix one passes and worker defeat coverage passes.
+- `dotnet test Artiact.Tests/Artiact.Tests.csproj --no-restore --filter FullyQualifiedName~CombatPredictionTests --verbosity quiet`: initial conservative scaffold failed 6/passed 2; implemented predictor passes all 8.
+- `dotnet test Artiact.Tests/Artiact.Tests.csproj --no-restore --filter "FullyQualifiedName~CombatObservationTests|FullyQualifiedName~CombatPredictionTests" --verbosity quiet`: observation scaffold failed the valid-state case, 19 already fail-closed/predictor cases passed; normalization then passes 20.
+- `dotnet test Artiact.Tests/Artiact.Tests.csproj --no-restore --filter FullyQualifiedName~CombatRunTests --verbosity quiet`: non-executing scaffold failed all initial 5; implementation passed all.
+- `dotnet test Artiact.MockService.Tests/Artiact.MockService.Tests.csproj --no-restore --filter FullyQualifiedName~CombatProgressionFlowTests --verbosity quiet`: initially both named reset requests failed; implemented HTTP scenarios pass baseline/gear acceptance with independent complete response oracles, exact decision replay and virtual times29/35.
+- Independent review predicted half-finished swap and ignored malformed mock bodies. `dotnet test Artiact.sln --no-restore --filter "FullyQualifiedName~SwapCanEquip|FullyQualifiedName~MalformedAvailableAction" --verbosity quiet` reproduced all6 failures, then passed all6 after fixes.
+- HTTP mutation/loss/cancellation test initially had a harness ordering error (GameHttpClient configured after first request), not behavioral RED. After fixing the harness, 8 cases passed and negative drop quantity failed; validating drop members made all9 pass.
+- Existing reset regression with duplicate JSON properties was found by the broad gate and fixed using JsonDocument's duplicate-preserving property enumeration; focused reset/combat suite passed19.
+
+Final verification:
+
+- `dotnet build Artiact.sln --no-restore --verbosity quiet`: passed, zero errors, existing NU1902.
+- `dotnet test Artiact.sln --no-restore --verbosity quiet`: 380 application +101 mock passed, zero failed/skipped.
+- `dotnet test Artiact.RealApiTests/Artiact.RealApiTests.csproj --no-restore --filter Category=RealApiOffline --verbosity quiet`:36 passed.
+- `npx -y @fission-ai/openspec@1.12.0 validate --all --strict`:9 items passed, zero failed, existing long-requirement notices and environment TLS warning.
+- `git diff --check`: passed.
+
+Independent review covered the working diff against6e2b04f. Reviewer reran50 Combat/FightDefeat and21 real-client combat tests, confirmed both blockers resolved and found no new concrete blocker. Reviewed blob identities: CombatRun6f577e6, CombatActionPort5750b7c, CombatCatalog098877a, CombatScenarioStorecfebf9f, CombatProgressionFlowTests3f4f5f8, ExpectedCombat82a4bb0. The parent ran the broad gate above. No live/API safety proof, full emulator, optional systems or craft extension is claimed. Pre-existing `.serena/project.yml` remains excluded.
+
 ## Transport and action envelope slice
 
 Implementation base: specification commit `4f5e736`, following production/research base `05f7944`. Scope: single-dispatch action client, terminal worker failure handling, failed token guard, exact-name fight snapshot adapter, named equipment arrays and retained fight/rest/equipment details. Not the complete combat epic.

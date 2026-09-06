@@ -17,14 +17,14 @@ This list records behavior visible in the current source. It is not a roadmap an
 
 ## Looting-aware crafting
 
-- Dated [combat contract research](research/combat-equipment/contract-matrix.md) and offline fragment probes establish gaps against OpenAPI 8.2.3: fight returns `data.characters`/`data.fight`, equip/unequip require arrays with named slots, and map content is nested in `interactions`. Fight participant adaptation and named equipment arrays are now implemented, with rest/equipment details retained. Full presence/stat/access normalization and deterministic combat acceptance remain incomplete.
+- Dated [combat contract research](research/combat-equipment/contract-matrix.md) and offline fragment probes establish gaps against OpenAPI 8.2.3: fight returns `data.characters`/`data.fight`, equip/unequip require arrays with named slots, and map content is nested in `interactions`. Fight participant adaptation and named equipment arrays are now implemented, with rest/equipment details retained. The explicit combat session now normalizes a fire-only, effect-free subset and validates standard-access map identities; broader mechanics and live compatibility remain unverified.
 - The current loot resolver sorts drop `rate` descending, while the inspected upstream schema defines probability as `1/rate`. This legacy selection behavior remains characterized by tests; correcting it belongs to an explicit implementation slice.
 - [ADR 0001](decisions/0001-combat-viability-and-recovery.md) proves only a narrow synthetic offline model. Missing complete effects/conditions/stat normalization, map access and ambiguous-action reconciliation prevent live combat readiness. Official sources disagree on rest timing; research uses returned cooldowns.
 
 - Only one distinct missing loot leaf is supported per target.
 - Combat eligibility is approximated by `monster.Level <= character.Level + 1`; equipment, HP, resistances and recovery are not evaluated.
 - The resolver picks the reachable eligible monster with the highest numeric `rate` field; distance and combat cost are ignored.
-- Fight execution is bounded to ten attempts. There is no rest/heal/death-recovery flow.
+- Legacy fight execution is bounded to ten attempts and stops on a returned defeat, retaining the authoritative character without revenge or recovery. There is no rest/heal/death-recovery flow.
 - Execution trusts the API's returned inventory state and does not reserve ingredients against concurrent consumers.
 
 ## Runtime and resilience
@@ -49,8 +49,8 @@ This list records behavior visible in the current source. It is not a roadmap an
 
 ## Mock and operations
 
-- `Artiact.MockService` is incomplete and cannot execute the looting-aware fight path.
-- The mock supports the reset/load/move/gather `basic-mining` and repeated `mining-progression` scenarios; unsupported routes return a local 404. Legacy Swagger/YARP dependencies and configuration were removed in `8171c6e`.
+- MockService now proves scripted combat/equipment progression, but the legacy looting-aware craft path is not yet covered by a complete mock HTTP scenario.
+- The mock supports basic-mining/mining-progression and the additional scripted combat-progression/combat-equipment scenarios; unsupported routes return a local 404. Legacy Swagger/YARP dependencies and configuration were removed in `8171c6e`.
 - Compose uses mutable image tags and development credentials; no production deployment definition is present.
 - Prometheus runs in a container but scrapes `localhost:5000`, which points back into that container rather than to a host-run Artiact process. Port 5000 is also the documented mock-service port.
 - `Artiact/Dockerfile` has no dependable build context for the current multi-project layout: the repository root has no matching root project file, while an `Artiact/` context omits `Artiact.Contracts`.

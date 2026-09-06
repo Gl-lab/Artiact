@@ -1,5 +1,7 @@
 # Artiact.MockService
 
+The additional `combat-progression` and `combat-equipment` scenarios use a scripted kernel before the mining controllers. See [combat progression](combat-progression.md) for their reset/state/trace, fight/rest/equipment subset and divergences. The mining contracts below remain unchanged.
+
 ## Purpose
 
 `Artiact.MockService` is a process-local deterministic strategy simulator for the smallest supported Artifacts MMO client slice:

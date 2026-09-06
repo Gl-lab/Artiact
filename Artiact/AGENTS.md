@@ -17,6 +17,7 @@ This directory contains the executable ASP.NET Core host and autonomous backgrou
 - Loot execution predicates must use live character state and remain bounded.
 - New `IGameClient` actions require contract, client, step, mock/test-double and test impact review.
 - Never log credentials, Basic headers, Bearer tokens or user-secret values.
+- CombatSessionFactory is explicit and does not replace mining startup. Its fire-only normalized subset, action bounds and mock evidence are documented in `../docs/combat-progression.md`. LastCharacterPayload/LastActionPayload contain raw character state and must not be logged.
 
 ## Verification
 

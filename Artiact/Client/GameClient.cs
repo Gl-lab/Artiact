@@ -9,6 +9,9 @@ namespace Artiact.Client;
 
 public class GameClient : IGameClient
 {
+    // Exact wire snapshot for presence-aware combat normalization; never log this payload.
+    public JsonElement? LastCharacterPayload { get; private set; }
+    public JsonElement? LastActionPayload { get; private set; }
     private readonly ActivitySource _activitySource;
     private readonly ICacheService _cacheService;
 
@@ -39,7 +42,8 @@ public class GameClient : IGameClient
         {
             string details = await response.Content.ReadAsStringAsync();
             CharacterResponse? characterResponse = JsonSerializer.Deserialize<CharacterResponse>( details );
-
+            using var document = JsonDocument.Parse(details);
+            LastCharacterPayload = document.RootElement.GetProperty("data").Clone();
             return characterResponse?.Data ?? throw new InvalidOperationException();
         }
 
@@ -70,6 +74,13 @@ public class GameClient : IGameClient
     {
         string detailsUrl = $"/my/{_characterName}/action/fight";
         return await GetAction( detailsUrl, fight: true );
+    }
+
+    public async Task<ActionResponse> MoveToMap(int mapId)
+    {
+        if (mapId <= 0) throw new ArgumentOutOfRangeException(nameof(mapId));
+        using var content = new StringContent(JsonSerializer.Serialize(new { map_id = mapId }), Encoding.UTF8, "application/json");
+        return await GetAction($"/my/{_characterName}/action/move", content);
     }
 
     public async Task<ActionResponse> Rest()
@@ -266,7 +277,8 @@ public class GameClient : IGameClient
                 throw new ActionFailureException( (int)response.StatusCode >= 500
                     ? ActionFailureKind.UnknownOutcome : ActionFailureKind.Rejected, (int)response.StatusCode );
 
-            var result = JsonSerializer.Deserialize<ActionResponse>( await response.Content.ReadAsStringAsync() );
+            string body = await response.Content.ReadAsStringAsync();
+            var result = JsonSerializer.Deserialize<ActionResponse>( body );
             if ( fight )
             {
                 var matches = result?.Data?.Characters?.Where(c => c is not null &&
@@ -277,6 +289,13 @@ public class GameClient : IGameClient
             }
             if ( result?.Data?.Character is null || result.Data.Cooldown is null )
                 throw new ActionFailureException( ActionFailureKind.UnknownOutcome );
+            using var document = JsonDocument.Parse(body);
+            var data = document.RootElement.GetProperty("data");
+            LastActionPayload = data.Clone();
+            LastCharacterPayload = fight
+                ? data.GetProperty("characters").EnumerateArray().Single(c => c.ValueKind == JsonValueKind.Object &&
+                    c.TryGetProperty("name", out var name) && name.ValueKind == JsonValueKind.String && name.GetString() == _characterName).Clone()
+                : data.GetProperty("character").Clone();
             return result;
         }
         catch ( Exception ex ) when ( ex is HttpRequestException or OperationCanceledException or JsonException or IOException )

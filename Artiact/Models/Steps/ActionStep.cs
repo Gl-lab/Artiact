@@ -28,6 +28,8 @@ public class ActionStep : BaseStep, IStep
             cancellationToken.ThrowIfCancellationRequested();
             ActionResponse actionResponse = await _action( client );
             CharacterService.SaveCharacter( actionResponse.Data.Character );
+            if ( actionResponse.Data.Fight?.Result == "loss" )
+                throw new ActionFailureException( ActionFailureKind.Defeat );
             await Delay( actionResponse.Data.Cooldown.TotalSeconds, cancellationToken );
             attempts++;
 

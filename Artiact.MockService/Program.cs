@@ -7,8 +7,10 @@ builder.WebHost.ConfigureKestrel( options => options.ListenLocalhost( 5000 ) );
 
 builder.Services.AddControllers().AddJsonOptions( options => options.JsonSerializerOptions.Converters.Add( new RoundTripDateTimeConverter() ) );
 builder.Services.AddSingleton<IMockScenarioStore, MockScenarioStore>();
+builder.Services.AddSingleton<CombatScenarioStore>();
 
 WebApplication app = builder.Build();
+app.UseMiddleware<CombatScenarioMiddleware>();
 app.MapControllers();
 app.MapFallback( () => Results.Problem(
     statusCode: StatusCodes.Status404NotFound,
