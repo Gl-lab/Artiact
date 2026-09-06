@@ -13,6 +13,8 @@ This directory is the source-grounded guide for developers and AI agents working
 | [Development review, 2026-09-05](reviews/2026-09-05-development-process.md) | Evidence from September 4–5 commits and prioritized process improvements |
 | [Official references](external-references.md) | Game site, wiki/concepts, OpenAPI, Swagger, changelog and operational API guides |
 | [Known limitations](known-limitations.md) | Deliberate limits, incomplete paths and operational risks |
+| [Combat/equipment research](research/combat-equipment/comparison.md) | Epic 5 evidence, isolated experiments and alternatives |
+| [Combat viability ADR](decisions/0001-combat-viability-and-recovery.md) | Research decision and bounded Epic 6 handoff; live execution remains no-go |
 
 ## Repository map
 

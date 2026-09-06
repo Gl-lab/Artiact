@@ -33,6 +33,17 @@ dotnet test Artiact.MockService.Tests/Artiact.MockService.Tests.csproj --no-rest
 dotnet test Artiact.MockService.Tests/Artiact.MockService.Tests.csproj --no-restore --filter FullyQualifiedName~GameClientCompatibilityTests
 ```
 
+## Isolated combat research experiments
+
+Epic 5's disposable test project is excluded from `Artiact.sln` and all host dependencies. It references Contracts only for offline payload probes; no production client, credentials, network calls or real cooldown waits are used during test execution. Restore may access NuGet.
+
+```text
+dotnet restore openspec/changes/research-combat-equipment-progression/experiments/CombatResearch.Tests.csproj
+dotnet test openspec/changes/research-combat-equipment-progression/experiments/CombatResearch.Tests.csproj --no-restore
+```
+
+Every deterministic fixture contains replay checks. Run this separate command when changing the research prototype; the solution gate does not discover it. See [protocol](research/combat-equipment/experiments.md) and [ADR](decisions/0001-combat-viability-and-recovery.md) for its supported subset and limits. This project is not an emulator or a production combat feature.
+
 ## Configuration
 
 `Artiact/Program.cs` loads configuration from the build output directory in this order:
