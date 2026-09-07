@@ -1,5 +1,7 @@
 # Roadmap delivery evidence — 2026-09-07
 
+Follow-up: [isolated live Inspect](../openspec/changes/read-only-live-inspect/execution-evidence.md) exposed the single-drop restriction. [Optional-drop support](../openspec/changes/gathering-optional-drops/execution-evidence.md) cleared it: production planning selected Move:277 for mining target 2 with zero attempts. The historical unverified Inspect status below is superseded by this dated follow-up; OneShot/container telemetry remain outstanding.
+
 Published R1–R5 on `codex/autonomous-roadmap`: a949e5c, 7b69fe6, 6843216, 178859c, 41895f8, 4aca343, f0668d9. Each epic has specification, implementation, tests and dated evidence in OpenSpec.
 
 Final self-review of f0668d9 plus the RunCheckpoint/DurableRunTests diff found a reproducible ownership defect: `hero` and `HERO` could acquire separate leases. Acceptance: differently cased identities must exclude a second owner; existing checkpoints must not silently disappear after canonicalization. The fix canonicalizes ownership keys and blocks unexpected checkpoint filenames for operator migration. No independent review.

@@ -6,7 +6,7 @@
 
 - R3 adds opt-in deposits for inventory-pressure gathering; [bank scope](gathering-bank.md) excludes withdrawal, gold, expansion and economic decisions. The new banking DTO/interface is additive. Pending R2 observations from before bank fingerprint inclusion stop on mismatch rather than migrate blindly.
 
-- R1 gathering is independent of combat normalization and supports profession-only configuration. It still accepts only same-layer standard maps without conditions/transitions and one guaranteed positive bounded resource drop. Unknown resource effects/access remain outside the supported subset; no live mining action has been verified by R1.
+- R1 gathering is independent of combat normalization and supports profession-only configuration. It still accepts only same-layer standard maps without conditions/transitions and unique positive bounded resource drops with at least one guaranteed item and capacity for all simultaneous maxima. Unknown resource effects/access remain outside the supported subset; no live mining action has been verified by R1.
 
 This list records behavior visible in the current source. It is not a roadmap and does not imply authorization to fix unrelated items.
 

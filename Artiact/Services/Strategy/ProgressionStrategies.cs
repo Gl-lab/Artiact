@@ -51,12 +51,16 @@ public sealed class GatheringStrategy(SkillMilestone goal, PortfolioPolicy polic
             {
                 if (!StrategyRules.Empty(resource, "conditions")) continue;
                 var drops = resource.GetProperty("drops");
-                if (drops.GetArrayLength() != 1) continue;
-                var drop = drops[0];
-                string code = drop.GetProperty("code").GetString()!;
-                int min = drop.GetProperty("min_quantity").GetInt32(), max = drop.GetProperty("max_quantity").GetInt32();
-                if (string.IsNullOrWhiteSpace(code) || min <= 0 || max < min || drop.GetProperty("rate").GetInt32() != 1) continue;
-                if (state.FreeUnits < max) return policy.Bank is null ? Result("InventoryPressure") :
+                if (drops.GetArrayLength() is < 1 or > 100) continue;
+                var bounds = drops.EnumerateArray().Select(drop => new
+                {
+                    Code = drop.GetProperty("code").GetString()!, Min = drop.GetProperty("min_quantity").GetInt32(),
+                    Max = drop.GetProperty("max_quantity").GetInt32(), Rate = drop.GetProperty("rate").GetInt32()
+                }).ToArray();
+                if (bounds.Any(x => string.IsNullOrWhiteSpace(x.Code) || x.Min <= 0 || x.Max < x.Min || x.Rate < 1) ||
+                    bounds.Select(x => x.Code).Distinct(StringComparer.Ordinal).Count() != bounds.Length || !bounds.Any(x => x.Rate == 1)) continue;
+                var codes = bounds.Select(x => x.Code).ToHashSet(StringComparer.Ordinal);
+                if (state.FreeUnits < bounds.Sum(x => (long)x.Max)) return policy.Bank is null ? Result("InventoryPressure") :
                     BankPrerequisite.Evaluate(observation, Result("InventoryPressure"), policy.Bank, port, policy.MoveSeconds);
                 var map = maps.Where(x => StrategyRules.GatheringPlace(x, state) &&
                     x.GetProperty("interactions").GetProperty("content") is { ValueKind: JsonValueKind.Object } content &&
@@ -75,9 +79,13 @@ public sealed class GatheringStrategy(SkillMilestone goal, PortfolioPolicy polic
                         !StrategyRules.Progress(observation.Character, after.Character, prefix) ||
                         after.Character.GetProperty(prefix + "xp").GetInt32() < 0 ||
                         after.Character.GetProperty(prefix + "max_xp").GetInt32() <= after.Character.GetProperty(prefix + "xp").GetInt32()) return false;
-                    long delta = (long)changed.Inventory.GetValueOrDefault(code) - state.Inventory.GetValueOrDefault(code);
-                    return delta >= min && delta <= max && changed.Inventory.Remove(code).Count == state.Inventory.Remove(code).Count &&
-                        state.Inventory.Where(x => x.Key != code).All(x => changed.Inventory.GetValueOrDefault(x.Key) == x.Value);
+                    foreach (var bound in bounds)
+                    {
+                        long delta = (long)changed.Inventory.GetValueOrDefault(bound.Code) - state.Inventory.GetValueOrDefault(bound.Code);
+                        if (!(delta == 0 && bound.Rate > 1) && (delta < bound.Min || delta > bound.Max)) return false;
+                    }
+                    return changed.Inventory.Count(x => !codes.Contains(x.Key)) == state.Inventory.Count(x => !codes.Contains(x.Key)) &&
+                        state.Inventory.Where(x => !codes.Contains(x.Key)).All(x => changed.Inventory.GetValueOrDefault(x.Key) == x.Value);
                 }));
             }
             return Result("NoSupportedResource");
