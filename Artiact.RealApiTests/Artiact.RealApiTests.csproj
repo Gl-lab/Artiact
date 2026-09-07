@@ -16,6 +16,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Artiact.Contracts\Artiact.Contracts.csproj" />
+    <ProjectReference Include="..\Artiact\Artiact.csproj" />
   </ItemGroup>
 
   <ItemGroup>

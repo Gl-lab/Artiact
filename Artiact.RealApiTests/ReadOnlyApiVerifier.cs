@@ -8,6 +8,41 @@ namespace Artiact.RealApiTests;
 
 internal sealed class ReadOnlyApiVerifier( HttpClient httpClient )
 {
+    public async Task<Artiact.Services.Strategy.StrategyDecision> InspectAsync(
+        RealApiConfiguration configuration, CancellationToken cancellationToken)
+    {
+        Uri baseUri = DestinationValidator.Validate(configuration.BaseUri);
+        string token = await AuthenticateAsync(baseUri, configuration, cancellationToken);
+        var transport = new InspectionTransport(configuration.Character, async path =>
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(baseUri, path));
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            return await SendAsync(request, "inspection", cancellationToken);
+        });
+        var settings = new Artiact.Services.Operation.ExecutionSettings();
+        var status = new Artiact.Services.Operation.OperationState();
+        var compatibility = new Artiact.Services.Operation.ApiCompatibility(transport, settings, status);
+        using var activity = new System.Diagnostics.ActivitySource("Artiact.ReadOnlyInspection");
+        var client = new Artiact.Client.GameClient(transport,
+            new Artiact.ApiSettings { Character = configuration.Character, BaseUrl = baseUri.AbsoluteUri, Username = "", Password = "" },
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<Artiact.Contracts.Client.IGameClient>.Instance,
+            new InspectionCache(), activity);
+        var factory = new Artiact.Services.Strategy.StrategySessionFactory(client,
+            new Artiact.Services.Combat.CombatCatalog(transport), new Artiact.Services.CharacterService(),
+            new Artiact.Services.MiningCooldownDelay(), compatibility);
+        var policy = new Artiact.Services.Operation.PortfolioSettings
+        {
+            Skills = [new("mining", 2, 30)]
+        }.Policy();
+        return await factory.Create(policy).InspectAsync(cancellationToken);
+    }
+
+    private sealed class InspectionCache : Artiact.Client.ICacheService
+    {
+        public Task<T?> GetFromCache<T>() where T : class => Task.FromResult<T?>(null);
+        public Task SaveToCache<T>(T data) where T : class => throw new InvalidOperationException("Inspection does not write caches.");
+    }
+
     public async Task<VerificationSummary> VerifyAsync(
         RealApiConfiguration configuration,
         CancellationToken cancellationToken )

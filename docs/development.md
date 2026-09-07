@@ -109,6 +109,10 @@ The live command reads the ignored root `.env` only after the exact opt-in guard
 
 ## Running
 
+### Isolated live planning
+
+The separate API test project references the application to reuse production planning without hosting. Run `Category=RealApiInspect` with `ARTIACT_REAL_API_READONLY=1` to inspect the configured character for mining target 2. Its dedicated transport allows only character, OpenAPI and paginated maps/resources reads and prohibits game POSTs. It does not write caches. A blocked decision fails actionable live acceptance and reports rejection reasons. Use the environment cleanup shown in [delivery evidence](roadmap-delivery-evidence.md), changing the test filter to `Category=RealApiInspect`. Default solution and RealApiOffline remain offline.
+
 ### Against the real API
 
 ```text
