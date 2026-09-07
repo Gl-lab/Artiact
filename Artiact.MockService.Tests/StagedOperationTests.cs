@@ -15,6 +15,40 @@ namespace Artiact.MockService.Tests;
 
 public class StagedOperationTests
 {
+    [Fact]
+    public async Task BoundedMiningCompletesAndRestartDoesNotDispatchAgain()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "artiact-bounded-" + Guid.NewGuid().ToString("N"));
+        var settings = new ExecutionSettings { Mode = "Bounded", AllowActions = true, RunId = "mining-test", RunDirectory = directory };
+        try
+        {
+            await using (var h = new Harness(settings, miningOnly: true))
+            {
+                await h.Reset(); h.Handler.MiningOnly = true;
+                var result = await h.Runner.RunAsync(CancellationToken.None);
+                Assert.Equal(StrategyStatus.Completed, result!.Status); Assert.Equal(3, h.Handler.Actions);
+            }
+            await using (var h = new Harness(settings, miningOnly: true))
+            {
+                Assert.Equal(StrategyStatus.Completed, (await h.Runner.RunAsync(CancellationToken.None))!.Status);
+                Assert.Equal(0, h.Handler.Actions);
+            }
+        }
+        finally { Directory.Delete(directory, true); }
+    }
+
+    [Fact]
+    public async Task BoundedSecondExecutorDoesNotDispatch()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "artiact-owner-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            using var lease = new FileRunCheckpointStore(directory, "http://localhost/researcher");
+            await using var h = new Harness(new() { Mode = "Bounded", AllowActions = true, RunId = "test", RunDirectory = directory }, miningOnly: true);
+            Assert.Null(await h.Runner.RunAsync(CancellationToken.None)); Assert.Equal(0, h.Handler.Actions);
+        }
+        finally { Directory.Delete(directory, true); }
+    }
     [Theory]
     [InlineData("Inspect", 0)]
     [InlineData("OneShot", 1)]

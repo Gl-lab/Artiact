@@ -3,6 +3,22 @@ namespace Artiact.Services.Operation;
 public sealed record OperationHealth(bool Ready, string State, string? ApiVersion, DateTimeOffset? ObservedAt, string? Fingerprint);
 public sealed class OperationState(TimeProvider? time = null)
 {
+    private Strategy.StrategyDecision? _decision;
+    private string? _runId;
+    private string? _lastCommand, _goal;
+    private readonly CancellationTokenSource _stop = new();
+    public CancellationToken StopToken => _stop.Token;
+    public void RequestStop() => _stop.Cancel();
+    public void Progress(string runId, Strategy.StrategyDecision decision)
+    {
+        lock (_sync) { _runId = runId; _decision = decision; _lastCommand = decision.Command ?? _lastCommand; _goal = decision.Candidate ?? _goal; }
+    }
+    public object RunStatus()
+    {
+        lock (_sync) return new { RunId = _runId, Goal = _goal, LastCommand = _lastCommand, Decision = _decision,
+            InterventionRequired = _decision?.Status is Strategy.StrategyStatus.Blocked or Strategy.StrategyStatus.UnknownOutcome,
+            StopRequested = _stop.IsCancellationRequested };
+    }
     private readonly TimeProvider _time = time ?? TimeProvider.System;
     private readonly object _sync = new();
     private string _state = "NotInitialized";

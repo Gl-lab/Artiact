@@ -134,3 +134,5 @@ CacheService stores atomic versioned envelopes in OS local application data, par
 ## Explicit strategy sessions
 
 StrategySessionFactory registers the portfolio described in [Strategy portfolio](strategy-portfolio.md). Observation, deterministic candidate strategies and the serialized one-command coordinator are separate from the legacy ActionService worker. Each tick performs fresh preflight; unknown outcomes require read-only reconciliation. Compatibility paths remain until parity.
+
+Explicit Bounded startup uses the same coordinator with a durable checkpoint and local character lease; see [bounded operation](bounded-operation.md). It persists command intent before POST and verified state before cooldown, and exposes `/operation` plus cooperative `/operation/stop`.

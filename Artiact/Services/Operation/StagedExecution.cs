@@ -20,6 +20,7 @@ public sealed class StagedExecution(ExecutionSettings settings, ApiSettings api,
             try { mode = settings.Validate(api); policy = portfolio.Policy(); }
             catch (ArgumentException) { status.Set("ConfigurationRequiredOrInvalid"); return null; }
             if (mode == ExecutionMode.Legacy) { status.Set("LegacyCompatibilityMode"); return null; }
+            if (mode == ExecutionMode.Bounded) return _result = await RunBoundedAsync(policy, token);
             var run = factory.Create(policy);
             _result = mode == ExecutionMode.Inspect ? await run.InspectAsync(token) : await run.TickAsync(token);
             if (mode == ExecutionMode.OneShot && _result.Status == StrategyStatus.UnknownOutcome && !token.IsCancellationRequested)
@@ -31,6 +32,39 @@ public sealed class StagedExecution(ExecutionSettings settings, ApiSettings api,
         catch (OperationCanceledException) when (token.IsCancellationRequested) { status.Set("Cancelled"); return null; }
         catch (Exception) { status.Set("ExecutionFailed"); return null; }
         finally { _gate.Release(); }
+    }
+
+    private async Task<StrategyDecision?> RunBoundedAsync(PortfolioPolicy policy, CancellationToken token)
+    {
+        using var store = new FileRunCheckpointStore(settings.RunDirectory, new Uri(api.BaseUrl).GetLeftPart(UriPartial.Authority) + "/" + api.Character);
+        var limits = new StrategyLimits(settings.MaxDecisions, 10, settings.MaxActions, settings.MaxSeconds);
+        string identity = System.Text.Json.JsonSerializer.Serialize(new { settings.RunId, api.BaseUrl, api.Character, Policy = policy.Identity, Limits = limits });
+        var saved = store.Load();
+        using var stop = CancellationTokenSource.CreateLinkedTokenSource(token, status.StopToken);
+        var remaining = TimeSpan.FromSeconds(settings.MaxSeconds) - (DateTimeOffset.UtcNow - (saved?.Started ?? DateTimeOffset.UtcNow));
+        if (remaining > TimeSpan.Zero) stop.CancelAfter(remaining);
+        var run = factory.Create(policy, limits, store, identity);
+        while (true)
+        {
+            var result = await run.TickAsync(stop.Token);
+            status.Progress(settings.RunId, result);
+            status.Finish("Bounded:" + result.Status + ":" + result.Reason, result.Status is StrategyStatus.Selected or StrategyStatus.Completed or StrategyStatus.Reconciled);
+            if (result.Status is StrategyStatus.Completed or StrategyStatus.Blocked or StrategyStatus.Cancelled) return result;
+            if (result.Status == StrategyStatus.UnknownOutcome)
+            {
+                result = await run.TickAsync(stop.Token);
+                status.Progress(settings.RunId, result);
+                if (result.Status != StrategyStatus.Reconciled)
+                { status.Finish("Bounded:" + result.Status + ":" + result.Reason, false); return result; }
+            }
+            if (result.Status == StrategyStatus.CoolingDown)
+            {
+                var expiration = run.State!.Character.GetProperty("cooldown_expiration").GetDateTimeOffset();
+                var delay = expiration - DateTimeOffset.UtcNow;
+                try { if (delay > TimeSpan.Zero) await Task.Delay(delay, stop.Token); }
+                catch (OperationCanceledException) when (stop.IsCancellationRequested) { }
+            }
+        }
     }
 }
 

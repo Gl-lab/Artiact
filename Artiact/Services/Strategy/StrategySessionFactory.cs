@@ -7,14 +7,16 @@ namespace Artiact.Services.Strategy;
 public sealed class StrategySessionFactory(GameClient client, CombatCatalog catalog,
     ICharacterService characters, IMiningCooldownDelay cooldown, Artiact.Services.Operation.ApiCompatibility? compatibility = null)
 {
-    public StrategySession Create(PortfolioPolicy policy, StrategyLimits? limits = null)
+    public StrategySession Create(PortfolioPolicy policy, StrategyLimits? limits = null,
+        IRunCheckpointStore? checkpoints = null, string identity = "")
     {
         policy.Validate();
         var port = new StrategyActionPort(client, characters);
         var strategies = policy.Skills.Select(x => (IProgressionStrategy)new GatheringStrategy(x, policy, port)).ToList();
         if (policy.CombatEnabled) strategies.Add(new CombatMilestoneStrategy(policy, port));
         if (!string.IsNullOrWhiteSpace(policy.Equipment)) strategies.Add(new EquipmentStrategy(policy, port));
-        return new(new HttpStrategyObserver(client, catalog, characters, policy.Identity, compatibility, policy), strategies, cooldown, limits);
+        return new(new HttpStrategyObserver(client, catalog, characters, policy.Identity, compatibility, policy), strategies, cooldown, limits,
+            checkpoints: checkpoints, identity: identity);
     }
 }
 

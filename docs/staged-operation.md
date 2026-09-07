@@ -73,3 +73,5 @@ The deprecated/vulnerable Zipkin exporter was removed in favor of OTLP. Configur
 CI builds with warnings as errors, runs the full solution, explicit staged HTTP acceptance and separate RealApiOffline checks, and builds the Dockerfile from repository root without running its image. `.dockerignore` excludes secrets, caches and generated output. Use `docker build -f Artiact/Dockerfile -t artiact:local .` when Docker is available. Actual telemetry delivery, monitoring Compose, production deployment and a real-character action remain unverified; see dated epic evidence for exact commands.
 
 Offline release completion does not clear the [combat ADR live no-go](decisions/0001-combat-viability-and-recovery.md). A real-character rollout requires separately approved character, policy, supported world state and action review. Bank, tasks, market, events and multi-character scheduling were not added.
+
+R2: explicit Bounded execution now persists its journal and budgets and holds a local character lease; see [bounded operation](bounded-operation.md). Earlier in-memory restart limitations still apply to standalone Inspect/OneShot/Legacy sessions.

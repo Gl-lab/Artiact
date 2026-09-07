@@ -28,3 +28,5 @@ dotnet test ../Artiact.sln --no-restore
 ```
 
 Default Inspect does not dispatch actions. Explicit OneShot/Legacy settings can act; use the TestServer suite for verification. See ../docs/staged-operation.md for consent, origin and freshness guards.
+
+R2: explicit Bounded execution now persists its journal and budgets and holds a local character lease; see [bounded operation](../docs/bounded-operation.md). Earlier in-memory restart limitations still apply to standalone Inspect/OneShot/Legacy sessions.

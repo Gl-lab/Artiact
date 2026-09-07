@@ -1,0 +1,13 @@
+# Durable bounded execution
+
+R2 adds explicit `Execution:Mode=Bounded`. Configure the same API/Portfolio as Inspect and set `AllowActions=true`, stable `RunId`, absolute `RunDirectory`, positive `MaxActions`, `MaxDecisions` (at least 10) and `MaxSeconds` (1–86400). Defaults for budgets are 100/200/3600; directory and ID have no defaults. Live origin additionally requires the existing live opt-in and separate rollout evidence. Default host mode remains Inspect.
+
+Use one shared local directory for all cooperating bounded executors for an origin/character. `.artiact-runs/` is git-ignored; other directories must also remain outside version control. Checkpoints contain character/catalog state, never credentials. The exclusive filesystem lease is held through execution/cooldown; a competing owner fails before observing or acting. This is not a distributed lock and cannot stop external game clients or standalone OneShot/Legacy executions. Do not run those concurrently.
+
+The versioned checkpoint stores run/policy/limits identity, start time, decision/action/no-progress counters, consumed commands, command journal, pending baseline, last verified observation and terminal decision. Command delegates are reconstructed solely to check pending postconditions; they are not a durable representation or blindly resent. Each intent is flushed before POST; verified results are flushed before cooldown. Atomic file replacement provides process-crash consistency on supported local filesystems, not a power-loss/storage-device guarantee.
+
+On restart, pending intent is reconciled by reading. Even a crash before POST can remain UnknownOutcome: unchanged state is insufficient proof to retry. Observing the expected postcondition does not attribute the action to this executor. Budgets include downtime and cannot be reset by changing configuration or run ID. A terminal checkpoint remains stopped. Starting a genuinely new run requires operator review and archival of the previous checkpoint while no owner runs; never discard an unresolved intent to retry it.
+
+`GET /operation` exposes run ID, goal, last command, decision budgets and intervention flag. `POST /operation/stop` requests cooperative cancellation and schedules no game action. Host shutdown also cancels. These operational routes follow the host's existing network exposure; deploy behind appropriate local access controls. Cancellation preserves returned action state; an in-flight HTTP POST may finish before stopping. Cooldown is awaited rather than actively polled.
+
+Socket-free evidence: [R2 execution evidence](../openspec/changes/durable-bounded-run/execution-evidence.md). Production host, real actions, container persistence and telemetry delivery remain unverified.

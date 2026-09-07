@@ -1,0 +1,7 @@
+# Design
+
+Persist versioned JSON checkpoint with run ID, origin/character/policy/limits identity, start/deadline, counters, terminal result, pending command ID and full immutable baseline facts. Delegates are not serialized: restore pending postcondition by reevaluating the saved baseline with the same policy/catalogs and requiring the exact command ID/fingerprint. Restored commands are used only for reconciliation, never dispatch.
+
+Single local filesystem directory is required for all cooperating executors. Hold an exclusive per-origin/character lock for the runner lifetime; write checkpoint through a flushed temporary file and atomic replacement. Corrupt/incompatible checkpoints and storage errors stop without further actions. This is a local-process crash model, not distributed locking or a guarantee against filesystem/device data loss. Character payloads are local operational state, never logs or git artifacts.
+
+Persist counters before observations and intent before dispatch. Persist verified reply before cooldown. A pending checkpoint remains unresolved when final storage fails. A stopped/complete run cannot restart under the same run ID. Budgets include downtime; configuration changes do not reset a run. Explicit Bounded requires a stable run ID, directory and positive action/decision/wall-time limits. Coordinator waits on cooldown and accepts cancellation; status endpoint exposes bounded decision summaries.

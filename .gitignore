@@ -6,6 +6,9 @@
 # dotenv files
 .env
 
+# Local durable execution state
+.artiact-runs/
+
 # User-specific files
 *.rsuser
 *.suo
