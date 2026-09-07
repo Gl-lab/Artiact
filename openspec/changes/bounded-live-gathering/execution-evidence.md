@@ -1,0 +1,11 @@
+# Evidence — 2026-09-07
+
+Base 504d96b. Self-reviewed exact gather-only route/body, map 277 guard, durable session limits, fixed identity/path, exclusive ownership, restart and terminal cancellation. No independent review. The user authorized continuing the remaining operational rollout.
+
+- RED `dotnet test Artiact.RealApiTests/Artiact.RealApiTests.csproj --no-restore --filter FullyQualifiedName~BoundedGatherTransportTests`: three rejection assertions failed before the boundary.
+- `dotnet test Artiact.RealApiTests/Artiact.RealApiTests.csproj --no-restore --filter Category=RealApiOffline`: 54 passed.
+- `dotnet test Artiact.sln --no-restore`: 478 application / 160 mock passed.
+- With `ARTIACT_BOUNDED_ROLLOUT=gllab:mining2:max4`, `dotnet test Artiact.RealApiTests/Artiact.RealApiTests.csproj --no-build --filter Category=RealApiBounded --logger 'console;verbosity=detailed'`: initial attempt failed ObservationFailed before dispatch. Operator read verified Attempts=0, PendingCommand=null, empty journal; the file was preserved with `.pre-dispatch-failure` suffix before starting a new run. No uncertain action was replayed. Read observation allowance raised to 120 seconds within the existing setting bounds; HTTP timeout remains 30 seconds.
+- The second explicit command passed in 102 seconds. Phase 0 Gather:mining CommandVerified, Attempts=1, cooldown=30; store/session reconstruction; phase 1 CommandVerified, Attempts=2, cumulative cooldown=60. Cooperative stop persisted Cancelled. A further store/session reconstruction remained Cancelled, Attempts=2; journal contained two Verified entries and no pending command; transport sent exactly twice. Independent GET: map 277, mining level 1, XP 26. Mining level 2 was a bounded objective, not an achieved level in this stop/recovery trial. Opt-in removed afterward.
+
+Scope: real durable session lifecycle, not process-kill recovery or HTTP hosting. Health output stayed NotInitialized because the trial drives the session directly instead of the staged host; container hosting is the next slice. Docker Desktop was started and server 28.0.1 became available. Existing image built and /health/live returned 200, but metrics body was six bytes with no HTTP duration metric: follow-up needed.
