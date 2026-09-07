@@ -7,7 +7,7 @@ Artiact is an ASP.NET Core application that hosts operational HTTP endpoints and
 ```mermaid
 flowchart LR
     Host[ASP.NET Core host] --> Mode{Execution mode}
-    Mode --> Staged[StagedWorker: Inspect or OneShot]
+    Mode --> Staged[StagedWorker: Inspect, OneShot or Bounded]
     Staged --> Portfolio[StrategySession]
     Portfolio --> Client
     Mode --> Worker[Explicit legacy ArtiactBackgroundService]
@@ -114,7 +114,7 @@ Subgoals are built before their parent goal, so prerequisite craft or inventory 
 
 `GameHttpClient` obtains a token from `/token` using Basic authentication, then uses the returned Bearer token. `GameClient` exposes character actions and paginated map/resource/item/monster reads.
 
-Action calls dispatch once. Network/timeout/read/JSON failures and HTTP 5xx produce sanitized `ActionFailureException(UnknownOutcome)`; other unsuccessful responses produce `Rejected` with the status code. Both stop the worker without recovery repetition. Token rejection prevents action dispatch. Concrete operation scopes propagate cancellation through reads/authentication; GET has a shared two-send budget and bounded token refresh. POST never retries. Fight adapts exactly one ordinal-name participant from `data.characters` into `Data.Character` and retains `data.fight`; named equipment requests use one-element arrays. The explicit CombatSessionFactory provides a bounded fire-only deterministic combat path with presence-aware observations and current map identities; see [combat progression](combat-progression.md). Default startup inspects the explicit portfolio.
+Action calls dispatch once. Network/timeout/read/JSON failures and HTTP 5xx produce sanitized `ActionFailureException(UnknownOutcome)`; other unsuccessful responses produce `Rejected` with the status code. Both stop the worker without recovery repetition. Token rejection prevents action dispatch. Concrete operation scopes propagate cancellation through reads/authentication; GET has a shared two-send budget and bounded token refresh. POST never retries. Fight adapts exactly one ordinal-name participant from `data.characters` into `Data.Character` and retains `data.fight`; named equipment requests use one-element arrays. The explicit CombatSessionFactory provides a bounded, effect-free four-element deterministic combat path with presence-aware observations and current map identities; weapon replacement remains fire-only. See [combat progression](combat-progression.md). Default startup inspects the explicit portfolio.
 
 CacheService stores atomic versioned envelopes in OS local application data, partitioned by endpoint/version. Default TTL is 48 hours; malformed, future and mismatched entries miss. Tracked snapshots are untouched.
 

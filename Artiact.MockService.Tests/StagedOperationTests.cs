@@ -131,12 +131,30 @@ public class StagedOperationTests
         Assert.Equal(3, h.Handler.Actions);
     }
     [Fact]
+    public async Task VerifiedRealClientCheckpointRoundTripsOnDisk()
+    {
+        await using var h = new Harness(new(), miningOnly: true); await h.Reset("gathering-bank");
+        var memory = new Checkpoint();
+        var run = h.Factory.Create(BankPolicy, checkpoints: memory, identity: "disk");
+        await run.TickAsync();
+        string directory = Path.Combine(Path.GetTempPath(), "artiact-disk-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            using var disk = new FileRunCheckpointStore(directory, "hero");
+            disk.Save(memory.Load()!);
+            Assert.NotNull(disk.Load()!.Verified);
+        }
+        finally { Directory.Delete(directory, true); }
+    }
+
+    [Fact]
     public async Task GatheringBankConservesProtectedStockAcrossTwoDeposits()
     {
         await using var h = new Harness(new(), miningOnly: true);
         await h.Reset("gathering-bank");
         var policy = BankPolicy;
-        var run = h.Factory.Create(policy);
+        var store = new Checkpoint();
+        var run = h.Factory.Create(policy, checkpoints: store, identity: "bank-completion");
         var decisions = new List<StrategyDecision>();
         for (int i = 0; i < 14; i++) decisions.Add(await run.TickAsync());
         Assert.Equal(StrategyStatus.Completed, decisions[^1].Status);
@@ -147,6 +165,14 @@ public class StagedOperationTests
         Assert.Equal(4, run.State!.Bank!.Items["ore"]);
         var character = CharacterObservation.Read(run.State.Character)!;
         Assert.Equal(2, character.Inventory["ore"]); Assert.Equal(1, character.Inventory["protected"]);
+        Assert.Equal(4, run.State.Character.GetProperty("mining_level").GetInt32());
+        Assert.Equal(0, run.State.Character.GetProperty("mining_xp").GetInt32());
+        var resumed = h.Factory.Create(policy, checkpoints: store, identity: "bank-completion");
+        Assert.Equal(StrategyStatus.Completed, (await resumed.TickAsync(new CancellationToken(true))).Status);
+        Assert.Equal(StrategyStatus.Completed, (await resumed.TickAsync()).Status);
+        Assert.Equal(13, h.Handler.Actions);
+        Assert.Equal(1, store.Load()!.Initial!.Character.GetProperty("mining_level").GetInt32());
+        Assert.Equal(4, store.Load()!.Latest!.Bank!.Items["ore"]);
     }
     [Fact]
     public async Task BoundedMiningCompletesAndRestartDoesNotDispatchAgain()

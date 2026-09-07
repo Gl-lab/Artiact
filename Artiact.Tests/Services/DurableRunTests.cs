@@ -38,6 +38,31 @@ public class DurableRunTests
         new(world, [world], new Delay(), limits, checkpoints: store, identity: "run1");
 
     [Fact]
+    public async Task DurableResultRetainsFirstObservationAcrossRestart()
+    {
+        var world = new World(); var store = new Store();
+        await Run(world, store).TickAsync();
+        await Run(world, store).TickAsync();
+        var saved = JsonSerializer.SerializeToElement(store.Saved);
+        Assert.True(saved.TryGetProperty("Initial", out var initial), "Initial observation must be durable.");
+        Assert.Equal(0, initial.GetProperty("Character").GetProperty("xp").GetInt32());
+        Assert.Equal(2, saved.GetProperty("Latest").GetProperty("Character").GetProperty("xp").GetInt32());
+    }
+
+    [Fact]
+    public async Task DurableTerminalTimeDoesNotChangeOnRestart()
+    {
+        var world = new World(); var store = new Store();
+        await Run(world, store).TickAsync(new CancellationToken(true));
+        var before = JsonSerializer.SerializeToElement(store.Saved);
+        Assert.True(before.TryGetProperty("Finished", out var finished), "Terminal time must be durable.");
+        Assert.NotEqual(JsonValueKind.Null, finished.ValueKind);
+        await Run(world, store).TickAsync();
+        Assert.Equal(finished.GetString(), JsonSerializer.SerializeToElement(store.Saved).GetProperty("Finished").GetString());
+        Assert.Equal(0, world.Actions);
+    }
+
+    [Fact]
     public async Task FailedIntentWritePreventsPost()
     {
         var world = new World(); var store = new Store { Fail = c => c.PendingCommand is not null };

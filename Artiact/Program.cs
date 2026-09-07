@@ -19,6 +19,11 @@ internal class Program
 {
     private static async Task Main( string[] args )
     {
+        if (RunLifecycleCommand.Handles(args))
+        {
+            Environment.ExitCode = RunLifecycleCommand.Execute(args, Console.Out, Console.Error);
+            return;
+        }
         WebApplicationBuilder builder = WebApplication.CreateBuilder( args );
 
         // Создаем метрики

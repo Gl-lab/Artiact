@@ -17,12 +17,14 @@ This directory is the source-grounded guide for developers and AI agents working
 | [Combat viability ADR](decisions/0001-combat-viability-and-recovery.md) | Research decision and bounded Epic 6 handoff; live execution remains no-go |
 | [Staged operation](staged-operation.md) | Inspect/one-shot, auth, freshness, readiness and rollout boundary |
 | [Bounded operation](bounded-operation.md) | Durable journal, bounded loop, exclusive local ownership and stop/status |
+| [R6 lifecycle specification](../openspec/changes/run-lifecycle/proposal.md) | Offline result/archive commands, history and full-process recovery acceptance |
 | [Local container rollout](container-rollout.md) | Mock-only Docker profile, durable volume, health/stop, Prometheus and OTLP-to-Zipkin acceptance |
 | [Gathering with bank](gathering-bank.md) | Allowed deposits, retained stock, conserved bank/inventory and mock scenario |
 | [Item production](item-production.md) | Independent quantity goals, nested resources, bank ingredients and atomic craft |
 | [Measured selection](measured-selection.md) | Alternative candidates, observed cooldown estimates and switching threshold |
 | [Roadmap delivery](roadmap-progress.md) | Completed core epics, publication evidence and remaining live rollout boundary |
-| [Роадмап на русском](roadmap-ru.md) | Завершённые R1–R5, эксплуатационная приёмка и идеи за пределами первого рубежа |
+| [Новый роадмап на русском](roadmap-next-ru.md) | Проект R6–R10, включая R8a «Расходники и их производство»: актуальная готовность, приоритеты и критерии приёмки |
+| [Предыдущий роадмап на русском](roadmap-ru.md) | История завершённых R1–R5 и ограниченной эксплуатационной приёмки |
 | [Strategy portfolio](strategy-portfolio.md) | Explicit competing goals, atomic commands and reconciliation |
 | [Deterministic combat progression](combat-progression.md) | Explicit bounded sessions, equipment, recovery and synthetic HTTP acceptance |
 

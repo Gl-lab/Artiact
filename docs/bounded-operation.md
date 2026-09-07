@@ -8,7 +8,22 @@ Character ownership keys ignore case. Use a directory dedicated to one origin/ch
 
 The versioned checkpoint stores run/policy/limits identity, start time, decision/action/no-progress counters, consumed commands, command journal, pending baseline, last verified observation and terminal decision. Command delegates are reconstructed solely to check pending postconditions; they are not a durable representation or blindly resent. Each intent is flushed before POST; verified results are flushed before cooldown. Atomic file replacement provides process-crash consistency on supported local filesystems, not a power-loss/storage-device guarantee.
 
-On restart, pending intent is reconciled by reading. Even a crash before POST can remain UnknownOutcome: unchanged state is insufficient proof to retry. Observing the expected postcondition does not attribute the action to this executor. Budgets include downtime and cannot be reset by changing configuration or run ID. A terminal checkpoint remains stopped. Starting a genuinely new run requires operator review and archival of the previous checkpoint while no owner runs; never discard an unresolved intent to retry it.
+On restart, pending intent is reconciled by reading. Even a crash before POST can remain UnknownOutcome: unchanged state is insufficient proof to retry. Observing the expected postcondition does not attribute the action to this executor. Budgets include downtime and cannot be reset by changing configuration or run ID. A terminal checkpoint remains stopped. Use the offline lifecycle commands below to review and archive a verified completion; unresolved, cancelled and blocked runs cannot be cleared by this path.
+
+## Review and start another run
+
+Stop the host first so it releases its character lease. These commands exit before host construction, configuration/secrets loading, clients or telemetry initialization:
+
+```text
+dotnet Artiact/bin/Debug/net9.0/Artiact.dll run-result <absolute-run-directory> <origin/character>
+dotnet Artiact/bin/Debug/net9.0/Artiact.dll run-archive <absolute-run-directory> <origin/character> <IdentityDigest-from-result>
+```
+
+The ownership identity must match the Bounded origin authority plus `/` and character (for example `http://localhost:5001/researcher`). `run-result` prints JSON containing policy/run identity, initial/latest/verified character and bank facts, level/XP and stock changes, attempts, journal, confirmed cooldown, terminal time and intervention requirement. XP deltas are changes in the reported level-local XP counter, not lifetime XP gained. Elapsed time includes downtime. Lost replies contribute no invented cooldown. Missing facts in older checkpoints remain null.
+
+`run-archive` requires the exact case-sensitive SHA-256 identity digest, Completed/TargetsReached, a consistent successful journal and available final facts. It atomically moves the original checkpoint bytes into `history/<character-key>/<identity-digest>.json`. Failures leave the active checkpoint in place. Exit codes are 0 success, 1 refused/unavailable, 2 invalid command arguments. History contains private operational state and must remain outside Git.
+
+After archival, explicitly configure a new `Execution:RunId` and the next goal/budgets, then start Bounded normally. Archived identities cannot be reused even if the previous command or process was interrupted after archival. There is no automatic next run. Resume an unfinished run by retaining its original configuration and identity; terminal states remain terminal. Legacy/OneShot do not gain a durable lifecycle from these commands.
 
 `GET /operation` exposes run ID, goal, last command, decision budgets and intervention flag. `POST /operation/stop` requests cooperative cancellation and schedules no game action. Host shutdown also cancels. These operational routes follow the host's existing network exposure; deploy behind appropriate local access controls. Cancellation preserves returned action state; an in-flight HTTP POST may finish before stopping. Cooldown is awaited rather than actively polled.
 

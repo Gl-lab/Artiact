@@ -47,6 +47,9 @@ public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IPro
     private bool _storageFailed;
     private DateTimeOffset _started;
     private SavedObservation? _verified;
+    private SavedObservation? _initial, _latest;
+    private DateTimeOffset? _finished;
+    private bool _newRun;
     private readonly List<JournalCommand> _journal = [];
     private readonly Dictionary<string, ActionMeasurement> _measurements = new(StringComparer.Ordinal);
     private string? _incumbent;
@@ -90,6 +93,8 @@ public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IPro
         try { State = await observer.ObserveAsync(token); }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { return Stop(StrategyStatus.Cancelled, "Cancelled"); }
         catch (Exception) { return Stop(_pending is null ? StrategyStatus.Blocked : StrategyStatus.UnknownOutcome, "ObservationFailed"); }
+        _latest = SavedObservation.From(State);
+        if (_newRun && _initial is null) _initial = _latest;
         if (_pending is not null)
         {
             var pending = _pending;
@@ -129,6 +134,7 @@ public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IPro
         catch (OperationCanceledException) when (token.IsCancellationRequested) { return Stop(StrategyStatus.Cancelled, "Cancelled"); }
         catch (Exception) { return Stop(StrategyStatus.Blocked, "PreflightFailed"); }
         State = preflight;
+        _latest = SavedObservation.From(State);
         if (preflight.Fingerprint != command.SourceFingerprint)
         { _noProgress++; return Decision(StrategyStatus.Replan, "StaleObservation", selected.Id); }
         if (token.IsCancellationRequested) return Stop(StrategyStatus.Cancelled, "Cancelled");
@@ -148,6 +154,7 @@ public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IPro
             return Decision(StrategyStatus.UnknownOutcome, "DispatchOutcomeUnknown", selected.Id, command.Id);
         }
         State = reply.State;
+        _latest = SavedObservation.From(State);
         _pending = null;
         _consumed.Add(Key(command));
         if (reply.Defeat) { RecordOutcome("Defeat"); return Stop(StrategyStatus.Blocked, "Defeat"); }
@@ -182,6 +189,7 @@ public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IPro
         if (_loaded) return;
         _started = _time.GetUtcNow();
         var saved = checkpoints?.Load();
+        _newRun = saved is null;
         if (saved is not null)
         {
             if (saved.Version != 1 || saved.Identity != identity || saved.Decisions < 0 || saved.Attempts < 0 ||
@@ -192,6 +200,7 @@ public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IPro
             _noProgress = saved.NoProgress; _seconds = saved.Seconds; _terminal = saved.Terminal;
             _consumed.UnionWith(saved.Consumed);
             _journal.AddRange(saved.Journal); _verified = saved.Verified;
+            _initial = saved.Initial; _latest = saved.Latest; _finished = saved.Finished;
             if (saved.Measurements is not null)
                 foreach (var entry in saved.Measurements)
                 {
@@ -212,7 +221,7 @@ public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IPro
     }
     private void Save() => checkpoints?.Save(new(1, identity, _started, _decisions, _attempts, _noProgress, _seconds,
         _consumed.ToArray(), _pending?.Id, _baseline is null ? null : SavedObservation.From(_baseline), _terminal, _verified, _journal.ToImmutableArray(),
-        _measurements.ToImmutableDictionary(StringComparer.Ordinal), _incumbent));
+        _measurements.ToImmutableDictionary(StringComparer.Ordinal), _incumbent, _initial, _latest, _finished));
     private static string MeasureKey(StrategyCandidate candidate) => candidate.Id + ":" + candidate.Command!.Id.Split(':')[0];
     private StrategyCandidate Measured(StrategyCandidate candidate)
     {
@@ -234,7 +243,11 @@ public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IPro
         if (_journal.Count > 0) _journal[^1] = _journal[^1] with { Status = status, ResultFingerprint = fingerprint };
     }
     private static string Key(AtomicCommand command) => command.SourceFingerprint + ":" + command.Id;
-    private StrategyDecision Stop(StrategyStatus status, string reason) => _terminal = Decision(status, reason);
+    private StrategyDecision Stop(StrategyStatus status, string reason)
+    {
+        _finished ??= _time.GetUtcNow();
+        return _terminal = Decision(status, reason);
+    }
     private StrategyDecision Decision(StrategyStatus status, string reason, string? candidate = null, string? command = null) =>
         new(status, reason, candidate, command, _candidates, _decisions, _attempts, _noProgress, _seconds);
 }

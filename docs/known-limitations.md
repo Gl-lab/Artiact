@@ -4,7 +4,7 @@
 
 - R4a adds independent item goals and required-ingredient withdrawals ([scope](item-production.md)). It does not globally optimize capacity/route allocation or acquire arbitrary mob-drop leaves; configured budgets bound production/deposit shuttling.
 
-- R3 adds opt-in deposits for inventory-pressure gathering; [bank scope](gathering-bank.md) excludes withdrawal, gold, expansion and economic decisions. The new banking DTO/interface is additive. Pending R2 observations from before bank fingerprint inclusion stop on mismatch rather than migrate blindly.
+- R3 adds opt-in deposits for inventory-pressure gathering; [bank scope](gathering-bank.md) covers deposits; R4a adds required-ingredient withdrawals, while gold, expansion and economic decisions remain excluded. The new banking DTO/interface is additive. Pending R2 observations from before bank fingerprint inclusion stop on mismatch rather than migrate blindly.
 
 - R1 gathering is independent of combat normalization and supports profession-only configuration. It still accepts only same-layer standard maps without conditions/transitions and unique positive bounded resource drops with at least one guaranteed item and capacity for all simultaneous maxima. Unknown resource effects/access remain outside the supported subset; no live mining action has been verified by R1.
 
@@ -25,7 +25,7 @@ This list records behavior visible in the current source. It is not a roadmap an
 
 ## Looting-aware crafting
 
-- Dated [combat contract research](research/combat-equipment/contract-matrix.md) and offline fragment probes establish gaps against OpenAPI 8.2.3: fight returns `data.characters`/`data.fight`, equip/unequip require arrays with named slots, and map content is nested in `interactions`. Fight participant adaptation and named equipment arrays are now implemented, with rest/equipment details retained. The explicit combat session now normalizes a fire-only, effect-free subset and validates standard-access map identities; broader mechanics and live compatibility remain unverified.
+- Dated [combat contract research](research/combat-equipment/contract-matrix.md) and offline fragment probes establish gaps against OpenAPI 8.2.3: fight returns `data.characters`/`data.fight`, equip/unequip require arrays with named slots, and map content is nested in `interactions`. Fight participant adaptation and named equipment arrays are now implemented, with rest/equipment details retained. The explicit combat session now normalizes a four-element, effect-free subset with fire-only weapon replacement and validates standard-access map identities; broader mechanics and live compatibility remain unverified.
 - The legacy loot resolver now ranks positive reciprocal drop rates ascending with an ordinal code tie-break. Its level-only eligibility remains unsuitable as a standalone live combat safety policy.
 - [ADR 0001](decisions/0001-combat-viability-and-recovery.md) proves only a narrow synthetic offline model. Missing complete effects/conditions/stat normalization, map access and ambiguous-action reconciliation prevent live combat readiness. Official sources disagree on rest timing; research uses returned cooldowns.
 
@@ -40,7 +40,7 @@ This list records behavior visible in the current source. It is not a roadmap an
 - The background service uses one DI scope for its full lifetime.
 - Mining invokes each Move/Gathering method at most once per cycle; generic craft/loot graphs can still contain several actions. Concrete transport has a 30-second HTTP timeout; custom tokenless client implementations remain outside this bound. Legacy graphs do not reconcile unknown server outcomes.
 - Cancellation reaches orchestration, cooldown delays and concrete GET/auth operations through operation scopes. The public IGameClient interface remains tokenless; custom implementations do not inherit those scopes. An already-dispatched POST is allowed to return within its HTTP timeout. A successful in-flight action response is saved before cancellation prevents its cooldown wait, repeat or following child.
-- Action POSTs dispatch once and typed action failures stop the worker. Portfolio/OneShot supports bounded in-session read-only reconciliation. Unresolved outcomes and Legacy require external inspection; durable reconciliation across process restart is absent.
+- Action POSTs dispatch once and typed action failures stop the worker. Portfolio/OneShot supports bounded in-session read-only reconciliation. Unresolved outcomes and Legacy require external inspection; explicit Bounded supports durable read-only reconciliation across restart; standalone OneShot/Legacy do not.
 - Token rejection stops before action dispatch. Read/auth refresh and transient retries share a two-send GET budget; action POSTs never replay.
 - Versioned local-application-data cache has a 48-hour TTL; it is not a distributed cache or concurrent inventory reservation system.
 - Staged readiness reflects probe/observation freshness and outcome, but does not continuously probe the API or report legacy worker readiness.
