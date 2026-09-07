@@ -39,6 +39,13 @@ public sealed class ApiCompatibility(IGameHttpClient http, ExecutionSettings set
             foreach (string action in gatheringOnly ? new[] { "move", "gathering" } : new[] { "move", "gathering", "fight", "rest", "equip", "unequip", "crafting" })
                 if (paths.GetProperty("/my/{name}/action/" + action).GetProperty("post").ValueKind != JsonValueKind.Object) return false;
             var schemas = root.GetProperty("components").GetProperty("schemas");
+            if (profile is not null && !profile.Items.IsDefaultOrEmpty)
+            {
+                if (paths.GetProperty("/items").GetProperty("get").ValueKind != JsonValueKind.Object ||
+                    paths.GetProperty("/my/{name}/action/crafting").GetProperty("post").ValueKind != JsonValueKind.Object) return false;
+                if (profile.Bank is not null && paths.GetProperty("/my/{name}/action/bank/withdraw/item").GetProperty("post")
+                    .GetProperty("requestBody").GetProperty("content").GetProperty("application/json").GetProperty("schema").GetProperty("type").GetString() != "array") return false;
+            }
             if (profile?.Bank is not null)
             {
                 foreach (string path in new[] { "/my/bank", "/my/bank/items" })

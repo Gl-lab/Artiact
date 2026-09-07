@@ -4,6 +4,8 @@ The additional `combat-progression`, `combat-equipment` and `combat-crafting` sc
 
 ## Purpose
 
+R4a adds `item-production` and `item-production-bank` scripted scenarios, including required-stock withdrawals and bar/tool recipes. Their independent stock/action/time oracles are in [item production](item-production.md); the existing mining fixtures remain unchanged.
+
 The `gathering-bank` reset extends the scripted strategy kernel with bank details/items reads and bank item deposits; its fixed capacity and exact action/stock oracle are documented in [gathering with bank](gathering-bank.md). Deposits mutate character/bank/trace together; rejected requests commit neither store.
 
 R1 tests reuse strategy-portfolio through real clients, with transport-injected water attack and a profession-only OpenAPI subset. Mining reaches level 2 through Move:4 and two gathers; Inspect performs no actions. The authored subset now includes mining/woodcutting progress and inventory capacity. This is synthetic evidence, not a new general game emulator.

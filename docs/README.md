@@ -18,6 +18,7 @@ This directory is the source-grounded guide for developers and AI agents working
 | [Staged operation](staged-operation.md) | Inspect/one-shot, auth, freshness, readiness and rollout boundary |
 | [Bounded operation](bounded-operation.md) | Durable journal, bounded loop, exclusive local ownership and stop/status |
 | [Gathering with bank](gathering-bank.md) | Allowed deposits, retained stock, conserved bank/inventory and mock scenario |
+| [Item production](item-production.md) | Independent quantity goals, nested resources, bank ingredients and atomic craft |
 | [Roadmap delivery](roadmap-progress.md) | Completed core epics, publication evidence and remaining live rollout boundary |
 | [Новый роадмап — черновик на русском](roadmap-ru.md) | Инвентаризация готового ядра и предлагаемые этапы автономной игры; будущие планы, не описание текущего поведения |
 | [Strategy portfolio](strategy-portfolio.md) | Explicit competing goals, atomic commands and reconciliation |

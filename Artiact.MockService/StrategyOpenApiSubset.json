@@ -3,6 +3,7 @@
   "info": { "title": "Synthetic supported subset, not full upstream OpenAPI", "version": "8.2.3" },
   "paths": {
     "/my/bank": { "get": {} }, "/my/bank/items": { "get": {} },
+    "/my/{name}/action/bank/withdraw/item": { "post": { "requestBody": { "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/SimpleItemSchema" } } } } } } },
     "/my/{name}/action/bank/deposit/item": { "post": { "requestBody": { "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/SimpleItemSchema" } } } } } } },
     "/characters/{name}": { "get": {} }, "/maps": { "get": {} }, "/resources": { "get": {} }, "/items": { "get": {} }, "/monsters": { "get": {} },
     "/my/{name}/action/move": { "post": { "requestBody": { "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DestinationSchema" } } } } } },

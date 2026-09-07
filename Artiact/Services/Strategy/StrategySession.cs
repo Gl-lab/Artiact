@@ -156,7 +156,7 @@ public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IPro
     }
     private static bool Matches(AtomicCommand command, StrategyObservation after, StrategyObservation before)
     {
-        try { return before.SameWorld(after) && (command.Id.StartsWith("Deposit:", StringComparison.Ordinal) || BankPrerequisite.SameBank(before.Bank, after.Bank)) && command.Postcondition(after); }
+        try { return before.SameWorld(after) && (command.Id.StartsWith("Deposit:", StringComparison.Ordinal) || command.Id.StartsWith("Withdraw:", StringComparison.Ordinal) || BankPrerequisite.SameBank(before.Bank, after.Bank)) && command.Postcondition(after); }
         catch (Exception) { return false; }
     }
     private void Restore()

@@ -27,3 +27,5 @@ The HTTP profile listens on `http://localhost:5000`.
 The strategy-portfolio scenario alone serves GET /openapi.json from the authored StrategyOpenApiSubset.json. Preserve its explicitly partial scope; do not describe it as full upstream OpenAPI coverage.
 
 The gathering-bank scenario also serves this partial schema and adds GET /my/bank, paginated /my/bank/items and POST bank/deposit/item. Preserve atomic inventory/bank/trace commits and the documented 13-action conservation oracle in ../docs/gathering-bank.md.
+
+R4a's item-production/item-production-bank add bounded withdrawals and bar/tool crafting. Keep their fixtures and independent oracles aligned with ../docs/item-production.md.

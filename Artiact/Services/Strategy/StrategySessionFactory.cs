@@ -15,6 +15,7 @@ public sealed class StrategySessionFactory(GameClient client, CombatCatalog cata
         var strategies = policy.Skills.Select(x => (IProgressionStrategy)new GatheringStrategy(x, policy, port)).ToList();
         if (policy.CombatEnabled) strategies.Add(new CombatMilestoneStrategy(policy, port));
         if (!string.IsNullOrWhiteSpace(policy.Equipment)) strategies.Add(new EquipmentStrategy(policy, port));
+        if (!policy.Items.IsDefaultOrEmpty) strategies.AddRange(policy.Items.Select(x => new ItemProductionStrategy(x, policy, port)));
         return new(new HttpStrategyObserver(client, catalog, characters, policy.Identity, compatibility, policy), strategies, cooldown, limits,
             checkpoints: checkpoints, identity: identity);
     }
@@ -33,6 +34,8 @@ public sealed class HttpStrategyObserver(GameClient client, CombatCatalog catalo
         var catalogs = ImmutableDictionary.CreateBuilder<string, ImmutableArray<System.Text.Json.JsonElement>>(StringComparer.Ordinal);
         foreach (string name in profile is { CombatEnabled: false } ? new[] { "maps", "resources" } : new[] { "maps", "resources", "items", "monsters" })
             catalogs[name] = (await catalog.ReadPagesAsync(name, token)).ToImmutableArray();
+        if (profile is not null && !profile.Items.IsDefaultOrEmpty && !catalogs.ContainsKey("items"))
+            catalogs["items"] = (await catalog.ReadPagesAsync("items", token)).ToImmutableArray();
         characters.SaveCharacter(await client.GetCharacter());
         token.ThrowIfCancellationRequested();
         var bank = profile?.Bank is null ? null : await client.GetBank();

@@ -112,11 +112,15 @@ public class GameClient : IGameClient
     }
 
     public async Task<ActionResponse> DepositBankItems(IReadOnlyList<Item> items)
+        => await BankItems(items, "deposit");
+    public async Task<ActionResponse> WithdrawBankItems(IReadOnlyList<Item> items)
+        => await BankItems(items, "withdraw");
+    private async Task<ActionResponse> BankItems(IReadOnlyList<Item> items, string operation)
     {
         if (items.Count is < 1 or > 20 || items.Any(x => string.IsNullOrWhiteSpace(x.Code) || x.Quantity <= 0) ||
             items.Select(x => x.Code).Distinct(StringComparer.Ordinal).Count() != items.Count) throw new ArgumentException("Invalid deposit.");
         using var content = new StringContent(JsonSerializer.Serialize(items), Encoding.UTF8, "application/json");
-        return await GetAction($"/my/{_characterName}/action/bank/deposit/item", content);
+        return await GetAction($"/my/{_characterName}/action/bank/{operation}/item", content);
     }
 
     public async Task<ActionResponse> Fight()

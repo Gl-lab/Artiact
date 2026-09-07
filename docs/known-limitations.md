@@ -1,5 +1,7 @@
 # Known limitations
 
+- R4a adds independent item goals and required-ingredient withdrawals ([scope](item-production.md)). It does not globally optimize capacity/route allocation or acquire arbitrary mob-drop leaves; configured budgets bound production/deposit shuttling.
+
 - R3 adds opt-in deposits for inventory-pressure gathering; [bank scope](gathering-bank.md) excludes withdrawal, gold, expansion and economic decisions. The new banking DTO/interface is additive. Pending R2 observations from before bank fingerprint inclusion stop on mismatch rather than migrate blindly.
 
 - R1 gathering is independent of combat normalization and supports profession-only configuration. It still accepts only same-layer standard maps without conditions/transitions and one guaranteed positive bounded resource drop. Unknown resource effects/access remain outside the supported subset; no live mining action has been verified by R1.

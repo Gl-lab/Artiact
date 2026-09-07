@@ -15,6 +15,35 @@ namespace Artiact.MockService.Tests;
 
 public class StagedOperationTests
 {
+    [Theory]
+    [InlineData("item-production-bank", 1)]
+    [InlineData("item-production", 4)]
+    public async Task LostProductionOrWithdrawalReplyReconcilesAfterRestart(string scenario, int beforeAction)
+    {
+        await using var h = new Harness(new(), miningOnly: true); await h.Reset(scenario);
+        var policy = new PortfolioPolicy([], 0, "", "", Bank: BankPolicy.Bank, Items: [new("tool", 1)]);
+        var store = new Checkpoint(); var run = h.Factory.Create(policy, checkpoints: store, identity: "production");
+        for (int i = 0; i < beforeAction; i++) Assert.Equal(StrategyStatus.Selected, (await run.TickAsync()).Status);
+        h.Handler.Corruption = "loss"; Assert.Equal(StrategyStatus.UnknownOutcome, (await run.TickAsync()).Status);
+        h.Handler.Corruption = null;
+        Assert.Equal(StrategyStatus.Reconciled, (await h.Factory.Create(policy, checkpoints: store, identity: "production").TickAsync()).Status);
+        Assert.Equal(beforeAction + 1, h.Handler.Actions);
+    }
+    [Theory]
+    [InlineData("item-production", 6, 32)]
+    [InlineData("item-production-bank", 5, 25)]
+    public async Task ItemGoalProducesNestedRecipeFromGatheredOrBankStock(string scenario, int actions, int seconds)
+    {
+        await using var h = new Harness(new(), miningOnly: true); await h.Reset(scenario);
+        var policy = new PortfolioPolicy([], 0, "", "", Bank: BankPolicy.Bank, Items: [new("tool", 1)]);
+        var run = h.Factory.Create(policy);
+        StrategyDecision? last = null;
+        for (int i = 0; i <= actions; i++) last = await run.TickAsync();
+        Assert.Equal(StrategyStatus.Completed, last!.Status); Assert.Equal(actions, h.Handler.Actions); Assert.Equal(seconds, last.CooldownSeconds);
+        var state = CharacterObservation.Read(run.State!.Character)!;
+        Assert.Equal(1, state.Inventory["tool"]); Assert.Equal(1, state.Inventory["protected"]); Assert.Equal(2, state.Inventory.Count);
+        Assert.Empty(run.State.Bank!.Items);
+    }
     private static PortfolioPolicy BankPolicy => new([new("mining", 4, 30)], 0, "", "", Bank: new(System.Collections.Immutable.ImmutableDictionary<string, int>.Empty.Add("ore", 0)));
     private sealed class Checkpoint : IRunCheckpointStore
     {
