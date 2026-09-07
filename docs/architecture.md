@@ -136,3 +136,21 @@ CacheService stores atomic versioned envelopes in OS local application data, par
 StrategySessionFactory registers the portfolio described in [Strategy portfolio](strategy-portfolio.md). Observation, deterministic candidate strategies and the serialized one-command coordinator are separate from the legacy ActionService worker. Each tick performs fresh preflight; unknown outcomes require read-only reconciliation. Compatibility paths remain until parity.
 
 Explicit Bounded startup uses the same coordinator with a durable checkpoint and local character lease; see [bounded operation](bounded-operation.md). It persists command intent before POST and verified state before cooldown, and exposes `/operation` plus cooperative `/operation/stop`.
+
+R7–R10 extend this explicit path. Item prerequisites use bounded skill preparation and capacity-aware stock plans; food wraps its unfinished parent. Autonomous combat supplies bounded stage/gear alternatives. Optional FullPathStrategy adds estimates before StrategySession applies context-matched measurements and hysteresis. Verified action facts are saved before cooldown and completed wait timing afterward; run-result aggregates coverage, XP, inputs and switches.
+
+```mermaid
+flowchart LR
+    Observe[Fresh observation] --> Strategies[Bounded goal and prerequisite candidates]
+    Strategies --> Paths[Optional full-path estimates]
+    Paths --> Select[Context measurements and hysteresis]
+    Select --> Preflight[Fresh preflight]
+    Preflight --> Intent[Durable intent and resource charge]
+    Intent --> Post[Single POST]
+    Post --> Verify[Verify state and save facts]
+    Verify --> Wait[Cooldown wait and completed timing]
+    Wait --> Observe
+    Post --> Unknown[Unknown outcome]
+    Unknown --> Reconcile[Read-only reconciliation]
+    Verify --> Result[Result and performance report]
+```

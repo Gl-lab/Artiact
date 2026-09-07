@@ -17,7 +17,8 @@ public sealed record RunCheckpoint(int Version, string Identity, DateTimeOffset 
     ImmutableDictionary<string, ActionMeasurement>? Measurements = null, string? Incumbent = null,
     SavedObservation? Initial = null, SavedObservation? Latest = null, DateTimeOffset? Finished = null, string? PendingCandidate = null);
 public sealed record JournalCommand(string Command, string SourceFingerprint, string Status, string? ResultFingerprint = null,
-    ImmutableDictionary<string, int>? Charges = null, string? RefillCode = null, bool? Refilling = null);
+    ImmutableDictionary<string, int>? Charges = null, string? RefillCode = null, bool? Refilling = null,
+    string? Candidate = null, string? MeasurementContext = null, ActionFacts? Facts = null);
 public interface IRunCheckpointStore
 {
     RunCheckpoint? Load();

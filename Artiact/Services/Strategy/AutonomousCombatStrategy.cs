@@ -32,9 +32,9 @@ public sealed class AutonomousCombatStrategy(PortfolioPolicy policy, StrategyAct
             {
                 var rawMonster = observation.Catalogs["monsters"].SingleOrDefault(x => x.GetProperty("code").GetString() == monster);
                 if (rawMonster.ValueKind == JsonValueKind.Undefined || rawMonster.GetProperty("level").GetInt32() < 1 ||
-                    (long)state.Level - rawMonster.GetProperty("level").GetInt32() >= 10) { result.Add(Reject("UnsupportedOrZeroXpOpponent:" + monster)); continue; }
+                    (long)state.Level - rawMonster.GetProperty("level").GetInt32() >= 10) { result.Add(Reject("UnsupportedOrZeroXpOpponent:" + monster) with { Id = "combat:" + monster + ":rejected" }); continue; }
                 var destination = CombatCatalog.Resolve(state, monster, observation.Catalogs["monsters"], observation.Catalogs["maps"], items).Destination;
-                if (destination is null) { result.Add(Reject("UnsupportedOpponentOrAccess:" + monster)); continue; }
+                if (destination is null) { result.Add(Reject("UnsupportedOpponentOrAccess:" + monster) with { Id = "combat:" + monster + ":rejected" }); continue; }
                 var baseline = CombatPrediction.Evaluate(state.Stats with { Hp = state.MaxHp }, destination.Monster);
                 var direct = new CombatMilestoneStrategy(policy with { AutonomousCombat = null, Monster = monster, CombatTarget = stage.Target }, port).Evaluate(observation);
                 result.Add(direct with { Id = "combat:" + monster + ":current", CombatRoute = new(stage.Target, monster, null, null, baseline.MaximumLoss, 0) });
@@ -64,7 +64,7 @@ public sealed class AutonomousCombatStrategy(PortfolioPolicy policy, StrategyAct
     private decimal PreparationCost(StrategyObservation observation, string code, StrategyCandidate preparation)
     {
         var plan = ProductionStock.Plan(observation, new(code, 1), policy, true);
-        if (plan.Rejection is not null) return 1_000_000;
+        if (plan.Rejection is not null) return 0; // Rejected routes have no executable cost; do not invalidate other candidates with a sentinel.
         return policy.EquipmentSeconds * 2 + plan.Steps.Sum(x => x.Kind switch
         {
             "Gather" => x.Quantity * policy.GatherSeconds + policy.MoveSeconds,

@@ -17,10 +17,64 @@ namespace Artiact.MockService.Tests;
 public class StagedOperationTests
 {
     [Fact]
+    public async Task FullPathRejectsAnUnreachableLaterWorkshopBeforeGathering()
+    {
+        await using var h = new Harness(new()); await h.Reset("item-production");
+        h.Handler.Corruption = "future-workshop";
+        var policy = new PortfolioPolicy([], 0, "", "", Items: [new("tool", 1)], Measurement: new(FullPaths: true));
+        var result = await h.Factory.Create(policy).TickAsync();
+        Assert.Equal(StrategyStatus.Blocked, result.Status); Assert.Equal(0, h.Handler.Actions);
+        Assert.Equal("UnsupportedFullPathEstimate", Assert.Single(result.Candidates).Rejection);
+    }
+    [Theory]
+    [InlineData("item-production", false, false, 6, 32)]
+    [InlineData("capacity-training", false, false, 9, 50)]
+    [InlineData("consumable-production", true, false, 23, 127)]
+    [InlineData("autonomous-weapon", false, true, 20, 120)]
+    [InlineData("autonomous-shield", true, true, 38, 221)]
+    public async Task FullPathModeCompletesProductionTrainingFoodAndCombatWithVerifiedFacts(string scenario, bool food, bool combat, int actions, int seconds)
+    {
+        foreach (bool full in new[] { false, true })
+        {
+            await using var h = new Harness(new()); await h.Reset(scenario);
+            var policy = combat ? AutonomousPolicy(scenario == "autonomous-weapon" ? "water_blade" : "ward") : food ? FoodPolicy() :
+                new PortfolioPolicy([], 0, "", "", Items: [new("tool", 1)], Preparation: new(),
+                    Bank: new(ImmutableDictionary<string, int>.Empty.Add("bar", 0).Add("ore", 0).Add("tool", 0)), Production: new(ImmutableDictionary<string, int>.Empty));
+            if (combat && food) policy = policy with { Consumable = new("combat", "meal", HpBelowPercent: 100, MaxUsed: 8, PreparationSeconds: 0),
+                AutonomousCombat = policy.AutonomousCombat! with { Equipment = ["ward", "water_blade"] } };
+            policy = policy with { Measurement = full ? new(FullPaths: true) : null };
+            var saved = new Checkpoint(); var decisions = new List<StrategyDecision>(); StrategySession? run = null;
+            for (int i = 0; i < 95; i++)
+            {
+                run = h.Factory.Create(policy, new(NoProgress: 60), saved, "full-route");
+                var result = await run.TickAsync(); decisions.Add(result);
+                if (result.Status != StrategyStatus.Selected) break;
+            }
+            Assert.True(decisions[^1].Status == StrategyStatus.Completed, System.Text.Json.JsonSerializer.Serialize(decisions[^1]));
+            Assert.Equal(actions, decisions[^1].Attempts); Assert.Equal(seconds, decisions[^1].CooldownSeconds);
+            Assert.All(saved.Load()!.Journal, x => { Assert.NotNull(x.Facts); Assert.NotNull(x.Facts!.WaitSeconds); if (full) Assert.NotNull(x.MeasurementContext); });
+            Assert.All(saved.Load()!.Journal.Where(x => x.Command.StartsWith("Deposit:") || x.Command.StartsWith("Withdraw:")), x => Assert.All(x.Facts!.StockDelta!, y => Assert.Equal(0, y.Value)));
+            var consumed = RunPerformance.From(saved.Load()!).ConsumedInputs;
+            var expectedInputs = scenario switch
+            {
+                "item-production" => new Dictionary<string, long> { ["ore"] = 2, ["bar"] = 1 },
+                "capacity-training" => new Dictionary<string, long> { ["ore"] = 2, ["bar"] = 1 },
+                "consumable-production" => new Dictionary<string, long> { ["ore"] = 2, ["bar"] = 1, ["fish"] = 4, ["meal"] = 2 },
+                "autonomous-weapon" => new Dictionary<string, long> { ["ore"] = 2, ["feather"] = 2 },
+                _ => new Dictionary<string, long> { ["fish"] = 6, ["meal"] = 4, ["feather"] = 2 }
+            };
+            Assert.Equal(expectedInputs.OrderBy(x => x.Key), consumed.OrderBy(x => x.Key));
+            if (food) Assert.True(saved.Load()!.Journal.Sum(x => x.Facts!.Inputs.GetValueOrDefault("meal")) > 0);
+            if (combat) Assert.Equal(20, saved.Load()!.Journal.Sum(x => x.Facts!.Skills.GetValueOrDefault("combat")?.Xp ?? 0));
+            if (full) Assert.Contains(decisions.SelectMany(x => x.Candidates), x => x.Path is not null && x.Path.Context is not null);
+            if (full && combat && food) Assert.Contains(decisions, d => d.Candidates.Count(c => c.CombatRoute?.Equipment is not null && c.Path is not null) == 2);
+        }
+    }
+    [Fact]
     public async Task AutonomousComparesPreparationCostAcrossSupportedGearAndOpponents()
     {
         await using var h = new Harness(new()); await h.Reset("autonomous-shield");
-        var policy = AutonomousPolicy("ward") with { AutonomousCombat = new([new(2, ["dummy"]), new(3, ["guardian", "missing"])], ["water_blade", "ward"]) };
+        var policy = AutonomousPolicy("ward") with { AutonomousCombat = new([new(2, ["dummy"]), new(3, ["guardian", "missing", "missing2"])], ["water_blade", "ward"]) };
         var run = h.Factory.Create(policy);
         for (int i = 0; i < 4; i++) await run.TickAsync();
         var result = await run.TickAsync();
@@ -849,6 +903,12 @@ public class StagedOperationTests
         {
             var response = await base.SendAsync(request, token);
             string path = request.RequestUri!.AbsolutePath;
+            if (path == "/maps" && Corruption == "future-workshop")
+            {
+                var node = JsonNode.Parse(await response.Content.ReadAsStringAsync(token))!;
+                node["data"]!.AsArray().Single(x => x!["map_id"]!.GetValue<int>() == 3)!["access"]!["type"] = "conditional";
+                response.Content = new StringContent(node.ToJsonString());
+            }
             if (path == "/monsters" && Corruption == "combat-effects" || path == "/maps" && Corruption == "combat-access" ||
                 path == "/items" && Corruption is "combat-gear-effect" or "combat-recipe" || path.EndsWith("/action/equip", StringComparison.Ordinal) && Corruption == "combat-equip-result")
             {

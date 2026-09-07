@@ -6,9 +6,11 @@ namespace Artiact.Services.Strategy;
 
 public sealed class ConsumableStrategy(IProgressionStrategy parent, PortfolioPolicy policy, StrategyActionPort port) : IProgressionStrategy
 {
-    public StrategyCandidate Evaluate(StrategyObservation observation)
+    public StrategyCandidate Evaluate(StrategyObservation observation) => Apply(observation, parent.Evaluate(observation));
+    public IEnumerable<StrategyCandidate> EvaluateAll(StrategyObservation observation) => parent.EvaluateAll(observation)
+        .Select(candidate => candidate.Rejection is null ? Apply(observation, candidate) : candidate);
+    private StrategyCandidate Apply(StrategyObservation observation, StrategyCandidate candidate)
     {
-        var candidate = parent.Evaluate(observation);
         if (candidate.Complete) return candidate;
         var food = policy.Consumable!;
         StrategyCandidate Reject(string reason) => candidate with { Rejection = reason, Command = null };
@@ -71,6 +73,7 @@ public sealed class ConsumableStrategy(IProgressionStrategy parent, PortfolioPol
                     charges = ImmutableDictionary<string, int>.Empty.Add("materials:" + food.Code, cost);
                 }
                 return supply with { Id = candidate.Id, Category = candidate.Category, Complete = false,
+                    CombatRoute = candidate.CombatRoute, Path = candidate.Path,
                     Prerequisite = new(candidate.Id, "consumable", quantity, food.Code),
                     Command = command with { Productive = false, Charges = charges, RefillCode = food.Code, Refilling = refilling } };
             }

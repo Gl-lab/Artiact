@@ -1,8 +1,10 @@
 # Known limitations
 
-- R7 optionally trains weaponcrafting/mining prerequisites for item goals; R8 adds a constrained-capacity training scenario and protected production batches. Other professions, standalone crafting-skill goals and equipment skill preparation require separate acceptance; see [skill preparation](skill-preparation.md) and [capacity production](capacity-production.md).
+- R7/R8a optionally train weaponcrafting, mining, cooking and fishing prerequisites. R8 adds protected capacity-aware batches; R9 reuses them for supported equipment preparation. Other professions and standalone crafting-skill goals require separate acceptance; see [skill preparation](skill-preparation.md) and [capacity production](capacity-production.md).
 
-- R4b supports explicit four-element arithmetic under the existing conservative bound, superseding the fire-only normalization restriction below. Weapon replacement remains fire-only, effects/negative resistance/non-normal opponents remain unsupported, and live combat remains unverified.
+- R4b supports explicit four-element arithmetic; R9 autonomous mode adds static weapon/shield projection. Standalone weapon replacement remains fire-only. Active effects, negative resistance and non-normal opponents remain unsupported; live combat remains unverified.
+
+- R10 [full-path selection](full-path-selection.md) uses bounded estimates, not exhaustive route search. Future XP thresholds, training, travel, yields and recovery remain assumptions. Large recipe plans may exceed the estimation bound. Unknown replies, multi-level XP gaps and interrupted waits remain visible as incomplete measurement coverage. Local gain/tie/loss comparisons do not establish live improvement.
 
 - R4a adds independent item goals and required-ingredient withdrawals ([scope](item-production.md)). It does not globally optimize capacity/route allocation or acquire arbitrary mob-drop leaves; configured budgets bound production/deposit shuttling.
 

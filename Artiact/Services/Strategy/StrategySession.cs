@@ -12,7 +12,7 @@ public sealed record AtomicCommand(string Id, string SourceFingerprint, bool Pro
     ImmutableDictionary<string, int>? Charges = null, string? RefillCode = null, bool? Refilling = null);
 public sealed record StrategyCandidate(string Id, string Category, decimal Value, decimal ActionSeconds,
     decimal TravelSeconds, decimal RecoverySeconds, string? Rejection, bool Complete, [property: JsonIgnore] AtomicCommand? Command,
-    string EstimateSource = "Configured", int Samples = 0, SkillPrerequisite? Prerequisite = null, CombatRoute? CombatRoute = null)
+    string EstimateSource = "Configured", int Samples = 0, SkillPrerequisite? Prerequisite = null, CombatRoute? CombatRoute = null, PathEstimate? Path = null)
 {
     public decimal? TotalSeconds => ActionSeconds is >= 0.001m and <= 1_000_000 &&
         TravelSeconds is >= 0 and <= 1_000_000 && RecoverySeconds is >= 0 and <= 1_000_000
@@ -85,6 +85,7 @@ public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IPro
 
     private async Task<StrategyDecision> TickCoreAsync(CancellationToken token, bool inspect = false)
     {
+        long tickStarted = _time.GetTimestamp();
         if (_terminal is not null) return _terminal;
         if (token.IsCancellationRequested) return Stop(StrategyStatus.Cancelled, "Cancelled");
         if (_limits.Decisions <= 0 || _limits.NoProgress <= 0 || _limits.NoProgress > _limits.Decisions || _limits.Actions <= 0 || _limits.DurationSeconds <= 0)
@@ -151,8 +152,10 @@ public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IPro
         _attempts++; _noProgress++;
         _pending = command;
         _pendingCandidate = selected.Id;
-        _journal.Add(new(command.Id, command.SourceFingerprint, "Intent", Charges: command.Charges, RefillCode: command.RefillCode, Refilling: command.Refilling));
+        _journal.Add(new(command.Id, command.SourceFingerprint, "Intent", Charges: command.Charges, RefillCode: command.RefillCode, Refilling: command.Refilling,
+            Candidate: selected.Id, MeasurementContext: selection?.FullPaths == true ? MeasurementContext.Key(_baseline, selected, command.Id) : null));
         Save();
+        long dispatched = _time.GetTimestamp();
         StrategyReply reply;
         try { reply = await command.Dispatch(token); }
         catch (ActionFailureException ex) when (ex.Kind != ActionFailureKind.UnknownOutcome)
@@ -171,20 +174,25 @@ public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IPro
         { RecordOutcome("InvalidPostcondition"); return Stop(StrategyStatus.Blocked, "InvalidPostcondition"); }
         _verified = SavedObservation.From(State);
         RecordOutcome("Verified", State.Fingerprint);
+        var facts = ActionFacts.Read(_baseline, State, selected, _time.GetElapsedTime(tickStarted, dispatched).TotalSeconds, _time.GetElapsedTime(dispatched).TotalSeconds);
+        _journal[^1] = _journal[^1] with { Facts = facts };
         if (selection is not null && reply.Cooldown > 0)
         {
-            string key = MeasureKey(selected);
+            string key = selection.FullPaths ? MeasurementContext.Key(_baseline, selected, command.Id) : MeasureKey(selected);
             var old = _measurements.GetValueOrDefault(key) ?? new(0, 0, 0);
-            _measurements[key] = new(checked(old.Seconds + reply.Cooldown), checked(old.Samples + 1), checked(old.Progress + (command.Productive ? 1 : 0)));
+            _measurements[key] = new(checked(old.Seconds + reply.Cooldown), checked(old.Samples + 1), checked(old.Progress + (command.Productive ? 1 : 0)),
+                old.UsefulProgress + Math.Max(0, facts.UsefulProgress ?? 0), old.ProgressSamples + (facts.UsefulProgress.HasValue ? 1 : 0));
             _incumbent = selected.Id;
         }
         _seconds += reply.Cooldown;
         if (command.Productive) _noProgress = 0;
         Save();
         if (token.IsCancellationRequested) return Stop(StrategyStatus.Cancelled, "Cancelled");
+        long waiting = _time.GetTimestamp();
         try { await cooldown.WaitAsync(reply.Cooldown, token); }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { return Stop(StrategyStatus.Cancelled, "Cancelled"); }
         catch (Exception) { return Stop(StrategyStatus.Blocked, "CooldownFailed"); }
+        _journal[^1] = _journal[^1] with { Facts = facts with { WaitSeconds = _time.GetElapsedTime(waiting).TotalSeconds } };
         if (token.IsCancellationRequested) return Stop(StrategyStatus.Cancelled, "Cancelled");
         return Decision(StrategyStatus.Selected, "CommandVerified", selected.Id, command.Id);
     }
@@ -214,7 +222,8 @@ public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IPro
             if (saved.Measurements is not null)
                 foreach (var entry in saved.Measurements)
                 {
-                    if (entry.Value.Samples <= 0 || entry.Value.Seconds <= 0 || entry.Value.Progress < 0) throw new InvalidOperationException("Invalid measurements");
+                    if (entry.Value.Samples <= 0 || entry.Value.Seconds <= 0 || entry.Value.Progress < 0 || entry.Value.UsefulProgress < 0 ||
+                        entry.Value.ProgressSamples < 0 || entry.Value.ProgressSamples > entry.Value.Samples) throw new InvalidOperationException("Invalid measurements");
                     _measurements.Add(entry.Key, entry.Value);
                 }
             _incumbent = saved.Incumbent;
@@ -259,6 +268,21 @@ public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IPro
     private StrategyCandidate Measured(StrategyCandidate candidate)
     {
         if (selection is null || candidate.Command is null) return candidate;
+        if (selection.FullPaths)
+        {
+            if (candidate.Path is not { } path || path.Remaining <= 0 || path.ExpectedProgress <= 0 || path.UnitSeconds <= 0)
+                return candidate with { Rejection = candidate.Rejection ?? "UnsupportedPathEstimate", Command = null };
+            string context = MeasurementContext.Key(State!, candidate, path.WorkCommand);
+            var measured = _measurements.GetValueOrDefault(context);
+            decimal progress = measured is { ProgressSamples: > 0 } ? measured.UsefulProgress / measured.ProgressSamples : path.ExpectedProgress;
+            if (progress <= 0) return candidate with { Rejection = "NoMeasuredGoalProgress", Command = null };
+            decimal unit = measured is null ? path.UnitSeconds * selection.UnknownMultiplier : (decimal)measured.Seconds / measured.Samples;
+            decimal work = Math.Ceiling(path.Remaining / progress) * unit;
+            return candidate with { ActionSeconds = Math.Max(0.001m, work + path.PreparationSeconds * selection.UnknownMultiplier),
+                TravelSeconds = path.TravelSeconds * selection.UnknownMultiplier, RecoverySeconds = path.RecoverySeconds * selection.UnknownMultiplier,
+                Samples = measured?.Samples ?? 0, EstimateSource = measured is null ? "AssumedFullPath" : "ObservedProgressWithAssumedPath",
+                Path = path with { ExpectedProgress = progress, UnitSeconds = unit, Context = context } };
+        }
         var sample = _measurements.GetValueOrDefault(MeasureKey(candidate));
         decimal estimate = sample is null ? 0 : Math.Max(0.001m, (decimal)sample.Seconds / sample.Samples);
         bool move = candidate.Command.Id.StartsWith("Move:", StringComparison.Ordinal);

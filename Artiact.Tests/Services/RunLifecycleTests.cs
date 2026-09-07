@@ -90,6 +90,8 @@ public class RunLifecycleTests
             Assert.Equal(0, RunLifecycleCommand.Execute(["run-result", directory, "hero"], output, new StringWriter()));
             using var report = JsonDocument.Parse(output.ToString());
             Assert.Equal(5, report.RootElement.GetProperty("VerifiedCooldownSeconds").GetInt32());
+            Assert.Equal(0, report.RootElement.GetProperty("Performance").GetProperty("VerifiedFactCount").GetInt32());
+            Assert.Equal(0, report.RootElement.GetProperty("Performance").GetProperty("CompletedWaitCount").GetInt32());
             Assert.Equal(2, report.RootElement.GetProperty("Latest").GetProperty("Character").GetProperty("mining_level").GetInt32());
             Assert.False(report.RootElement.GetProperty("InterventionRequired").GetBoolean());
             File.WriteAllText(Assert.Single(Directory.GetFiles(directory, "*.json")), "{broken");

@@ -1,0 +1,23 @@
+# Full-path selection (R10)
+
+Set `Portfolio:FullPathSelection=true` to enable context-aware full-path scoring. This also enables measured resource alternatives. `UnknownMultiplier` and `SwitchRatio` retain their R5 defaults (2 and 1.1). Existing `MeasuredSelection=true` without FullPathSelection retains the R5 algorithm and serialized policy identity; fixed selection remains the default. Manual Equipment goals are excluded in this mode: use R9 autonomous gear preparation. At most eight skill goals, 32 item goals, and the first 32 ordinal resource codes per skill are considered; R9 retains its stage/opponent/gear bounds.
+
+Each feasible candidate exposes `Path`: parent metric, remaining work, expected progress per work action, productive command, unit time, preparation/travel/recovery, recipe input quantities, assumptions and measurement context. Full recipe plans are bounded to 100 steps and 10,000 requested units. Every step needs a supported reachable resource/workshop/bank; unsupported or unbounded loot estimates reject that route. Large otherwise executable goals can exceed this estimation bound. Runtime safety, skills, inventory, reserve and budget checks still decide each actual action.
+
+For XP goals, the initial estimate uses the [official gathering formula](https://docs.artifactsmmo.com/concepts/skills/) or [normal-opponent combat formula](https://docs.artifactsmmo.com/concepts/stats_and_fights/), including level ratio/penalty and wisdom. Future level thresholds reuse the currently observed threshold as an explicit approximation. Matching verified XP replaces that estimate. Item paths include remaining recipes and known bank stock. Gear acquisition, bounded training allowance, capacity-based bank trips and food production/delivery/use contribute to preparation. Optional rest can be preferred when food is costly or unavailable. Travel, training, uncertain yields and future recovery remain disclosed assumptions, not execution guarantees.
+
+The score is goal value divided by estimated remaining work plus preparation/travel/recovery. A fast crafting or gathering sample cannot remove the rest of the chain. Estimates replan on every observation. The incumbent is retained unless a feasible alternative exceeds its score by SwitchRatio. There is no global search, optimality claim or guarantee of profitable exploration.
+
+Measurement keys include candidate, exact action and a digest of policy, catalogs, levels, equipment, stat modifiers, capacity and layer. Move adds origin; use/rest add HP. Transient XP/inventory do not fragment ordinary work samples. Level, equipment or catalog changes require fresh observations; old measurements remain in the journal for attribution but are not blindly reused. Pending-command reconstruction preserves the parent route, including food preparation.
+
+Every verified action now records `Facts` even in fixed/R5 mode: skill level and XP changes, combined inventory+bank delta, recipe/use inputs, HP delta and timing. Same-level and one-level XP transitions are exact; larger unobserved transitions retain level delta and unknown XP. Bank transfers are zero net creation; unequipped gear is not classified as a consumed ingredient. Inputs count each actual craft/use operation, including intermediate ingredients, and are not a valuation in gold or unique raw resources.
+
+`run-result` adds `Performance` and context-keyed `Measurements`. Report coverage alongside totals:
+
+- `VerifiedFactCount` and `CompletedWaitCount` distinguish missing/partial history from measured zero.
+- `ObservedProcessingSeconds` covers measured observation/planning/preflight/dispatch/verification portions of verified action ticks; `CompletedWaitSeconds` is actual completed wait time. Neither includes downtime, startup, terminal polling or unresolved action time.
+- Existing `VerifiedCooldownSeconds` is the sum returned by verified actions. It is independent of actual HTTP/wait duration.
+- Existing run elapsed time includes downtime and all session activity. It must not be substituted for cooldown.
+- `Progress` reports known XP, level gains and unknown transitions; `ConsumedInputs` aggregates verified craft/use inputs. Dispatched candidate switches include transitions between parent routes, including preparation/current-gear route IDs.
+
+Facts are persisted before cooldown. Interrupted waits stay null; unknown/reconciled outcomes add no fabricated learning sample or timing fact. Older checkpoints can report zero fact coverage despite known attempts. Inspect alone does not learn. See [dated comparisons](../openspec/changes/full-path-selection/comparisons.md) for local wins, ties, losses and five complete production/combat chains. No live comparison was performed.

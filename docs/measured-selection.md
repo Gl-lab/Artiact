@@ -1,5 +1,7 @@
 # Measured portfolio selection
 
+R10 adds [full-path selection](full-path-selection.md) through `Portfolio:FullPathSelection=true`. The R5 algorithm and historical comparisons below remain the behavior of MeasuredSelection without that flag. R10 learns actual goal progress within a state context, retains prerequisite cost and exposes verified action/wait facts in run-result.
+
 R5 is opt-in: `Portfolio:MeasuredSelection=true`, `UnknownMultiplier=2` and `SwitchRatio=1.1` by default. Multipliers must be between 1 and 10. Fixed selection remains the default. Measured gathering exposes each catalog resource for a configured skill as a separate candidate. `MonsterAlternatives` optionally adds distinct explicit combat opponents (not combined with PrepareEquipment); `Items` already supplies distinct production goals. Every alternative retains existing safety/access/stock checks.
 
 Only verified positive returned cooldowns produce timing samples. The run journals cumulative seconds, sample count and number of verified productive commands by candidate/action kind. These counts are observed successful steps, not a prediction of XP quantity or live XP/hour. Lost/ambiguous replies do not fabricate duration samples. The journal retains samples and incumbent across restart; policy changes fail the existing identity guard.

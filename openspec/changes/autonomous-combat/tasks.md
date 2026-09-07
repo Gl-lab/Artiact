@@ -6,4 +6,6 @@
 - [x] Add deterministic two-stage real-client acceptance and failure checks.
 - [x] Review model matrix, ADR, diagrams and limitations against final diff.
 - [x] Build, focused tests, solution tests and API offline checks; record exact evidence.
-- [ ] Commit and push R9 before writing R10 specification.
+- [x] Commit and push R9 before writing R10 specification.
+
+Publication confirmed: 394a707 pushed before R10 specification.

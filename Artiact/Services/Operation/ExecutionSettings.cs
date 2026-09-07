@@ -46,6 +46,7 @@ public sealed class PortfolioSettings
     public ItemMilestone[] Items { get; set; } = [];
     public bool PrepareEquipment { get; set; }
     public bool MeasuredSelection { get; set; }
+    public bool FullPathSelection { get; set; }
     public decimal UnknownMultiplier { get; set; } = 2;
     public decimal SwitchRatio { get; set; } = 1.1m;
     public string[] MonsterAlternatives { get; set; } = [];
@@ -65,7 +66,7 @@ public sealed class PortfolioSettings
         var result = new PortfolioPolicy(Skills.ToImmutableArray(), CombatTarget, Monster, Equipment, CombatValue,
             EquipmentValue, MoveSeconds, GatherSeconds, FightSeconds, RestSeconds, EquipmentSeconds,
             BankRetain is null ? null : new(BankRetain.ToImmutableDictionary(StringComparer.Ordinal)), Items.ToImmutableArray(), PrepareEquipment,
-            MeasuredSelection ? new(UnknownMultiplier, SwitchRatio) : null, MonsterAlternatives.ToImmutableArray(), Preparation,
+            MeasuredSelection || FullPathSelection ? new(UnknownMultiplier, SwitchRatio, FullPathSelection) : null, MonsterAlternatives.ToImmutableArray(), Preparation,
             CapacityAwareProduction ? new(ProductionReserves.ToImmutableDictionary(StringComparer.Ordinal)) : null, Consumable, AutonomousCombat);
         result.Validate(); return result;
     }

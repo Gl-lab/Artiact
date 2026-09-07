@@ -20,6 +20,8 @@ public sealed record PortfolioPolicy(ImmutableArray<SkillMilestone> Skills, int 
     public string Identity => JsonSerializer.Serialize(this with { Items = Items.IsDefault ? [] : Items, Monsters = Monsters.IsDefault ? [] : Monsters });
     public void Validate()
     {
+        if (Measurement?.FullPaths == true && (!string.IsNullOrEmpty(Equipment) || Skills.Length > 8 || !Items.IsDefault && Items.Length > 32))
+            throw new ArgumentException("Full-path selection supports bounded skill/item goals and autonomous equipment preparation.");
         if (AutonomousCombat is { } auto && (!CombatEnabled || PrepareEquipment || Equipment.Length != 0 || !Monsters.IsDefaultOrEmpty ||
             auto.Stages.IsDefaultOrEmpty || auto.Stages.Length > 10 || auto.Stages[^1].Target != CombatTarget ||
             auto.Stages.Select(x => x.Target).Where((x, i) => x <= (i == 0 ? 1 : auto.Stages[i - 1].Target)).Any() ||

@@ -105,6 +105,8 @@ flowchart TD
 
 ## State ownership
 
+The explicit portfolio additionally has application-local SkillMilestone, ItemMilestone and ordered CombatStage targets. SkillPrerequisiteStrategy/ProductionStock prepare bounded dependencies, ConsumableStrategy retains its unfinished parent, and AutonomousCombatStrategy compares supported single-slot routes. FullPathStrategy estimates remaining cost; ActionFacts records actual XP and combined bank/inventory change. These do not alter the legacy shared goal DTOs or the step graph above. See [full-path selection](full-path-selection.md).
+
 `CharacterService` stores the latest character snapshot in memory. Every successful `ActionStep` or `MiningStep` action replaces it with the character returned by the API. Planning reads that snapshot; it does not own server state.
 
 The main app's source of truth for actions is the external API response. The mock service has a separate singleton in-memory character cache and should not be confused with `CharacterService`.

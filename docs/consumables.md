@@ -1,5 +1,7 @@
 # Parent-bound healing consumables
 
+R9 additionally accepts `ParentItem=combat` with AutonomousCombat. R10 preserves all feasible combat alternatives through the food wrapper and includes supply in [full-path estimates](full-path-selection.md); unsupported parents retain their rejection instead of turning into food work. The item-parent configuration below remains supported.
+
 R8a adds `Portfolio:Consumable` for one configured parent item goal. Configure `ParentItem`, `Code`, `HpBelowPercent` (1–100), `MinimumStock`, `TargetStock`, `Reserve`, `MaxUsed`, `MaxMaterialUnits`, `AllowRest`, `UseSeconds` and `PreparationSeconds`. Defaults are threshold 50%, minimum 1, target 2, reserve 0, maximum used 10, material units 100, mandatory use path (`AllowRest=false`), estimated use 3 seconds and preparation 30 seconds. The parent must exist in `Portfolio:Items` and differ from the food code. No consumable policy means no added use/supply behavior and preserves the prior policy identity.
 
 Only a consumable with exactly one positive `heal` effect and no conditions is supported. The current public cooked-gudgeon record has heal=75 and a cooking-1 recipe consuming one gudgeon; this was read without credentials on 2026-09-07, not used live. The [official use rules](https://docs.artifactsmmo.com/concepts/resting_and_using_items) cap healing at maximum HP and describe a fixed use cooldown and percentage-based rest. Execution honors validated returned cooldown; policy times are decision estimates.

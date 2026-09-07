@@ -1,5 +1,7 @@
 # Durable bounded execution
 
+R10 `run-result` adds performance coverage, known XP/unknown transitions, consumed inputs and dispatched candidate switches. Action facts are persisted before cooldown and completed wait time afterward; unknown/reconciled outcomes create no timing samples. See [full-path selection](full-path-selection.md) for the distinction between returned cooldown, measured processing/wait and total elapsed time.
+
 R8a adds optional resource charges, refill state and selected pending-candidate identity to the journal; see [consumables](consumables.md). `Execution:MaxNoProgress` defaults to 10 and may be explicitly raised for longer preparation chains, up to MaxDecisions. Existing default identities/limits are preserved.
 
 R2 adds explicit `Execution:Mode=Bounded`. Configure the same API/Portfolio as Inspect and set `AllowActions=true`, stable `RunId`, absolute `RunDirectory`, positive `MaxActions`, `MaxDecisions` (at least 10) and `MaxSeconds` (1–86400). Defaults for budgets are 100/200/3600; directory and ID have no defaults. Live origin additionally requires the existing live opt-in and separate rollout evidence. Default host mode remains Inspect.

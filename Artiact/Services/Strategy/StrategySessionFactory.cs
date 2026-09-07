@@ -28,6 +28,7 @@ public sealed class StrategySessionFactory(GameClient client, CombatCatalog cata
                 IProgressionStrategy strategy = new SkillPrerequisiteStrategy(goal, policy, port);
                 strategies.Add(policy.Consumable?.ParentItem == goal.Code ? new ConsumableStrategy(strategy, policy, port) : strategy);
             }
+        if (policy.Measurement?.FullPaths == true) strategies = strategies.Select(x => (IProgressionStrategy)new FullPathStrategy(x, policy)).ToList();
         return new(new HttpStrategyObserver(client, catalog, characters, policy.Identity, compatibility, policy), strategies, cooldown, limits,
             checkpoints: checkpoints, identity: identity, selection: policy.Measurement,
             resourceLimits: policy.Consumable is { } food ? new Dictionary<string, int> { ["use:" + food.Code] = food.MaxUsed, ["materials:" + food.Code] = food.MaxMaterialUnits } : null);

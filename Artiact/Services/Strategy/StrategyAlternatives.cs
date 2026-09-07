@@ -9,7 +9,9 @@ public sealed class ResourceAlternatives(SkillMilestone goal, PortfolioPolicy po
     {
         if (!observation.Catalogs.TryGetValue("resources", out var resources)) return [Evaluate(observation)];
         var candidates = new List<StrategyCandidate>();
-        foreach (var resource in resources.Where(x => x.TryGetProperty("skill", out var skill) && skill.GetString() == goal.Skill))
+        var eligible = resources.Where(x => x.TryGetProperty("skill", out var skill) && skill.GetString() == goal.Skill);
+        if (policy.Measurement?.FullPaths == true) eligible = eligible.OrderBy(x => x.GetProperty("code").GetString(), StringComparer.Ordinal).Take(32);
+        foreach (var resource in eligible)
         {
             var filtered = new StrategyObservation(observation.Character, observation.Catalogs.SetItem("resources", [resource]), observation.Policy, observation.Bank);
             var candidate = new GatheringStrategy(goal, policy, port).Evaluate(filtered);

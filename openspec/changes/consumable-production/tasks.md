@@ -7,6 +7,6 @@
 - [x] Extend and verify cooking/fishing prerequisites with independent mock scenarios.
 - [x] Prove batch/use/refill, bank stock, reserve/caps, full HP, parent completion, lost replies and restart.
 - [x] Update docs/API-boundary checks; focused/full tests; self-review; evidence.
-- [ ] Commit/push R8a before specifying R9.
+- [x] Commit/push R8a before specifying R9.
 
 Publication confirmed: 70624e4 pushed before R9 specification.
