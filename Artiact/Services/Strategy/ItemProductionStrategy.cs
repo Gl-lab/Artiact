@@ -8,8 +8,9 @@ public sealed class ItemProductionStrategy(ItemMilestone goal, PortfolioPolicy p
 {
     public StrategyCandidate Evaluate(StrategyObservation observation)
     {
+        decimal prerequisites = 0;
         StrategyCandidate Result(string? rejection, bool complete = false, AtomicCommand? command = null) =>
-            new("item:" + goal.Code, "item", goal.Value, 4, 0, 0, rejection, complete, command);
+            new("item:" + goal.Code, "item", goal.Value, 4, 0, prerequisites, rejection, complete, command);
         try
         {
             var state = CharacterObservation.Read(observation.Character);
@@ -20,6 +21,10 @@ public sealed class ItemProductionStrategy(ItemMilestone goal, PortfolioPolicy p
                 observation.Bank?.Items ?? ImmutableDictionary<string, int>.Empty, observation.Catalogs["items"], observation.Catalogs["resources"],
                 policy.PrepareEquipment ? observation.Catalogs["monsters"].Where(x => x.GetProperty("code").GetString() == policy.Monster).ToArray() : null);
             if (plan.Rejection is not null) return Result(plan.Rejection);
+            if (policy.Measurement is not null)
+                prerequisites = Math.Max(0, plan.Steps.Sum(x => x.Kind switch
+                { "Gather" => x.Quantity * policy.GatherSeconds, "Loot" => x.Quantity * (policy.FightSeconds + policy.RestSeconds),
+                    "Withdraw" => 3m, _ => x.Quantity * 4m }) + plan.Steps.Length * policy.MoveSeconds - 4);
             var next = plan.Steps[0];
             if (next.Kind == "Loot")
             {

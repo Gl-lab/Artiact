@@ -16,6 +16,20 @@ namespace Artiact.MockService.Tests;
 public class StagedOperationTests
 {
     [Fact]
+    public async Task MeasuredResourceAlternativesRetainFullWorldPreflightAndReply()
+    {
+        await using var h = new Harness(new(), miningOnly: true); await h.Reset();
+        h.Handler.Corruption = "resource-alternatives";
+        var policy = new PortfolioPolicy([new("mining", 2, 30)], 0, "", "", Measurement: new());
+        var run = h.Factory.Create(policy);
+        var inspected = await run.InspectAsync();
+        Assert.Equal(2, inspected.Candidates.Length); Assert.Equal(0, h.Handler.Actions);
+        Assert.All(inspected.Candidates, x => Assert.Equal("Assumed", x.EstimateSource));
+        Assert.Equal(StrategyStatus.Selected, (await run.TickAsync()).Status);
+        Assert.Equal(StrategyStatus.Selected, (await run.TickAsync()).Status);
+        Assert.Equal(2, h.Handler.Actions);
+    }
+    [Fact]
     public async Task UnsafePreparationNeverUsesFutureWeaponToAuthorizeFight()
     {
         await using var h = new Harness(new(), miningOnly: true); await h.Reset("combat-preparation");
@@ -311,6 +325,12 @@ public class StagedOperationTests
         {
             var response = await base.SendAsync(request, token);
             string path = request.RequestUri!.AbsolutePath;
+            if (path == "/resources" && Corruption == "resource-alternatives")
+            {
+                var node = JsonNode.Parse(await response.Content!.ReadAsStringAsync(token))!;
+                foreach (var resource in node["data"]!.AsArray()) resource!["skill"] = "mining";
+                response.Content = new StringContent(node.ToJsonString());
+            }
             if (path.StartsWith("/characters/", StringComparison.Ordinal) && Corruption == "unsafe-preparation")
             {
                 var node = JsonNode.Parse(await response.Content!.ReadAsStringAsync(token))!;

@@ -1,5 +1,7 @@
 # Explicit strategy portfolio
 
+R5 optionally ranks [alternative resources/opponents/items using measured cooldowns](measured-selection.md), persisted sample metadata and an incumbent switching threshold. Fixed ranking remains the default; unknown prerequisite costs remain explicit assumptions.
+
 R1 supports a profession-only profile: provide `Portfolio:Skills` and omit CombatTarget/Monster/Equipment (defaults 0/empty/empty). Negative targets and orphan combat settings are rejected. With combat enabled, Equipment may be omitted. The factory registers only configured categories; profession-only observations load maps/resources, without items/monsters. Gathering validates common identity/location/inventory plus the selected skill, independently of combat stats. Unsupported combat stats still reject combat candidates. Response checks preserve unrelated raw character fields.
 
 `StrategySessionFactory.Create(PortfolioPolicy, StrategyLimits)` builds an explicit session. Registration alone performs no game actions. Default host startup performs staged inspection. Explicit Legacy worker and existing mining/loot/craft entry points remain compatibility paths: the portfolio does not claim full legacy parity and they have not been removed.

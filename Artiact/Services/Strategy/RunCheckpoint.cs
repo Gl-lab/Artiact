@@ -12,7 +12,8 @@ public sealed record SavedObservation(JsonElement Character,
 public sealed record RunCheckpoint(int Version, string Identity, DateTimeOffset Started,
     int Decisions, int Attempts, int NoProgress, long Seconds, string[] Consumed,
     string? PendingCommand, SavedObservation? Baseline, StrategyDecision? Terminal,
-    SavedObservation? Verified, ImmutableArray<JournalCommand> Journal);
+    SavedObservation? Verified, ImmutableArray<JournalCommand> Journal,
+    ImmutableDictionary<string, ActionMeasurement>? Measurements = null, string? Incumbent = null);
 public sealed record JournalCommand(string Command, string SourceFingerprint, string Status, string? ResultFingerprint = null);
 public interface IRunCheckpointStore
 {

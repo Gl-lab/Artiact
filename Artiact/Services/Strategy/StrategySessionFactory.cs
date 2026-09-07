@@ -12,12 +12,14 @@ public sealed class StrategySessionFactory(GameClient client, CombatCatalog cata
     {
         policy.Validate();
         var port = new StrategyActionPort(client, characters);
-        var strategies = policy.Skills.Select(x => (IProgressionStrategy)new GatheringStrategy(x, policy, port)).ToList();
+        var strategies = policy.Skills.Select(x => policy.Measurement is null ? (IProgressionStrategy)new GatheringStrategy(x, policy, port) : new ResourceAlternatives(x, policy, port)).ToList();
         if (policy.CombatEnabled) strategies.Add(new CombatMilestoneStrategy(policy, port));
+        if (!policy.Monsters.IsDefaultOrEmpty) strategies.AddRange(policy.Monsters.Select(monster => new NamedStrategy("combat:" + monster,
+            new CombatMilestoneStrategy(policy with { Monster = monster }, port))));
         if (!string.IsNullOrWhiteSpace(policy.Equipment)) strategies.Add(new EquipmentStrategy(policy, port));
         if (!policy.Items.IsDefaultOrEmpty) strategies.AddRange(policy.Items.Select(x => new ItemProductionStrategy(x, policy, port)));
         return new(new HttpStrategyObserver(client, catalog, characters, policy.Identity, compatibility, policy), strategies, cooldown, limits,
-            checkpoints: checkpoints, identity: identity);
+            checkpoints: checkpoints, identity: identity, selection: policy.Measurement);
     }
 }
 

@@ -10,7 +10,8 @@ public sealed record StrategyReply(StrategyObservation State, int Cooldown, bool
 public sealed record AtomicCommand(string Id, string SourceFingerprint, bool Productive,
     Func<StrategyObservation, bool> Postcondition, Func<CancellationToken, Task<StrategyReply>> Dispatch);
 public sealed record StrategyCandidate(string Id, string Category, decimal Value, decimal ActionSeconds,
-    decimal TravelSeconds, decimal RecoverySeconds, string? Rejection, bool Complete, [property: JsonIgnore] AtomicCommand? Command)
+    decimal TravelSeconds, decimal RecoverySeconds, string? Rejection, bool Complete, [property: JsonIgnore] AtomicCommand? Command,
+    string EstimateSource = "Configured", int Samples = 0)
 {
     public decimal? TotalSeconds => ActionSeconds is >= 0.001m and <= 1_000_000 &&
         TravelSeconds is >= 0 and <= 1_000_000 && RecoverySeconds is >= 0 and <= 1_000_000
@@ -18,14 +19,18 @@ public sealed record StrategyCandidate(string Id, string Category, decimal Value
     public decimal? Score => Rejection is null && !Complete && Value is > 0 and <= 1_000_000 &&
         TotalSeconds is { } total ? Value / total : null;
 }
-public interface IProgressionStrategy { StrategyCandidate Evaluate(StrategyObservation observation); }
+public interface IProgressionStrategy
+{
+    StrategyCandidate Evaluate(StrategyObservation observation);
+    IEnumerable<StrategyCandidate> EvaluateAll(StrategyObservation observation) => [Evaluate(observation)];
+}
 public interface IStrategyObserver { Task<StrategyObservation> ObserveAsync(CancellationToken cancellationToken); }
 public sealed record StrategyDecision(StrategyStatus Status, string Reason, string? Candidate, string? Command,
     ImmutableArray<StrategyCandidate> Candidates, int Decisions, int Attempts, int NoProgress, long CooldownSeconds);
 
 public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IProgressionStrategy> strategies,
     IMiningCooldownDelay cooldown, StrategyLimits? limits = null, TimeProvider? time = null,
-    IRunCheckpointStore? checkpoints = null, string identity = "")
+    IRunCheckpointStore? checkpoints = null, string identity = "", MeasurementPolicy? selection = null)
 {
     private readonly IProgressionStrategy[] _strategies = strategies.ToArray();
     private readonly StrategyLimits _limits = limits ?? new();
@@ -43,6 +48,8 @@ public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IPro
     private DateTimeOffset _started;
     private SavedObservation? _verified;
     private readonly List<JournalCommand> _journal = [];
+    private readonly Dictionary<string, ActionMeasurement> _measurements = new(StringComparer.Ordinal);
+    private string? _incumbent;
     public StrategyObservation? State { get; private set; }
     public async Task<StrategyDecision> TickAsync(CancellationToken token = default)
     {
@@ -74,6 +81,8 @@ public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IPro
         if (token.IsCancellationRequested) return Stop(StrategyStatus.Cancelled, "Cancelled");
         if (_limits.Decisions <= 0 || _limits.NoProgress <= 0 || _limits.NoProgress > _limits.Decisions || _limits.Actions <= 0 || _limits.DurationSeconds <= 0)
             return Stop(StrategyStatus.Blocked, "InvalidLimits");
+        if (selection is not null && (selection.UnknownMultiplier is < 1 or > 10 || selection.SwitchRatio is < 1 or > 10))
+            return Stop(StrategyStatus.Blocked, "InvalidMeasurementPolicy");
         if (_pending is null && (_decisions >= _limits.Decisions || _noProgress >= _limits.NoProgress || _attempts >= _limits.Actions ||
             _loaded && _time.GetUtcNow() - _started >= TimeSpan.FromSeconds(_limits.DurationSeconds)))
             return Stop(StrategyStatus.Blocked, "BudgetExhausted");
@@ -97,7 +106,7 @@ public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IPro
             if (!State.Character.GetProperty("cooldown_expiration").TryGetDateTimeOffset(out var expiration))
                 return Stop(StrategyStatus.Blocked, "InvalidCooldown");
             if (expiration > _time.GetUtcNow()) return Decision(StrategyStatus.CoolingDown, "CooldownPending");
-            _candidates = _strategies.Select(x => x.Evaluate(State)).OrderBy(x => x.Id, StringComparer.Ordinal).ToImmutableArray();
+            _candidates = _strategies.SelectMany(x => x.EvaluateAll(State)).Select(Measured).OrderBy(x => x.Id, StringComparer.Ordinal).ToImmutableArray();
             if (_candidates.Length == 0 || _candidates.Select(x => x.Id).Distinct(StringComparer.Ordinal).Count() != _candidates.Length ||
                 _candidates.Any(x => string.IsNullOrWhiteSpace(x.Id) || x.Value is <= 0 or > 1_000_000 ||
                     x.ActionSeconds is < 0.001m or > 1_000_000 || x.TravelSeconds is < 0 or > 1_000_000 || x.RecoverySeconds is < 0 or > 1_000_000))
@@ -108,6 +117,8 @@ public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IPro
         var selected = _candidates.Where(x => x.Score.HasValue && x.Command is not null)
             .OrderByDescending(x => x.Score).ThenBy(x => x.Id, StringComparer.Ordinal).FirstOrDefault();
         if (selected is null) return Stop(StrategyStatus.Blocked, "NoFeasibleCandidate");
+        if (selection is not null && _candidates.SingleOrDefault(x => x.Id == _incumbent && x.Score.HasValue && x.Command is not null) is { } incumbent &&
+            selected.Score <= incumbent.Score * selection.SwitchRatio) selected = incumbent;
         var command = selected.Command!;
         if (inspect) return Decision(StrategyStatus.Selected, "InspectOnly", selected.Id, command.Id);
         if (command.SourceFingerprint != State.Fingerprint || _consumed.Contains(Key(command)))
@@ -144,6 +155,13 @@ public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IPro
         { RecordOutcome("InvalidPostcondition"); return Stop(StrategyStatus.Blocked, "InvalidPostcondition"); }
         _verified = SavedObservation.From(State);
         RecordOutcome("Verified", State.Fingerprint);
+        if (selection is not null && reply.Cooldown > 0)
+        {
+            string key = MeasureKey(selected);
+            var old = _measurements.GetValueOrDefault(key) ?? new(0, 0, 0);
+            _measurements[key] = new(checked(old.Seconds + reply.Cooldown), checked(old.Samples + 1), checked(old.Progress + (command.Productive ? 1 : 0)));
+            _incumbent = selected.Id;
+        }
         _seconds += reply.Cooldown;
         if (command.Productive) _noProgress = 0;
         Save();
@@ -174,6 +192,13 @@ public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IPro
             _noProgress = saved.NoProgress; _seconds = saved.Seconds; _terminal = saved.Terminal;
             _consumed.UnionWith(saved.Consumed);
             _journal.AddRange(saved.Journal); _verified = saved.Verified;
+            if (saved.Measurements is not null)
+                foreach (var entry in saved.Measurements)
+                {
+                    if (entry.Value.Samples <= 0 || entry.Value.Seconds <= 0 || entry.Value.Progress < 0) throw new InvalidOperationException("Invalid measurements");
+                    _measurements.Add(entry.Key, entry.Value);
+                }
+            _incumbent = saved.Incumbent;
             if (saved.PendingCommand is not null)
             {
                 _baseline = saved.Baseline?.Restore() ?? throw new InvalidOperationException("Missing baseline");
@@ -186,7 +211,24 @@ public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IPro
         Save();
     }
     private void Save() => checkpoints?.Save(new(1, identity, _started, _decisions, _attempts, _noProgress, _seconds,
-        _consumed.ToArray(), _pending?.Id, _baseline is null ? null : SavedObservation.From(_baseline), _terminal, _verified, _journal.ToImmutableArray()));
+        _consumed.ToArray(), _pending?.Id, _baseline is null ? null : SavedObservation.From(_baseline), _terminal, _verified, _journal.ToImmutableArray(),
+        _measurements.ToImmutableDictionary(StringComparer.Ordinal), _incumbent));
+    private static string MeasureKey(StrategyCandidate candidate) => candidate.Id + ":" + candidate.Command!.Id.Split(':')[0];
+    private StrategyCandidate Measured(StrategyCandidate candidate)
+    {
+        if (selection is null || candidate.Command is null) return candidate;
+        var sample = _measurements.GetValueOrDefault(MeasureKey(candidate));
+        decimal estimate = sample is null ? 0 : Math.Max(0.001m, (decimal)sample.Seconds / sample.Samples);
+        bool move = candidate.Command.Id.StartsWith("Move:", StringComparison.Ordinal);
+        bool rest = candidate.Command.Id == "Rest";
+        return candidate with
+        {
+            ActionSeconds = !move && !rest && sample is not null ? estimate : candidate.ActionSeconds * selection.UnknownMultiplier,
+            TravelSeconds = move && sample is not null ? estimate : candidate.TravelSeconds * selection.UnknownMultiplier,
+            RecoverySeconds = rest && sample is not null ? estimate : candidate.RecoverySeconds * selection.UnknownMultiplier,
+            EstimateSource = sample is null ? "Assumed" : "ObservedWithAssumedPrerequisites", Samples = sample?.Samples ?? 0
+        };
+    }
     private void RecordOutcome(string status, string? fingerprint = null)
     {
         if (_journal.Count > 0) _journal[^1] = _journal[^1] with { Status = status, ResultFingerprint = fingerprint };

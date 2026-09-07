@@ -7,15 +7,19 @@ public sealed record SkillMilestone(string Skill, int Target, decimal Value);
 public sealed record PortfolioPolicy(ImmutableArray<SkillMilestone> Skills, int CombatTarget, string Monster,
     string Equipment, decimal CombatValue = 10, decimal EquipmentValue = 100,
     decimal MoveSeconds = 7, decimal GatherSeconds = 5, decimal FightSeconds = 8,
-    decimal RestSeconds = 6, decimal EquipmentSeconds = 3, BankPolicy? Bank = null, ImmutableArray<ItemMilestone> Items = default, bool PrepareEquipment = false)
+    decimal RestSeconds = 6, decimal EquipmentSeconds = 3, BankPolicy? Bank = null, ImmutableArray<ItemMilestone> Items = default, bool PrepareEquipment = false,
+    MeasurementPolicy? Measurement = null, ImmutableArray<string> Monsters = default)
 {
     [System.Text.Json.Serialization.JsonIgnore]
     public bool CombatEnabled => CombatTarget > 0;
     [System.Text.Json.Serialization.JsonIgnore]
-    public string Identity => JsonSerializer.Serialize(this with { Items = Items.IsDefault ? [] : Items });
+    public string Identity => JsonSerializer.Serialize(this with { Items = Items.IsDefault ? [] : Items, Monsters = Monsters.IsDefault ? [] : Monsters });
     public void Validate()
     {
         if (PrepareEquipment && (!CombatEnabled || string.IsNullOrWhiteSpace(Equipment))) throw new ArgumentException("Invalid preparation policy.");
+        if (Measurement is not null && (Measurement.UnknownMultiplier is < 1 or > 10 || Measurement.SwitchRatio is < 1 or > 10)) throw new ArgumentException("Invalid measurement policy.");
+        if (!Monsters.IsDefaultOrEmpty && (!CombatEnabled || PrepareEquipment || Monsters.Any(string.IsNullOrWhiteSpace) ||
+            Monsters.Distinct(StringComparer.Ordinal).Count() != Monsters.Length || Monsters.Contains(Monster))) throw new ArgumentException("Invalid monster alternatives.");
         if (Bank is not null && (Bank.Retain.IsEmpty || Bank.Retain.Any(x => string.IsNullOrWhiteSpace(x.Key) || x.Value < 0)))
             throw new ArgumentException("Invalid bank policy.");
         if (!Items.IsDefault && (Items.Any(x => string.IsNullOrWhiteSpace(x.Code) || x.Quantity is <= 0 or > 10000 || x.Value is <= 0 or > 1_000_000) ||
