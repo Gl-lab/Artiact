@@ -29,9 +29,13 @@ public sealed class FileRunCheckpointStore : IRunCheckpointStore, IDisposable
     {
         directory = Path.GetFullPath(directory);
         Directory.CreateDirectory(directory);
-        string key = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(characterIdentity)));
+        string key = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(characterIdentity.ToUpperInvariant())));
         _lease = new FileStream(Path.Combine(directory, key + ".lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
         _path = Path.Combine(directory, key + ".json");
+        // This release manages one character per store directory. Do not silently bypass
+        // an earlier case-sensitive checkpoint when adopting a canonical ownership key.
+        if (Directory.EnumerateFiles(directory, "*.json").Any(path => !string.Equals(path, _path, StringComparison.OrdinalIgnoreCase)))
+        { _lease.Dispose(); throw new IOException("Existing checkpoint requires operator migration."); }
     }
     public RunCheckpoint? Load() => File.Exists(_path)
         ? JsonSerializer.Deserialize<RunCheckpoint>(File.ReadAllBytes(_path)) ?? throw new IOException("Invalid checkpoint.") : null;

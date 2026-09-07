@@ -112,6 +112,7 @@ public class DurableRunTests
             using (var store = new FileRunCheckpointStore(directory, "hero"))
             {
                 Assert.Throws<IOException>(() => new FileRunCheckpointStore(directory, "hero"));
+                Assert.Throws<IOException>(() => { using var other = new FileRunCheckpointStore(directory, "HERO"); });
                 await new StrategySession(world, [world], new Delay(), checkpoints: store, identity: "run1").TickAsync();
             }
             using (var store = new FileRunCheckpointStore(directory, "hero"))
