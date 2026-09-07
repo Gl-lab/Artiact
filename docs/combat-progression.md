@@ -1,5 +1,7 @@
 # Bounded deterministic combat progression
 
+R4b extends normalized prediction to four independently rounded attack/bonus/resistance channels; [ADR revisit](decisions/0001-combat-viability-and-recovery.md) and [evidence](../openspec/changes/elemental-combat/execution-evidence.md) define the boundary. Historical fire-only fixtures below remain valid. Weapon replacement still supports fire-attack-only effects. Effects, negative resistances, unsupported gear and non-normal opponents remain rejected; no live combat approval is established.
+
 Epic 6's first HTTP slice is available through `CombatSessionFactory`. It is registered in DI but is available separately from default staged portfolio inspection. Creating a session reads the character and fresh combat catalogs; repeatedly call `CombatRun.ExecuteCycleAsync` until Completed or Blocked. Callers supply `CombatLevelGoal`, monster code and `CombatLimits`; no default live-combat startup or durable recovery is provided.
 
 The factory and port share the same scoped `GameClient` as `IGameClient`. The client retains exact last character/action JSON for presence-aware normalization; do not log these payloads. Combat catalogs bypass legacy coordinate-only cache DTOs, preserving map identity, layer, access and interactions. Mining keeps its existing cache path.

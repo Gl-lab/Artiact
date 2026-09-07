@@ -36,20 +36,19 @@ public sealed record CombatObservation(string Name, int Level, int Xp, int MaxXp
         }
     }
 
-    // First production subset is fire-only. Zero secondary attacks must be explicitly present.
+    // Every channel must be explicitly present; unsupported effects remain fail-closed.
     internal static CombatStats? ReadStats(JsonElement raw, bool monster)
     {
         if (raw.TryGetProperty("effects", out var effects) && effects.ValueKind != JsonValueKind.Null &&
             (effects.ValueKind != JsonValueKind.Array || effects.GetArrayLength() != 0)) return null;
-        foreach (string element in new[] { "earth", "water", "air" })
+        ElementStats? Channel(string element)
         {
-            if (Int(raw, "attack_" + element) != 0) return null;
-            if (Int(raw, "res_" + element) is < 0 or > 100) return null;
-            if (!monster && Int(raw, "dmg_" + element) is < 0 or > 1000) return null;
+            var channel = new ElementStats(Int(raw, "attack_" + element), monster ? 0 : Int(raw, "dmg_" + element), Int(raw, "res_" + element));
+            return channel == new ElementStats() ? null : channel;
         }
         var stats = new CombatStats(Int(raw, "hp"), Int(raw, "attack_fire"),
             monster ? 0 : Int(raw, "dmg"), monster ? 0 : Int(raw, "dmg_fire"),
-            Int(raw, "res_fire"), Int(raw, "critical_strike"));
+            Int(raw, "res_fire"), Int(raw, "critical_strike"), Channel("earth"), Channel("water"), Channel("air"));
         return CombatPrediction.Evaluate(stats, new CombatStats(1, 0)).Viability == CombatViability.Unknown ? null : stats;
     }
 

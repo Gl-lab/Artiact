@@ -31,6 +31,9 @@ public class CombatObservationTests
     [InlineData("map_id")]
     [InlineData("weapon_slot")]
     [InlineData("inventory")]
+    [InlineData("attack_water")]
+    [InlineData("dmg_earth")]
+    [InlineData("res_air")]
     public void MissingRequiredFieldDoesNotBecomeZero(string key)
     {
         var json = JsonNode.Parse(CharacterJson)!;
@@ -40,7 +43,8 @@ public class CombatObservationTests
     }
 
     [Theory]
-    [InlineData("attack_air", "1")]
+    [InlineData("attack_air", "10001")]
+    [InlineData("res_water", "-1")]
     [InlineData("effects", "[{\"code\":\"poison\",\"value\":1}]")]
     [InlineData("inventory", "[{\"code\":\"ore\",\"quantity\":11}]")]
     [InlineData("inventory", "[{\"code\":\"ore\",\"quantity\":-1}]")]
@@ -51,5 +55,13 @@ public class CombatObservationTests
         json[key] = JsonNode.Parse(value);
         using var doc = JsonDocument.Parse(json.ToJsonString());
         Assert.Null(CombatObservation.Read(doc.RootElement));
+    }
+    [Fact]
+    public void ExplicitMixedElementsRetainEveryChannel()
+    {
+        var json = JsonNode.Parse(CharacterJson)!;
+        json["attack_water"] = 7; json["dmg_water"] = 50; json["res_water"] = 25;
+        using var doc = JsonDocument.Parse(json.ToJsonString());
+        Assert.Equal(new ElementStats(7, 50, 25), CombatObservation.Read(doc.RootElement)!.Stats.Water);
     }
 }

@@ -2,6 +2,8 @@
 
 Date: 2026-09-06. Status: research decision for Epic 6 design; not production rollout approval.
 
+Revisited 2026-09-07 for [R4b](../../openspec/changes/elemental-combat/design.md): official separate-element arithmetic supports extending the local predictor to four explicit channels under the same conservative bounds. This supersedes the single-active-element restriction only for production normalization/prediction; the historical research prototype remains unchanged. Effects, negative resistances and unsupported equipment families stay rejected. No matched live/simulator corpus was obtained, so real-character combat remains no-go on this evidence.
+
 ## Context and evidence
 
 Mining provides an incremental orchestration seam, but existing looting uses level-only combat eligibility. Current fight/equipment/map contracts diverge from the inspected API. See [contract matrix](../research/combat-equipment/contract-matrix.md), [mechanics and uncertainties](../research/combat-equipment/mechanics.md), [alternatives](../research/combat-equipment/comparison.md), [experiment protocol](../research/combat-equipment/experiments.md) and [verification evidence](../../openspec/changes/research-combat-equipment-progression/execution-evidence.md).
