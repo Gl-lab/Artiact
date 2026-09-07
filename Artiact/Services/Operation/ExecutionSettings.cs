@@ -15,13 +15,14 @@ public sealed class ExecutionSettings
     public string RunDirectory { get; set; } = "";
     public int MaxActions { get; set; } = 100;
     public int MaxDecisions { get; set; } = 200;
+    public int MaxNoProgress { get; set; } = 10;
     public int MaxSeconds { get; set; } = 3600;
     public ExecutionMode Validate(ApiSettings api)
     {
         if (!Enum.TryParse<ExecutionMode>(Mode, true, out var mode) || !Enum.IsDefined(mode) ||
             FreshnessSeconds is < 1 or > 300 || string.IsNullOrWhiteSpace(ExpectedApiVersion)) throw new ArgumentException("Invalid execution settings.");
         if (mode == ExecutionMode.Bounded && (string.IsNullOrWhiteSpace(RunId) || string.IsNullOrWhiteSpace(RunDirectory) ||
-            MaxActions <= 0 || MaxDecisions < 10 || MaxSeconds is <= 0 or > 86400)) throw new ArgumentException("Invalid bounded run settings.");
+            MaxActions <= 0 || MaxDecisions < 10 || MaxNoProgress <= 0 || MaxNoProgress > MaxDecisions || MaxSeconds is <= 0 or > 86400)) throw new ArgumentException("Invalid bounded run settings.");
         if (!Uri.TryCreate(api.BaseUrl, UriKind.Absolute, out var uri) || uri.UserInfo.Length != 0 || uri.Query.Length != 0 ||
             uri.Fragment.Length != 0 || uri.AbsolutePath != "/" ||
             !(uri.IsLoopback && uri.Scheme == "http" || uri.Scheme == "https" && uri.Host == "api.artifactsmmo.com" && uri.Port == 443))
@@ -37,6 +38,7 @@ public sealed class ExecutionSettings
 public sealed class PortfolioSettings
 {
     public SkillPreparationPolicy? Preparation { get; set; }
+    public ConsumablePolicy? Consumable { get; set; }
     public bool CapacityAwareProduction { get; set; }
     public Dictionary<string, int> ProductionReserves { get; set; } = [];
     public Dictionary<string, int>? BankRetain { get; set; }
@@ -63,7 +65,7 @@ public sealed class PortfolioSettings
             EquipmentValue, MoveSeconds, GatherSeconds, FightSeconds, RestSeconds, EquipmentSeconds,
             BankRetain is null ? null : new(BankRetain.ToImmutableDictionary(StringComparer.Ordinal)), Items.ToImmutableArray(), PrepareEquipment,
             MeasuredSelection ? new(UnknownMultiplier, SwitchRatio) : null, MonsterAlternatives.ToImmutableArray(), Preparation,
-            CapacityAwareProduction ? new(ProductionReserves.ToImmutableDictionary(StringComparer.Ordinal)) : null);
+            CapacityAwareProduction ? new(ProductionReserves.ToImmutableDictionary(StringComparer.Ordinal)) : null, Consumable);
         result.Validate(); return result;
     }
 }

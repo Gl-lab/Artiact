@@ -2,6 +2,7 @@
   "openapi": "3.1.0",
   "info": { "title": "Synthetic supported subset, not full upstream OpenAPI", "version": "8.2.3" },
   "paths": {
+    "/my/{name}/action/use": { "post": { "requestBody": { "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SimpleItemSchema" } } } } } },
     "/my/bank": { "get": {} }, "/my/bank/items": { "get": {} },
     "/my/{name}/action/bank/withdraw/item": { "post": { "requestBody": { "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/SimpleItemSchema" } } } } } } },
     "/my/{name}/action/bank/deposit/item": { "post": { "requestBody": { "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/SimpleItemSchema" } } } } } } },
@@ -13,11 +14,15 @@
     "/my/{name}/action/crafting": { "post": {} }
   },
   "components": { "schemas": {
+    "ItemSchema": { "type": "object" },
+    "UseItemSchema": { "type": "object", "properties": { "item": { "$ref": "#/components/schemas/ItemSchema" }, "character": { "$ref": "#/components/schemas/CharacterSchema" }, "cooldown": { "$ref": "#/components/schemas/CooldownSchema" } } },
     "BankSchema": { "type": "object", "properties": { "slots": { "type": "integer" } } },
     "SimpleItemSchema": { "type": "object", "properties": { "code": { "type": "string" }, "quantity": { "type": "integer" } } },
     "BankItemTransactionSchema": { "type": "object", "properties": { "items": { "type": "array" }, "bank": { "type": "array" }, "character": { "$ref": "#/components/schemas/CharacterSchema" }, "cooldown": { "$ref": "#/components/schemas/CooldownSchema" } } },
     "CharacterSchema": { "type": "object", "properties": {
       "inventory_max_items": { "type": "integer" },
+      "cooking_level": { "type": "integer" }, "cooking_xp": { "type": "integer" }, "cooking_max_xp": { "type": "integer" },
+      "fishing_level": { "type": "integer" }, "fishing_xp": { "type": "integer" }, "fishing_max_xp": { "type": "integer" },
       "weaponcrafting_level": { "type": "integer" }, "weaponcrafting_xp": { "type": "integer" }, "weaponcrafting_max_xp": { "type": "integer" },
       "mining_level": { "type": "integer" }, "mining_xp": { "type": "integer" }, "mining_max_xp": { "type": "integer" },
       "woodcutting_level": { "type": "integer" }, "woodcutting_xp": { "type": "integer" }, "woodcutting_max_xp": { "type": "integer" },

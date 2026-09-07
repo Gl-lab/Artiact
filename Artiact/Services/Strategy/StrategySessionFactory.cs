@@ -17,9 +17,15 @@ public sealed class StrategySessionFactory(GameClient client, CombatCatalog cata
         if (!policy.Monsters.IsDefaultOrEmpty) strategies.AddRange(policy.Monsters.Select(monster => new NamedStrategy("combat:" + monster,
             new CombatMilestoneStrategy(policy with { Monster = monster }, port))));
         if (!string.IsNullOrWhiteSpace(policy.Equipment)) strategies.Add(new EquipmentStrategy(policy, port));
-        if (!policy.Items.IsDefaultOrEmpty) strategies.AddRange(policy.Items.Select(x => new SkillPrerequisiteStrategy(x, policy, port)));
+        if (!policy.Items.IsDefaultOrEmpty)
+            foreach (var goal in policy.Items)
+            {
+                IProgressionStrategy strategy = new SkillPrerequisiteStrategy(goal, policy, port);
+                strategies.Add(policy.Consumable?.ParentItem == goal.Code ? new ConsumableStrategy(strategy, policy, port) : strategy);
+            }
         return new(new HttpStrategyObserver(client, catalog, characters, policy.Identity, compatibility, policy), strategies, cooldown, limits,
-            checkpoints: checkpoints, identity: identity, selection: policy.Measurement);
+            checkpoints: checkpoints, identity: identity, selection: policy.Measurement,
+            resourceLimits: policy.Consumable is { } food ? new Dictionary<string, int> { ["use:" + food.Code] = food.MaxUsed, ["materials:" + food.Code] = food.MaxMaterialUnits } : null);
     }
 }
 

@@ -8,7 +8,8 @@ public enum StrategyStatus { Selected, Completed, Blocked, Replan, Reconciled, U
 public sealed record StrategyLimits(int Decisions = 100, int NoProgress = 10, int Actions = 100, int DurationSeconds = 3600);
 public sealed record StrategyReply(StrategyObservation State, int Cooldown, bool Valid = true, bool Defeat = false);
 public sealed record AtomicCommand(string Id, string SourceFingerprint, bool Productive,
-    Func<StrategyObservation, bool> Postcondition, Func<CancellationToken, Task<StrategyReply>> Dispatch);
+    Func<StrategyObservation, bool> Postcondition, Func<CancellationToken, Task<StrategyReply>> Dispatch,
+    ImmutableDictionary<string, int>? Charges = null, string? RefillCode = null, bool? Refilling = null);
 public sealed record StrategyCandidate(string Id, string Category, decimal Value, decimal ActionSeconds,
     decimal TravelSeconds, decimal RecoverySeconds, string? Rejection, bool Complete, [property: JsonIgnore] AtomicCommand? Command,
     string EstimateSource = "Configured", int Samples = 0, SkillPrerequisite? Prerequisite = null)
@@ -31,7 +32,8 @@ public sealed record StrategyDecision(StrategyStatus Status, string Reason, stri
 
 public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IProgressionStrategy> strategies,
     IMiningCooldownDelay cooldown, StrategyLimits? limits = null, TimeProvider? time = null,
-    IRunCheckpointStore? checkpoints = null, string identity = "", MeasurementPolicy? selection = null)
+    IRunCheckpointStore? checkpoints = null, string identity = "", MeasurementPolicy? selection = null,
+    IReadOnlyDictionary<string, int>? resourceLimits = null)
 {
     private readonly IProgressionStrategy[] _strategies = strategies.ToArray();
     private readonly StrategyLimits _limits = limits ?? new();
@@ -39,6 +41,7 @@ public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IPro
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly HashSet<string> _consumed = new(StringComparer.Ordinal);
     private AtomicCommand? _pending;
+    private string? _pendingCandidate;
     private StrategyObservation? _baseline;
     private StrategyDecision? _terminal;
     private ImmutableArray<StrategyCandidate> _candidates = [];
@@ -91,7 +94,7 @@ public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IPro
             _loaded && _time.GetUtcNow() - _started >= TimeSpan.FromSeconds(_limits.DurationSeconds)))
             return Stop(StrategyStatus.Blocked, "BudgetExhausted");
         if (!inspect) { _decisions++; Save(); }
-        try { State = await observer.ObserveAsync(token); }
+        try { State = (await observer.ObserveAsync(token)).WithContext(RunContext()); }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { return Stop(StrategyStatus.Cancelled, "Cancelled"); }
         catch (Exception) { return Stop(_pending is null ? StrategyStatus.Blocked : StrategyStatus.UnknownOutcome, "ObservationFailed"); }
         _latest = SavedObservation.From(State);
@@ -129,9 +132,12 @@ public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IPro
         if (inspect) return Decision(StrategyStatus.Selected, "InspectOnly", selected.Id, command.Id);
         if (command.SourceFingerprint != State.Fingerprint || _consumed.Contains(Key(command)))
             return Stop(StrategyStatus.Blocked, "ConsumedOrInvalidCommand");
+        if (command.Charges is not null && command.Charges.Any(x => x.Value <= 0 || resourceLimits is null ||
+                !resourceLimits.TryGetValue(x.Key, out int maximum) || (long)State.Context.Used.GetValueOrDefault(x.Key) + x.Value > maximum))
+            return Stop(StrategyStatus.Blocked, "ResourceBudgetExhausted");
         _baseline = State;
         StrategyObservation preflight;
-        try { preflight = await observer.ObserveAsync(token); }
+        try { preflight = (await observer.ObserveAsync(token)).WithContext(RunContext()); }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { return Stop(StrategyStatus.Cancelled, "Cancelled"); }
         catch (Exception) { return Stop(StrategyStatus.Blocked, "PreflightFailed"); }
         State = preflight;
@@ -143,7 +149,8 @@ public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IPro
             return Stop(StrategyStatus.Blocked, "BudgetExhausted");
         _attempts++; _noProgress++;
         _pending = command;
-        _journal.Add(new(command.Id, command.SourceFingerprint, "Intent"));
+        _pendingCandidate = selected.Id;
+        _journal.Add(new(command.Id, command.SourceFingerprint, "Intent", Charges: command.Charges, RefillCode: command.RefillCode, Refilling: command.Refilling));
         Save();
         StrategyReply reply;
         try { reply = await command.Dispatch(token); }
@@ -154,7 +161,7 @@ public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IPro
             _pending = command;
             return Decision(StrategyStatus.UnknownOutcome, "DispatchOutcomeUnknown", selected.Id, command.Id);
         }
-        State = reply.State;
+        State = reply.State.WithContext(RunContext());
         _latest = SavedObservation.From(State);
         _pending = null;
         _consumed.Add(Key(command));
@@ -201,6 +208,7 @@ public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IPro
             _noProgress = saved.NoProgress; _seconds = saved.Seconds; _terminal = saved.Terminal;
             _consumed.UnionWith(saved.Consumed);
             _journal.AddRange(saved.Journal); _verified = saved.Verified;
+            _ = RunContext();
             _initial = saved.Initial; _latest = saved.Latest; _finished = saved.Finished;
             if (saved.Measurements is not null)
                 foreach (var entry in saved.Measurements)
@@ -212,7 +220,9 @@ public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IPro
             if (saved.PendingCommand is not null)
             {
                 _baseline = saved.Baseline?.Restore() ?? throw new InvalidOperationException("Missing baseline");
-                _pending = _strategies.Select(x => x.Evaluate(_baseline)).Select(x => x.Command)
+                _pendingCandidate = saved.PendingCandidate;
+                _pending = _strategies.SelectMany(x => x.EvaluateAll(_baseline))
+                    .Where(x => saved.PendingCandidate is null || x.Id == saved.PendingCandidate).Select(x => x.Command)
                     .Single(x => x?.Id == saved.PendingCommand) ?? throw new InvalidOperationException("Unknown command");
                 if (_pending.SourceFingerprint != _baseline.Fingerprint) throw new InvalidOperationException("Invalid baseline");
             }
@@ -222,8 +232,29 @@ public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IPro
     }
     private void Save() => checkpoints?.Save(new(1, identity, _started, _decisions, _attempts, _noProgress, _seconds,
         _consumed.ToArray(), _pending?.Id, _baseline is null ? null : SavedObservation.From(_baseline), _terminal, _verified, _journal.ToImmutableArray(),
-        _measurements.ToImmutableDictionary(StringComparer.Ordinal), _incumbent, _initial, _latest, _finished));
+        _measurements.ToImmutableDictionary(StringComparer.Ordinal), _incumbent, _initial, _latest, _finished, _pending is null ? null : _pendingCandidate));
     private static string MeasureKey(StrategyCandidate candidate) => candidate.Id + ":" + candidate.Command!.Id.Split(':')[0];
+    private StrategyRunContext RunContext()
+    {
+        var used = ImmutableDictionary.CreateBuilder<string, int>(StringComparer.Ordinal);
+        var refilling = ImmutableDictionary.CreateBuilder<string, bool>(StringComparer.Ordinal);
+        foreach (var entry in _journal)
+        {
+            foreach (var charge in entry.Charges ?? ImmutableDictionary<string, int>.Empty)
+            {
+                if (charge.Value <= 0 || resourceLimits is null || !resourceLimits.TryGetValue(charge.Key, out int maximum))
+                    throw new InvalidOperationException("Invalid resource journal.");
+                used[charge.Key] = checked(used.GetValueOrDefault(charge.Key) + charge.Value);
+                if (used[charge.Key] > maximum) throw new InvalidOperationException("Invalid resource journal.");
+            }
+            if (entry.RefillCode is not null)
+            {
+                if (string.IsNullOrWhiteSpace(entry.RefillCode) || entry.Refilling is null) throw new InvalidOperationException("Invalid refill journal.");
+                refilling[entry.RefillCode] = entry.Refilling.Value;
+            }
+        }
+        return new(used.ToImmutable(), refilling.ToImmutable());
+    }
     private StrategyCandidate Measured(StrategyCandidate candidate)
     {
         if (selection is null || candidate.Command is null) return candidate;

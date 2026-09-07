@@ -4,18 +4,20 @@ using System.Text.Json;
 namespace Artiact.Services.Strategy;
 
 public sealed record SavedObservation(JsonElement Character,
-    ImmutableDictionary<string, ImmutableArray<JsonElement>> Catalogs, string Policy, Artiact.Contracts.Models.Api.BankSnapshot? Bank = null)
+    ImmutableDictionary<string, ImmutableArray<JsonElement>> Catalogs, string Policy, Artiact.Contracts.Models.Api.BankSnapshot? Bank = null,
+    StrategyRunContext? Context = null)
 {
-    public StrategyObservation Restore() => new(Character, Catalogs, Policy, Bank);
-    public static SavedObservation From(StrategyObservation state) => new(state.Character, state.Catalogs, state.Policy, state.Bank);
+    public StrategyObservation Restore() => new(Character, Catalogs, Policy, Bank, Context);
+    public static SavedObservation From(StrategyObservation state) => new(state.Character, state.Catalogs, state.Policy, state.Bank, state.Context);
 }
 public sealed record RunCheckpoint(int Version, string Identity, DateTimeOffset Started,
     int Decisions, int Attempts, int NoProgress, long Seconds, string[] Consumed,
     string? PendingCommand, SavedObservation? Baseline, StrategyDecision? Terminal,
     SavedObservation? Verified, ImmutableArray<JournalCommand> Journal,
     ImmutableDictionary<string, ActionMeasurement>? Measurements = null, string? Incumbent = null,
-    SavedObservation? Initial = null, SavedObservation? Latest = null, DateTimeOffset? Finished = null);
-public sealed record JournalCommand(string Command, string SourceFingerprint, string Status, string? ResultFingerprint = null);
+    SavedObservation? Initial = null, SavedObservation? Latest = null, DateTimeOffset? Finished = null, string? PendingCandidate = null);
+public sealed record JournalCommand(string Command, string SourceFingerprint, string Status, string? ResultFingerprint = null,
+    ImmutableDictionary<string, int>? Charges = null, string? RefillCode = null, bool? Refilling = null);
 public interface IRunCheckpointStore
 {
     RunCheckpoint? Load();

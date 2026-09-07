@@ -37,7 +37,7 @@ public sealed class StagedExecution(ExecutionSettings settings, ApiSettings api,
     private async Task<StrategyDecision?> RunBoundedAsync(PortfolioPolicy policy, CancellationToken token)
     {
         using var store = new FileRunCheckpointStore(settings.RunDirectory, new Uri(api.BaseUrl).GetLeftPart(UriPartial.Authority) + "/" + api.Character);
-        var limits = new StrategyLimits(settings.MaxDecisions, 10, settings.MaxActions, settings.MaxSeconds);
+        var limits = new StrategyLimits(settings.MaxDecisions, settings.MaxNoProgress, settings.MaxActions, settings.MaxSeconds);
         string identity = System.Text.Json.JsonSerializer.Serialize(new { settings.RunId, api.BaseUrl, api.Character, Policy = policy.Identity, Limits = limits });
         var saved = store.Load();
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(token, status.StopToken);

@@ -10,7 +10,8 @@ public sealed record PortfolioPolicy(ImmutableArray<SkillMilestone> Skills, int 
     decimal RestSeconds = 6, decimal EquipmentSeconds = 3, BankPolicy? Bank = null, ImmutableArray<ItemMilestone> Items = default, bool PrepareEquipment = false,
     MeasurementPolicy? Measurement = null, ImmutableArray<string> Monsters = default,
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] SkillPreparationPolicy? Preparation = null,
-    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] ProductionPolicy? Production = null)
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] ProductionPolicy? Production = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] ConsumablePolicy? Consumable = null)
 {
     [System.Text.Json.Serialization.JsonIgnore]
     public bool CombatEnabled => CombatTarget > 0;
@@ -18,6 +19,11 @@ public sealed record PortfolioPolicy(ImmutableArray<SkillMilestone> Skills, int 
     public string Identity => JsonSerializer.Serialize(this with { Items = Items.IsDefault ? [] : Items, Monsters = Monsters.IsDefault ? [] : Monsters });
     public void Validate()
     {
+        if (Consumable is { } food && (Items.IsDefaultOrEmpty || !Items.Any(x => x.Code == food.ParentItem) ||
+                string.IsNullOrWhiteSpace(food.Code) || food.Code == food.ParentItem || food.HpBelowPercent is < 1 or > 100 ||
+                food.Reserve < 0 || food.MinimumStock <= food.Reserve || food.TargetStock < food.MinimumStock || food.TargetStock > 10000 ||
+                food.MaxUsed <= 0 || food.MaxMaterialUnits <= 0 || food.UseSeconds <= 0 || food.PreparationSeconds < 0))
+            throw new ArgumentException("Invalid consumable policy.");
         if (Production is not null && (Bank is null || Production.Reserved is null || Production.Reserved.Any(x => string.IsNullOrWhiteSpace(x.Key) || x.Value < 0)))
             throw new ArgumentException("Invalid production reserve policy.");
         if (Preparation is not null && (Preparation.MaxIngredientUnits is < 1 or > 1000 || Preparation.MaxDepth is < 1 or > 16))
@@ -42,3 +48,6 @@ public sealed record BankPolicy(ImmutableDictionary<string, int> Retain);
 public sealed record ItemMilestone(string Code, int Quantity, decimal Value = 30);
 public sealed record SkillPreparationPolicy(int MaxIngredientUnits = 100, int MaxDepth = 12);
 public sealed record ProductionPolicy(ImmutableDictionary<string, int> Reserved);
+public sealed record ConsumablePolicy(string ParentItem, string Code, int HpBelowPercent = 50,
+    int MinimumStock = 1, int TargetStock = 2, int Reserve = 0, int MaxUsed = 10, int MaxMaterialUnits = 100,
+    bool AllowRest = false, decimal UseSeconds = 3, decimal PreparationSeconds = 30);

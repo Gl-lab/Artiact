@@ -13,8 +13,9 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
     private int _seconds;
     private readonly JsonArray _trace = [];
     private JsonArray _bank = [];
+    private bool IsConsumable => _scenario is "consumable-production" or "consumable-bank" or "consumable-training" or "consumable-capacity" or "consumable-full";
     private bool IsTraining => _scenario is "skill-preparation" or "resource-preparation" or "capacity-training";
-    private bool IsProduction => _scenario is "item-production" or "item-production-bank" or "capacity-production" || IsTraining;
+    private bool IsProduction => _scenario is "item-production" or "item-production-bank" or "capacity-production" || IsTraining || IsConsumable;
     private bool IsCombatCrafting => _scenario is "combat-crafting" or "combat-preparation";
 
     public (int Status, JsonNode Body)? Handle(string method, string path, string query, string body)
@@ -42,13 +43,14 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
                 }
                 catch (System.Text.Json.JsonException) { return null; }
                 if (scenario is "basic-mining" or "mining-progression") { _scenario = null; return null; }
-                if (scenario is not ("combat-progression" or "combat-equipment" or "combat-crafting" or "strategy-portfolio" or "gathering-bank" or "item-production" or "item-production-bank" or "combat-preparation" or "skill-preparation" or "resource-preparation" or "capacity-production" or "capacity-training")) return null;
+                if (scenario is not ("combat-progression" or "combat-equipment" or "combat-crafting" or "strategy-portfolio" or "gathering-bank" or "item-production" or "item-production-bank" or "combat-preparation" or "skill-preparation" or "resource-preparation" or "capacity-production" or "capacity-training" or "consumable-production" or "consumable-bank" or "consumable-training" or "consumable-capacity" or "consumable-full")) return null;
                 _scenario = scenario;
                 _character = null;
                 _seconds = 0;
                 _trace.Clear();
                 _bank = [];
                 if (_scenario == "item-production-bank") _bank.Add(new JsonObject { ["code"] = "ore", ["quantity"] = 2 });
+                if (_scenario == "consumable-bank") _bank.Add(new JsonObject { ["code"] = "meal", ["quantity"] = 4 });
                 return (200, new JsonObject { ["scenario"] = scenario, ["trace_count"] = 0 });
             }
             if (_scenario is null || path == "/token") return null;
@@ -118,7 +120,7 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
                         if (move is not JsonObject moveObject || moveObject.Count != 1)
                             return Error(422, "destination_not_found");
                         int mapId = move["map_id"]!.GetValue<int>();
-                        if (mapId != 2 && !(mapId == 3 && IsCombatCrafting) &&
+                        if (!(IsConsumable && mapId is 7 or 8) && mapId != 2 && !(mapId == 3 && IsCombatCrafting) &&
                             !((_scenario is "strategy-portfolio" or "gathering-bank" || IsProduction) && mapId is 4 or 5) && !((_scenario == "gathering-bank" || IsProduction) && mapId == 6) && !(IsProduction && mapId == 3)) return Error(422, "destination_not_found");
                         next["map_id"] = mapId; next["x"] = mapId - 1;
                         dataResult["destination"] = Catalog("maps")[mapId - 1]!.DeepClone();
@@ -127,15 +129,21 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
                         if ((!IsProduction && _scenario is not ("strategy-portfolio" or "gathering-bank" or "combat-preparation")) || !EmptyRequest(body) || Used(next) >= next["inventory_max_items"]!.GetValue<int>())
                             return Error(422, "gather_not_available");
                         int gatherMap = next["map_id"]!.GetValue<int>();
-                        if (gatherMap is not (4 or 5)) return Error(422, "gather_not_available");
+                        if (gatherMap is not (4 or 5) && !(IsConsumable && gatherMap == 8)) return Error(422, "gather_not_available");
                         string skill = gatherMap == 4 ? "mining" : "woodcutting";
                         string output = gatherMap == 4 ? "ore" : "wood";
+                        if (IsConsumable && gatherMap is 5 or 8)
+                        {
+                            skill = "fishing"; output = gatherMap == 8 ? "baitfish" : "fish";
+                            if (_scenario == "consumable-training" && gatherMap == 5 && next["fishing_level"]!.GetValue<int>() < 2)
+                                return Error(422, "skill_too_low");
+                        }
                         if (_scenario == "resource-preparation" && gatherMap == 5)
                         {
                             skill = "mining"; output = "rare_ore";
                             if (next["mining_level"]!.GetValue<int>() < 2) return Error(422, "skill_too_low");
                         }
-                        if (next[skill + "_level"]!.GetValue<int>() >= (_scenario == "capacity-production" ? 50 : _scenario == "gathering-bank" || IsTraining ? 4 : 2)) return Error(422, "gather_not_available");
+                        if (next[skill + "_level"]!.GetValue<int>() >= (_scenario == "capacity-production" || IsConsumable ? 50 : _scenario == "gathering-bank" || IsTraining ? 4 : 2)) return Error(422, "gather_not_available");
                         int skillXp = next[skill + "_xp"]!.GetValue<int>() + 5;
                         next[skill + "_level"] = next[skill + "_level"]!.GetValue<int>() + skillXp / 10;
                         next[skill + "_xp"] = skillXp % 10;
@@ -163,6 +171,16 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
                         dataResult["characters"] = new JsonArray(next.DeepClone());
                         if (_scenario == "combat-preparation") dataResult["fight"]!["characters"]![0]!["drops"]!.AsArray().Add(new JsonObject { ["code"] = "shard", ["quantity"] = 1 });
                         duration = 8; break;
+                    case "use":
+                        if (!IsConsumable) return Error(404, "unsupported_route");
+                        var use = JsonNode.Parse(body)!;
+                        string food = use["code"]!.GetValue<string>();
+                        int count = use["quantity"]!.GetValue<int>();
+                        if (food is not ("meal" or "snack") || count is < 1 or > 10 || next["hp"]!.GetValue<int>() >= 20 || !Add(next, food, -count))
+                            return Error(422, "use_not_available");
+                        next["hp"] = Math.Min(20, next["hp"]!.GetValue<int>() + (food == "meal" ? 8 : 4) * count);
+                        dataResult["item"] = Catalog("items").Single(x => x!["code"]!.GetValue<string>() == food)!.DeepClone();
+                        duration = 3; break;
                     case "rest":
                         if (!EmptyRequest(body)) return Error(422, "invalid_request");
                         int hp = next["hp"]!.GetValue<int>();
@@ -196,6 +214,19 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
                         {
                             string product = requestCraft!["code"]!.GetValue<string>();
                             int batch = requestCraft["quantity"]!.GetValue<int>();
+                            if (IsConsumable && product is "meal" or "snack")
+                            {
+                                int required = _scenario == "consumable-training" && product == "meal" ? 2 : 1;
+                                if (next["map_id"]!.GetValue<int>() != 7 || batch != 1 || next["cooking_level"]!.GetValue<int>() < required || !Add(next, "fish", -1))
+                                    return Error(422, "craft_not_available");
+                                Add(next, product, 1);
+                                if (Used(next) > next["inventory_max_items"]!.GetValue<int>()) return Error(422, "inventory_full");
+                                int cookingXp = next["cooking_xp"]!.GetValue<int>() + 5;
+                                next["cooking_level"] = next["cooking_level"]!.GetValue<int>() + cookingXp / 10;
+                                next["cooking_xp"] = cookingXp % 10;
+                                dataResult["details"] = new JsonObject { ["xp"] = 5, ["items"] = new JsonArray(new JsonObject { ["code"] = product, ["quantity"] = 1 }) };
+                                duration = 4; break;
+                            }
                             if (IsTraining)
                             {
                                 int required = (_scenario is "skill-preparation" or "capacity-training") && product == "tool" ? 2 : 1;
@@ -251,6 +282,8 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
         var state = _fixture["character"]!.DeepClone();
         if (IsProduction) state["inventory"] = new JsonArray(new JsonObject { ["slot"] = 1, ["code"] = "protected", ["quantity"] = 1 });
         if (IsTraining) state["weaponcrafting_max_xp"] = 10;
+        if (IsConsumable) state["hp"] = _scenario == "consumable-full" ? 20 : 4;
+        if (_scenario == "consumable-capacity") state["inventory_max_items"] = 3;
         if (_scenario is "gathering-bank" or "capacity-production" or "capacity-training")
         {
             state["inventory_max_items"] = 3;
@@ -304,6 +337,25 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
             var rare = data.Single(x => x!["code"]!.GetValue<string>() == "wood_node")!;
             rare["code"] = "rare_node"; rare["skill"] = "mining"; rare["level"] = 2;
             rare["drops"]![0]!["code"] = "rare_ore";
+        }
+        if (IsConsumable && name == "items")
+        {
+            data.Add(JsonNode.Parse("""{"code":"meal","level":1,"type":"consumable","conditions":[],"effects":[{"code":"heal","value":8}],"craft":{"skill":"cooking","level":1,"quantity":1,"items":[{"code":"fish","quantity":1}]}}"""));
+            data.Add(JsonNode.Parse("""{"code":"snack","level":1,"type":"consumable","conditions":[],"effects":[{"code":"heal","value":4}],"craft":{"skill":"cooking","level":1,"quantity":1,"items":[{"code":"fish","quantity":1}]}}"""));
+            if (_scenario == "consumable-training") data.Single(x => x!["code"]!.GetValue<string>() == "meal")!["craft"]!["level"] = 2;
+        }
+        if (IsConsumable && name == "maps")
+        {
+            data[4]!["interactions"]!["content"]!["code"] = "fish_node";
+            data.Add(JsonNode.Parse("""{"map_id":7,"name":"Kitchen","skin":"plain","x":6,"y":0,"layer":"overworld","access":{"type":"standard","conditions":[]},"interactions":{"content":{"type":"workshop","code":"cooking"},"transition":null}}"""));
+            data.Add(JsonNode.Parse("""{"map_id":8,"name":"Pond","skin":"plain","x":7,"y":0,"layer":"overworld","access":{"type":"standard","conditions":[]},"interactions":{"content":{"type":"resource","code":"bait_node"},"transition":null}}"""));
+        }
+        if (IsConsumable && name == "resources")
+        {
+            var fish = data.Single(x => x!["code"]!.GetValue<string>() == "wood_node")!;
+            fish["code"] = "fish_node"; fish["skill"] = "fishing";
+            fish["level"] = _scenario == "consumable-training" ? 2 : 1; fish["drops"]![0]!["code"] = "fish";
+            data.Add(JsonNode.Parse("""{"code":"bait_node","skill":"fishing","level":1,"drops":[{"code":"baitfish","rate":1,"min_quantity":1,"max_quantity":1}]}"""));
         }
         return data;
     }

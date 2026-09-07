@@ -23,6 +23,7 @@ This directory is the source-grounded guide for developers and AI agents working
 | [Item production](item-production.md) | Independent quantity goals, nested resources, bank ingredients and atomic craft |
 | [Skill preparation](skill-preparation.md) | Parent-bound weaponcrafting and mining prerequisites for item goals |
 | [Capacity production](capacity-production.md) | Bounded batches, protected stock and orders larger than inventory |
+| [Consumables](consumables.md) | Parent-bound healing, stock refill, cooking/fishing prerequisites and durable allowances |
 | [Measured selection](measured-selection.md) | Alternative candidates, observed cooldown estimates and switching threshold |
 | [Roadmap delivery](roadmap-progress.md) | Completed core epics, publication evidence and remaining live rollout boundary |
 | [Новый роадмап на русском](roadmap-next-ru.md) | Проект R6–R10, включая R8a «Расходники и их производство»: актуальная готовность, приоритеты и критерии приёмки |

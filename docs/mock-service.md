@@ -4,6 +4,8 @@ The additional `combat-progression`, `combat-equipment` and `combat-crafting` sc
 
 ## Purpose
 
+R8a adds `consumable-production`, `consumable-bank`, `consumable-training`, `consumable-capacity` and `consumable-full`, with atomic immediate heal/use and scripted cooking/fishing. Their exact scope and independent stock/time oracles are in [consumables](consumables.md). No combat utility effects or live XP formula is implemented.
+
 R8 adds `capacity-production` and `capacity-training`: three-unit inventory, larger orders, existing bank/craft routes and the oracles in [capacity production](capacity-production.md). The former extends the synthetic mining cap so the ten-ore acceptance can complete; it does not change existing scenarios or model live XP.
 
 R7 adds `skill-preparation` and `resource-preparation` in the scripted kernel. Their independent command/stock/XP oracles are documented in [skill preparation](skill-preparation.md). They expose existing crafting/gathering routes, enforce synthetic skill requirements atomically, and do not implement the live XP formula.

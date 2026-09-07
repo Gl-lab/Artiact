@@ -7,6 +7,21 @@ namespace Artiact.Services.Strategy;
 
 public sealed class StrategyActionPort(GameClient client, ICharacterService characters)
 {
+    public AtomicCommand Use(StrategyObservation observation, System.Text.Json.JsonElement item, int quantity, Func<StrategyObservation, bool> postcondition) =>
+        new("Use:" + item.GetProperty("code").GetString() + ":" + quantity, observation.Fingerprint, false, postcondition, async token =>
+        {
+            using var operation = client.BeginOperation(token);
+            var response = await client.UseItem(new() { Code = item.GetProperty("code").GetString()!, Quantity = quantity });
+            characters.SaveCharacter(response.RequireCharacter());
+            var data = client.LastActionPayload!.Value;
+            var timing = data.GetProperty("cooldown");
+            int total = timing.GetProperty("total_seconds").GetInt32(), remaining = timing.GetProperty("remaining_seconds").GetInt32();
+            bool valid = total >= 0 && remaining >= 0 && remaining <= total &&
+                timing.GetProperty("started_at").GetDateTimeOffset() <= timing.GetProperty("expiration").GetDateTimeOffset() &&
+                !string.IsNullOrWhiteSpace(timing.GetProperty("reason").GetString()) &&
+                StrategyObservation.Hash(data.GetProperty("item")) == StrategyObservation.Hash(item);
+            return new(observation.WithCharacter(client.LastCharacterPayload!.Value), total, valid);
+        });
     public AtomicCommand Deposit(StrategyObservation observation, Item[] items, Func<StrategyObservation, bool> postcondition, bool withdraw = false) =>
         new((withdraw ? "Withdraw:" : "Deposit:") + string.Join(",", items.Select(x => x.Code + ":" + x.Quantity)), observation.Fingerprint, false, postcondition,
             async token =>

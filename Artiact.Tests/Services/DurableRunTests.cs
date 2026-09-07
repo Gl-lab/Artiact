@@ -23,6 +23,7 @@ public class DurableRunTests
     {
         public int Xp, Actions;
         public bool Lose;
+        public int Charge;
         public StrategyObservation State => new(JsonSerializer.SerializeToElement(new
         { name = "hero", xp = Xp, cooldown_expiration = "2000-01-01T00:00:00Z" }),
             ImmutableDictionary<string, ImmutableArray<JsonElement>>.Empty, "policy");
@@ -30,12 +31,27 @@ public class DurableRunTests
         public StrategyCandidate Evaluate(StrategyObservation state) => new("skill", "skill", 1, 1, 0, 0, null, false,
             new("Gather", state.Fingerprint, true,
                 after => after.Character.GetProperty("xp").GetInt32() == state.Character.GetProperty("xp").GetInt32() + 1,
-                _ => { Actions++; Xp++; if (Lose) throw new IOException("Lost reply"); return Task.FromResult(new StrategyReply(State, 0)); }));
+                _ => { Actions++; Xp++; if (Lose) throw new IOException("Lost reply"); return Task.FromResult(new StrategyReply(State, 0)); },
+                Charge == 0 ? null : ImmutableDictionary<string, int>.Empty.Add("food", Charge)));
     }
     private sealed class Delay : IMiningCooldownDelay
     { public Task WaitAsync(int seconds, CancellationToken token) => Task.CompletedTask; }
     private static StrategySession Run(World world, Store store, StrategyLimits? limits = null) =>
         new(world, [world], new Delay(), limits, checkpoints: store, identity: "run1");
+
+    [Fact]
+    public async Task ResourceChargesSurviveLostReplyAndRestart()
+    {
+        var world = new World { Charge = 1, Lose = true }; var store = new Store();
+        StrategySession ChargedRun() => new(world, [world], new Delay(), checkpoints: store, identity: "charged",
+            resourceLimits: new Dictionary<string, int> { ["food"] = 1 });
+        Assert.Equal(StrategyStatus.UnknownOutcome, (await ChargedRun().TickAsync()).Status);
+        var resumed = ChargedRun();
+        Assert.Equal(StrategyStatus.Reconciled, (await resumed.TickAsync()).Status);
+        Assert.Equal("ResourceBudgetExhausted", (await resumed.TickAsync()).Reason);
+        Assert.Equal(1, world.Actions);
+        Assert.Equal(1, Assert.Single(store.Saved!.Journal).Charges!["food"]);
+    }
 
     [Fact]
     public async Task DurableResultRetainsFirstObservationAcrossRestart()

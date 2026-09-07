@@ -35,3 +35,5 @@ R4c combat-preparation adds two simultaneous drops and their consumption by craf
 R7 skill-preparation/resource-preparation add synthetic weaponcrafting/mining requirements and fixed XP transitions. Preserve exact stock/command oracles in ../docs/skill-preparation.md and atomic rejection; do not describe scripted XP as the live formula.
 
 R8 capacity-production/capacity-training constrain inventory to three units and reuse existing bank/craft transitions. Preserve ../docs/capacity-production.md oracles and never broaden the original scenarios' caps incidentally.
+
+R8a consumable-* scenarios add immediate heal use, cooking/fishing preparation and refill. Preserve ../docs/consumables.md oracles, full item/use envelope and atomic rejection; scripted meal/snack values are not live cooked-gudgeon data.

@@ -17,6 +17,158 @@ namespace Artiact.MockService.Tests;
 public class StagedOperationTests
 {
     [Theory]
+    [InlineData("food-effect", 0, "UnsupportedConsumableEffectOrCondition")]
+    [InlineData("food-use-schema", 0, null)]
+    [InlineData("food-result", 8, null)]
+    public async Task UnsupportedOrUnverifiedUseStopsWithoutReplay(string corruption, int before, string? rejection)
+    {
+        await using var h = new Harness(new(), miningOnly: true); await h.Reset("consumable-production");
+        var run = h.Factory.Create(FoodPolicy(), new(NoProgress: 60));
+        for (int i = 0; i < before; i++) await run.TickAsync();
+        h.Handler.Corruption = corruption;
+        var result = await run.TickAsync();
+        Assert.Equal(StrategyStatus.Blocked, result.Status);
+        if (rejection is not null) Assert.Equal(rejection, Assert.Single(result.Candidates).Rejection);
+        Assert.Equal(before + (corruption == "food-result" ? 1 : 0), h.Handler.Actions);
+        await run.TickAsync();
+        Assert.Equal(before + (corruption == "food-result" ? 1 : 0), h.Handler.Actions);
+    }
+
+    [Fact]
+    public async Task ConsumableCannotSpendAnotherGoalReservedStock()
+    {
+        await using var h = new Harness(new(), miningOnly: true); await h.Reset("consumable-bank");
+        var policy = FoodPolicy() with { Items = [new("tool", 1), new("meal", 4)] };
+        var result = await h.Factory.Create(policy).TickAsync();
+        Assert.Equal(StrategyStatus.Blocked, result.Status);
+        Assert.Contains(result.Candidates, x => x.Rejection == "ConsumableReserveConflict");
+        Assert.Equal(0, h.Handler.Actions);
+    }
+
+    [Fact]
+    public async Task LostUseReplyReconcilesExactStockHpAndChargedAllowance()
+    {
+        await using var h = new Harness(new(), miningOnly: true); await h.Reset("consumable-production");
+        var policy = FoodPolicy(); var saved = new Checkpoint();
+        var run = h.Factory.Create(policy, new(NoProgress: 60), saved, "use-loss");
+        for (int i = 0; i < 8; i++) Assert.Equal(StrategyStatus.Selected, (await run.TickAsync()).Status);
+        h.Handler.Corruption = "loss";
+        Assert.Equal(StrategyStatus.UnknownOutcome, (await run.TickAsync()).Status);
+        h.Handler.Corruption = null;
+        var resumed = h.Factory.Create(policy, new(NoProgress: 60), saved, "use-loss");
+        Assert.Equal(StrategyStatus.Reconciled, (await resumed.TickAsync()).Status);
+        Assert.Equal(9, h.Handler.Actions);
+        Assert.Equal(20, resumed.State!.Character.GetProperty("hp").GetInt32());
+        Assert.Equal(2, resumed.State.Context.Used["use:meal"]);
+        Assert.Equal(0, CharacterObservation.Read(resumed.State.Character)!.Inventory.GetValueOrDefault("meal"));
+    }
+
+    [Fact]
+    public async Task FullHpAndCompletedParentDoNotUseOrReplenishFood()
+    {
+        await using var h = new Harness(new(), miningOnly: true); await h.Reset("consumable-full");
+        var saved = new Checkpoint(); var policy = FoodPolicy();
+        var run = h.Factory.Create(policy, new(NoProgress: 60), saved, "full-hp");
+        for (int i = 0; i < 7; i++) await run.TickAsync();
+        Assert.Equal(StrategyStatus.Completed, saved.Load()!.Terminal!.Status);
+        Assert.Equal(6, h.Handler.Actions);
+        Assert.DoesNotContain(saved.Load()!.Journal, x => x.Command.StartsWith("Use:", StringComparison.Ordinal) || x.Command.StartsWith("Craft:meal", StringComparison.Ordinal));
+        await h.Reset("consumable-production");
+        var completed = policy with { Items = [new("protected", 1)], Consumable = policy.Consumable! with { ParentItem = "protected" } };
+        int before = h.Handler.Actions;
+        Assert.Equal(StrategyStatus.Completed, (await h.Factory.Create(completed).TickAsync()).Status);
+        Assert.Equal(before, h.Handler.Actions);
+    }
+
+    [Theory]
+    [InlineData(1, 100, 60, "ResourceBudgetExhausted", 7)]
+    [InlineData(100, 10, 5, "BudgetExhausted", 5)]
+    public async Task SupplyCannotResetMaterialOrNoProgressBudget(int materials, int uses, int noProgress, string reason, int actions)
+    {
+        await using var h = new Harness(new(), miningOnly: true); await h.Reset("consumable-production");
+        var policy = FoodPolicy(); policy = policy with { Consumable = policy.Consumable! with { MaxMaterialUnits = materials, MaxUsed = uses } };
+        var run = h.Factory.Create(policy, new(NoProgress: noProgress));
+        StrategyDecision? last = null;
+        for (int i = 0; i < 30; i++) { last = await run.TickAsync(); if (last.Status == StrategyStatus.Blocked) break; }
+        Assert.Equal(reason, last!.Reason); Assert.Equal(actions, h.Handler.Actions);
+    }
+
+    [Fact]
+    public async Task OptionalRestUsesRemainingStockConservativelyAfterUseCap()
+    {
+        await using var h = new Harness(new(), miningOnly: true); await h.Reset("consumable-bank");
+        var policy = FoodPolicy(); policy = policy with { Consumable = policy.Consumable! with { MaxUsed = 1, AllowRest = true, Reserve = 1, MinimumStock = 2, TargetStock = 3 } };
+        var run = h.Factory.Create(policy, new(NoProgress: 60));
+        var commands = new List<string?>();
+        for (int i = 0; i < 25; i++) { var decision = await run.TickAsync(); commands.Add(decision.Command); if (decision.Status == StrategyStatus.Completed) break; }
+        Assert.Contains("Rest", commands);
+        Assert.Equal(1, run.State!.Context.Used["use:meal"]);
+        Assert.Equal(20, run.State.Character.GetProperty("hp").GetInt32());
+        Assert.Equal(3, run.State.Bank!.Items.GetValueOrDefault("meal") + CharacterObservation.Read(run.State.Character)!.Inventory.GetValueOrDefault("meal"));
+    }
+
+    [Fact]
+    public async Task SharedCommandRestoresTheSelectedParentCandidate()
+    {
+        await using var h = new Harness(new(), miningOnly: true); await h.Reset("capacity-production");
+        var policy = CapacityPolicy(new("bar", 1), new("tool", 1));
+        var saved = new Checkpoint();
+        h.Handler.Corruption = "loss";
+        Assert.Equal(StrategyStatus.UnknownOutcome, (await h.Factory.Create(policy, checkpoints: saved, identity: "shared").TickAsync()).Status);
+        h.Handler.Corruption = null;
+        Assert.Equal(StrategyStatus.Reconciled, (await h.Factory.Create(policy, checkpoints: saved, identity: "shared").TickAsync()).Status);
+        Assert.Equal(1, h.Handler.Actions);
+    }
+
+    private static PortfolioPolicy FoodPolicy(bool training = false) => CapacityPolicy(new ItemMilestone("tool", 1)) with
+    {
+        Bank = new(CapacityPolicy(new ItemMilestone("tool", 1)).Bank!.Retain.Add("meal", 0).Add("snack", 0).Add("fish", 0).Add("baitfish", 0)),
+        Preparation = training ? new() : null,
+        Consumable = new("tool", "meal", HpBelowPercent: 100)
+    };
+
+    [Theory]
+    [InlineData("consumable-production", false, 23, 127)]
+    [InlineData("consumable-capacity", false, 25, 137)]
+    [InlineData("consumable-bank", false, 11, 51)]
+    public async Task HealingSupplyUseAndRefillSurviveReconstruction(string scenario, bool training, int actions, int seconds)
+    {
+        await using var h = new Harness(new(), miningOnly: true); await h.Reset(scenario);
+        var policy = FoodPolicy(training); var saved = new Checkpoint();
+        StrategyDecision? last = null; StrategySession? run = null;
+        for (int i = 0; i < 80; i++)
+        {
+            run = h.Factory.Create(policy, new(NoProgress: 60), saved, "food");
+            last = await run.TickAsync();
+            if (last.Status is StrategyStatus.Completed or StrategyStatus.Blocked) break;
+        }
+        Assert.True(last!.Status == StrategyStatus.Completed, last.Reason + ":" + string.Join(',', last.Candidates.Select(x => x.Rejection)));
+        Assert.Equal(actions, last.Attempts); Assert.Equal(seconds, last.CooldownSeconds);
+        Assert.Equal(20, run!.State!.Character.GetProperty("hp").GetInt32());
+        var inventory = CharacterObservation.Read(run.State.Character)!.Inventory;
+        Assert.Equal(1, inventory["tool"]); Assert.Equal(1, inventory["protected"]);
+        Assert.Equal(2, inventory.GetValueOrDefault("meal") + run.State.Bank!.Items.GetValueOrDefault("meal"));
+        Assert.Equal(2, run.State.Context.Used["use:meal"]);
+        Assert.Equal(scenario == "consumable-bank" ? 0 : 4, run.State.Context.Used.GetValueOrDefault("materials:meal"));
+        Assert.Equal(StrategyStatus.Completed, (await h.Factory.Create(policy, new(NoProgress: 60), saved, "food").TickAsync()).Status);
+        Assert.Equal(actions, h.Handler.Actions);
+    }
+
+    [Fact]
+    public async Task FoodSupplyTrainsCookingAndFishingBeforeMealRecipe()
+    {
+        await using var h = new Harness(new(), miningOnly: true); await h.Reset("consumable-training");
+        var run = h.Factory.Create(FoodPolicy(true), new(NoProgress: 60));
+        StrategyDecision? last = null;
+        for (int i = 0; i < 80; i++) { last = await run.TickAsync(); if (last.Status is StrategyStatus.Completed or StrategyStatus.Blocked) break; }
+        Assert.True(last!.Status == StrategyStatus.Completed, last.Reason + ":" + string.Join(',', last.Candidates.Select(x => x.Rejection)));
+        Assert.True(run.State!.Character.GetProperty("cooking_level").GetInt32() >= 2);
+        Assert.True(run.State.Character.GetProperty("fishing_level").GetInt32() >= 2);
+        Assert.Equal(20, run.State.Character.GetProperty("hp").GetInt32());
+        Assert.Equal(2, run.State.Context.Used["use:meal"]);
+    }
+
+    [Theory]
     [InlineData("capacity-production", 9, 5)]
     [InlineData("capacity-production", 4, 5)]
     [InlineData("item-production-bank", 1, 1)]
@@ -646,6 +798,24 @@ public class StagedOperationTests
             {
                 var node = JsonNode.Parse(await response.Content.ReadAsStringAsync(token))!;
                 node["data"]!["inventory_max_items"] = 2;
+                response.Content = new StringContent(node.ToJsonString());
+            }
+            if (path == "/items" && Corruption == "food-effect")
+            {
+                var node = JsonNode.Parse(await response.Content.ReadAsStringAsync(token))!;
+                node["data"]!.AsArray().Single(x => x!["code"]!.GetValue<string>() == "meal")!["effects"]![0]!["code"] = "gold";
+                response.Content = new StringContent(node.ToJsonString());
+            }
+            if (path == "/openapi.json" && Corruption == "food-use-schema")
+            {
+                var node = JsonNode.Parse(await response.Content.ReadAsStringAsync(token))!;
+                node["paths"]!.AsObject().Remove("/my/{name}/action/use");
+                response.Content = new StringContent(node.ToJsonString());
+            }
+            if (path.EndsWith("/action/use", StringComparison.Ordinal) && Corruption == "food-result")
+            {
+                var node = JsonNode.Parse(await response.Content.ReadAsStringAsync(token))!;
+                node["data"]!["character"]!["hp"] = 19;
                 response.Content = new StringContent(node.ToJsonString());
             }
             if (MiningOnly && (path.StartsWith("/characters/", StringComparison.Ordinal) || path.Contains("/action/")))

@@ -30,6 +30,7 @@ public static class RunLifecycleCommand
                     saved.Decisions, saved.Attempts, saved.NoProgress,
                     VerifiedCooldownSeconds = saved.Seconds,
                     saved.Terminal, saved.PendingCommand,
+                    ChargedResources = saved.Latest?.Context?.Used,
                     InterventionRequired = saved.PendingCommand is not null || saved.Terminal?.Status is StrategyStatus.Blocked or StrategyStatus.UnknownOutcome or StrategyStatus.Cancelled,
                     Initial = Facts(saved.Initial), Latest = Facts(saved.Latest), Verified = Facts(saved.Verified),
                     Changes = Changes(saved.Initial, saved.Latest),

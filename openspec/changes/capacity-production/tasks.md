@@ -6,4 +6,4 @@
 - [x] Add independent mock and real-client acceptance, including R7 and lost replies.
 - [x] Check impossible recipes, full bank and cross-goal stock conservation.
 - [x] Update docs, run focused/full checks, self-review and record evidence.
-- [ ] Commit/push R8, then specify R8a.
+- [x] Commit/push R8 (`cc4b4bd`), then specify R8a.

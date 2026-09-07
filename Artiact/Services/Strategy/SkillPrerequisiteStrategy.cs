@@ -33,7 +33,7 @@ public sealed class SkillPrerequisiteStrategy(ItemMilestone goal, PortfolioPolic
                 int required = recipe.GetProperty("level").GetInt32();
                 int current = observation.Character.GetProperty(step.Skill + "_level").GetInt32();
                 if (current >= required) continue;
-                if (step.Skill != "weaponcrafting") return candidate with { Rejection = "UnsupportedTrainingSkill:" + step.Skill, Command = null };
+                if (step.Skill is not ("weaponcrafting" or "cooking")) return candidate with { Rejection = "UnsupportedTrainingSkill:" + step.Skill, Command = null };
                 string key = "skill:" + step.Skill;
                 if (!path.Add(key)) return candidate with { Rejection = "PrerequisiteCycleOrDepth", Command = null };
                 try
@@ -88,7 +88,7 @@ public sealed class SkillPrerequisiteStrategy(ItemMilestone goal, PortfolioPolic
                     foreach (var source in sources)
                     {
                         string skill = source.GetProperty("skill").GetString()!;
-                        if (skill != "mining" || !StrategyRules.Empty(source, "conditions")) continue;
+                        if (skill is not ("mining" or "fishing") || !StrategyRules.Empty(source, "conditions")) continue;
                         int required = source.GetProperty("level").GetInt32();
                         var training = new GatheringStrategy(new(skill, required, target.Value), policy, port).Evaluate(observation);
                         if (training.Command is not null) return training with { Id = candidate.Id, Category = candidate.Category,

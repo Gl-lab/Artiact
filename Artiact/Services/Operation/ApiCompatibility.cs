@@ -40,9 +40,15 @@ public sealed class ApiCompatibility(IGameHttpClient http, ExecutionSettings set
                 if (paths.GetProperty("/my/{name}/action/" + action).GetProperty("post").ValueKind != JsonValueKind.Object) return false;
             var schemas = root.GetProperty("components").GetProperty("schemas");
             if (profile?.Preparation is not null)
-                foreach (string skill in new[] { "mining", "weaponcrafting" })
+                foreach (string skill in new[] { "mining", "weaponcrafting", "cooking", "fishing" })
                     foreach (string field in new[] { "level", "xp", "max_xp" })
                         if (!Type(schemas, "CharacterSchema", skill + "_" + field, "integer")) return false;
+            if (profile?.Consumable is not null &&
+                (paths.GetProperty("/my/{name}/action/use").GetProperty("post").GetProperty("requestBody").GetProperty("content")
+                    .GetProperty("application/json").GetProperty("schema").GetProperty("$ref").GetString() != "#/components/schemas/SimpleItemSchema" ||
+                 !Reference(schemas, "UseItemSchema", "item") || !Reference(schemas, "UseItemSchema", "character") || !Reference(schemas, "UseItemSchema", "cooldown") ||
+                 !Type(schemas, "CharacterSchema", "hp", "integer") || !Type(schemas, "CharacterSchema", "max_hp", "integer") ||
+                 profile.Consumable.AllowRest && paths.GetProperty("/my/{name}/action/rest").GetProperty("post").ValueKind != JsonValueKind.Object)) return false;
             if (profile is not null && (!profile.Items.IsDefaultOrEmpty || profile.PrepareEquipment))
             {
                 if (paths.GetProperty("/items").GetProperty("get").ValueKind != JsonValueKind.Object ||
