@@ -11,6 +11,9 @@
   },
   "components": { "schemas": {
     "CharacterSchema": { "type": "object", "properties": {
+      "inventory_max_items": { "type": "integer" },
+      "mining_level": { "type": "integer" }, "mining_xp": { "type": "integer" }, "mining_max_xp": { "type": "integer" },
+      "woodcutting_level": { "type": "integer" }, "woodcutting_xp": { "type": "integer" }, "woodcutting_max_xp": { "type": "integer" },
       "name": { "type": "string" }, "level": { "type": "integer" }, "xp": { "type": "integer" }, "hp": { "type": "integer" }, "max_hp": { "type": "integer" },
       "map_id": { "type": "integer" }, "layer": { "type": "string" }, "weapon_slot": { "type": "string" }, "inventory": { "type": "array", "items": { "type": "object" } }
     } },

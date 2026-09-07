@@ -17,6 +17,7 @@ This directory is the source-grounded guide for developers and AI agents working
 | [Combat viability ADR](decisions/0001-combat-viability-and-recovery.md) | Research decision and bounded Epic 6 handoff; live execution remains no-go |
 | [Staged operation](staged-operation.md) | Inspect/one-shot, auth, freshness, readiness and rollout boundary |
 | [Roadmap delivery](roadmap-progress.md) | Completed core epics, publication evidence and remaining live rollout boundary |
+| [Новый роадмап — черновик на русском](roadmap-ru.md) | Инвентаризация готового ядра и предлагаемые этапы автономной игры; будущие планы, не описание текущего поведения |
 | [Strategy portfolio](strategy-portfolio.md) | Explicit competing goals, atomic commands and reconciliation |
 | [Deterministic combat progression](combat-progression.md) | Explicit bounded sessions, equipment, recovery and synthetic HTTP acceptance |
 

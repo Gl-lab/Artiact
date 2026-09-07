@@ -29,8 +29,8 @@ public sealed class StrategyActionPort(GameClient client, ICharacterService char
                 int remaining = timing.GetProperty("remaining_seconds").GetInt32();
                 int total = timing.GetProperty("total_seconds").GetInt32();
                 var details = data.GetProperty("details");
-                var before = CombatObservation.Read(observation.Character);
-                var after = CombatObservation.Read(client.LastCharacterPayload!.Value);
+                var before = CharacterObservation.Read(observation.Character);
+                var after = CharacterObservation.Read(client.LastCharacterPayload!.Value);
                 var expected = before!.Inventory.ToBuilder();
                 foreach (var item in details.GetProperty("items").EnumerateArray())
                 {

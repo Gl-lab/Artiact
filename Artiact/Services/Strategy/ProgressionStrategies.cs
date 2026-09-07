@@ -5,6 +5,9 @@ namespace Artiact.Services.Strategy;
 
 internal static class StrategyRules
 {
+    public static bool GatheringPlace(JsonElement map, CharacterObservation state) => map.GetProperty("layer").GetString() == state.Layer &&
+        map.GetProperty("access").GetProperty("type").GetString() == "standard" && Empty(map.GetProperty("access"), "conditions") &&
+        Empty(map.GetProperty("interactions"), "transition");
     public static bool Progress(JsonElement before, JsonElement after, string prefix) =>
         after.GetProperty(prefix + "level").GetInt32() > before.GetProperty(prefix + "level").GetInt32() ||
         after.GetProperty(prefix + "level").GetInt32() == before.GetProperty(prefix + "level").GetInt32() &&
@@ -29,7 +32,7 @@ public sealed class GatheringStrategy(SkillMilestone goal, PortfolioPolicy polic
             new("skill:" + goal.Skill, "skill", goal.Value, policy.GatherSeconds, travel, 0, rejection, complete, command);
         try
         {
-            var state = CombatObservation.Read(observation.Character);
+            var state = CharacterObservation.Read(observation.Character);
             if (state is null) return Result("UnsupportedObservation");
             string prefix = goal.Skill + "_";
             int level = observation.Character.GetProperty(prefix + "level").GetInt32();
@@ -39,7 +42,7 @@ public sealed class GatheringStrategy(SkillMilestone goal, PortfolioPolicy polic
             if (level >= goal.Target) return Result(null, true);
             var maps = observation.Catalogs["maps"];
             if (maps.Select(x => x.GetProperty("map_id").GetInt32()).Distinct().Count() != maps.Length ||
-                !StrategyRules.Place(maps.Single(x => x.GetProperty("map_id").GetInt32() == state.MapId), state)) return Result("UnsupportedAccess");
+                !StrategyRules.GatheringPlace(maps.Single(x => x.GetProperty("map_id").GetInt32() == state.MapId), state)) return Result("UnsupportedAccess");
             var resources = observation.Catalogs["resources"];
             if (resources.Select(x => x.GetProperty("code").GetString()).Distinct().Count() != resources.Length) return Result("InvalidCatalog");
             foreach (var resource in resources.Where(x => x.GetProperty("skill").GetString() == goal.Skill &&
@@ -54,7 +57,7 @@ public sealed class GatheringStrategy(SkillMilestone goal, PortfolioPolicy polic
                 int min = drop.GetProperty("min_quantity").GetInt32(), max = drop.GetProperty("max_quantity").GetInt32();
                 if (string.IsNullOrWhiteSpace(code) || min <= 0 || max < min || drop.GetProperty("rate").GetInt32() != 1) continue;
                 if (state.FreeUnits < max) return Result("InventoryPressure");
-                var map = maps.Where(x => StrategyRules.Place(x, state) &&
+                var map = maps.Where(x => StrategyRules.GatheringPlace(x, state) &&
                     x.GetProperty("interactions").GetProperty("content") is { ValueKind: JsonValueKind.Object } content &&
                     content.GetProperty("type").GetString() == "resource" && content.GetProperty("code").GetString() == resource.GetProperty("code").GetString())
                     .OrderBy(x => x.GetProperty("map_id").GetInt32() == state.MapId ? 0 : 1)
@@ -62,12 +65,15 @@ public sealed class GatheringStrategy(SkillMilestone goal, PortfolioPolicy polic
                 if (map.ValueKind == JsonValueKind.Undefined) continue;
                 int id = map.GetProperty("map_id").GetInt32();
                 if (id != state.MapId) return Result(null, command: port.Combat(observation, CombatCommand.Move,
-                    new(id, state.Layer, "", new(1, 0), true), null, false, after => StrategyRules.Moved(after, state, id)), travel: policy.MoveSeconds);
+                    new(id, state.Layer, "", new(1, 0), true), null, false, after => CharacterObservation.Read(after.Character) is { } moved && moved.MapId == id && CharacterObservation.Preserved(observation.Character, after.Character, "map_id", "x", "y")), travel: policy.MoveSeconds);
                 return Result(null, command: port.Gather(observation, goal.Skill, after =>
                 {
-                    var changed = CombatObservation.Read(after.Character);
-                    if (changed is null || changed.MapId != state.MapId || changed.Layer != state.Layer || changed.Weapon != state.Weapon ||
-                        changed.Stats != state.Stats || !StrategyRules.Progress(observation.Character, after.Character, prefix)) return false;
+                    var changed = CharacterObservation.Read(after.Character);
+                    if (changed is null || changed.MapId != state.MapId || changed.Layer != state.Layer ||
+                        !CharacterObservation.Preserved(observation.Character, after.Character, "inventory", prefix + "level", prefix + "xp", prefix + "max_xp") ||
+                        !StrategyRules.Progress(observation.Character, after.Character, prefix) ||
+                        after.Character.GetProperty(prefix + "xp").GetInt32() < 0 ||
+                        after.Character.GetProperty(prefix + "max_xp").GetInt32() <= after.Character.GetProperty(prefix + "xp").GetInt32()) return false;
                     long delta = (long)changed.Inventory.GetValueOrDefault(code) - state.Inventory.GetValueOrDefault(code);
                     return delta >= min && delta <= max && changed.Inventory.Remove(code).Count == state.Inventory.Remove(code).Count &&
                         state.Inventory.Where(x => x.Key != code).All(x => changed.Inventory.GetValueOrDefault(x.Key) == x.Value);

@@ -16,6 +16,51 @@ namespace Artiact.MockService.Tests;
 public class StagedOperationTests
 {
     [Theory]
+    [InlineData("Inspect", 0)]
+    [InlineData("OneShot", 1)]
+    public async Task MiningOnlyIgnoresCombatModelAndCombatCatalogs(string mode, int actions)
+    {
+        await using var h = new Harness(new() { Mode = mode, AllowActions = true }, miningOnly: true);
+        await h.Reset(); h.Handler.MiningOnly = true;
+        var result = await h.Runner.RunAsync(CancellationToken.None);
+        Assert.NotNull(result);
+        Assert.Equal(StrategyStatus.Selected, result.Status);
+        Assert.Equal("skill:mining", result.Candidate);
+        Assert.Single(result.Candidates);
+        Assert.Equal(actions, h.Handler.Actions);
+        Assert.DoesNotContain("/items", h.Handler.Reads);
+        Assert.DoesNotContain("/monsters", h.Handler.Reads);
+    }
+
+    [Fact]
+    public async Task MiningOnlyMovesThenGathersWithoutCombatNormalization()
+    {
+        await using var h = new Harness(new() { Mode = "OneShot", AllowActions = true }, miningOnly: true);
+        await h.Reset(); h.Handler.MiningOnly = true;
+        var run = h.Factory.Create(new([new("mining", 2, 30)], 0, "", ""));
+        Assert.Equal("Move:4", (await run.TickAsync()).Command);
+        Assert.Equal("Gather:mining", (await run.TickAsync()).Command);
+        Assert.Equal("Gather:mining", (await run.TickAsync()).Command);
+        Assert.Equal(StrategyStatus.Completed, (await run.TickAsync()).Status);
+        Assert.Equal(3, h.Handler.Actions);
+        Assert.Equal(2, run.State!.Character.GetProperty("mining_level").GetInt32());
+    }
+
+    [Theory]
+    [InlineData("missing-skill")]
+    [InlineData("inventory")]
+    [InlineData("access")]
+    [InlineData("stale")]
+    [InlineData("skill-schema")]
+    public async Task MiningOnlyInvalidInputsNeverDispatch(string corruption)
+    {
+        await using var h = new Harness(new() { Mode = "OneShot", AllowActions = true }, miningOnly: true);
+        await h.Reset(); h.Handler.MiningOnly = true; h.Handler.Corruption = corruption;
+        Assert.Equal(StrategyStatus.Blocked, (await h.Runner.RunAsync(CancellationToken.None))!.Status);
+        Assert.Equal(0, h.Handler.Actions);
+    }
+
+    [Theory]
     [InlineData("Inspect", false, 0)]
     [InlineData("OneShot", true, 1)]
     public async Task StagedModesHaveExplicitActionBudgetAndExpiringReadiness(string mode, bool allow, int actions)
@@ -82,7 +127,8 @@ public class StagedOperationTests
         public readonly Handler Handler;
         public readonly OperationState State;
         public readonly StagedExecution Runner;
-        public Harness(ExecutionSettings execution, string origin = "http://localhost")
+        public readonly StrategySessionFactory Factory;
+        public Harness(ExecutionSettings execution, string origin = "http://localhost", bool miningOnly = false)
         {
             State = new(Clock); Handler = new(_factory.Server.CreateHandler(), Clock);
             _transport = new(Handler);
@@ -90,8 +136,9 @@ public class StagedOperationTests
             var http = new GameHttpClient(new ClientFactory(_transport), api, Clock, (_, _) => Task.CompletedTask);
             var client = new GameClient(http, api, NullLogger<IGameClient>.Instance, new EmptyCache(), new ActivitySource("Staged"));
             var factory = new StrategySessionFactory(client, new CombatCatalog(http), new CharacterService(), new NoDelay(), new ApiCompatibility(http, execution, State, Clock));
+            Factory = factory;
             api.BaseUrl = origin;
-            Runner = new(execution, api, new() { Skills = [new("mining", 2, 30), new("woodcutting", 2, 20)], CombatTarget = 2, Monster = "dummy", Equipment = "quick_blade" }, factory, State);
+            Runner = new(execution, api, miningOnly ? new() { Skills = [new("mining", 2, 30)] } : new() { Skills = [new("mining", 2, 30), new("woodcutting", 2, 20)], CombatTarget = 2, Monster = "dummy", Equipment = "quick_blade" }, factory, State);
         }
         public async Task Reset()
         {
@@ -103,12 +150,42 @@ public class StagedOperationTests
     private sealed class Handler(HttpMessageHandler inner, Clock clock) : DelegatingHandler(inner)
     {
         public int Actions;
+        public bool MiningOnly;
+        public List<string> Reads = [];
         public string? Corruption;
         public CancellationTokenSource? Cancel;
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
         {
             var response = await base.SendAsync(request, token);
             string path = request.RequestUri!.AbsolutePath;
+            if (request.Method == HttpMethod.Get) Reads.Add(path);
+            if (MiningOnly && (path.StartsWith("/characters/", StringComparison.Ordinal) || path.Contains("/action/")))
+            {
+                var node = JsonNode.Parse(await response.Content!.ReadAsStringAsync(token))!;
+                var character = path.Contains("/action/") ? node["data"]!["character"]! : node["data"]!;
+                character["attack_water"] = 25;
+                if (Corruption == "missing-skill") character.AsObject().Remove("mining_xp");
+                if (Corruption == "inventory") character["inventory_max_items"] = character["inventory"]!.AsArray().Sum(x => x!["quantity"]!.GetValue<int>());
+                response.Content = new StringContent(node.ToJsonString());
+            }
+            if (MiningOnly && path == "/openapi.json")
+            {
+                var node = JsonNode.Parse(await response.Content!.ReadAsStringAsync(token))!;
+                foreach (var action in new[] { "fight", "rest", "equip", "unequip", "crafting" })
+                    node["paths"]!.AsObject().Remove("/my/{name}/action/" + action);
+                node["paths"]!.AsObject().Remove("/items"); node["paths"]!.AsObject().Remove("/monsters");
+                node["components"]!["schemas"]!["MapLayer"] = JsonNode.Parse("{\"type\":\"string\",\"enum\":[\"overworld\",\"underground\",\"interior\"]}");
+                foreach (var schema in new[] { "CharacterSchema", "MapSchema" })
+                    node["components"]!["schemas"]![schema]!["properties"]!["layer"] = JsonNode.Parse("{\"$ref\":\"#/components/schemas/MapLayer\"}");
+                if (Corruption == "skill-schema") node["components"]!["schemas"]!["CharacterSchema"]!["properties"]!.AsObject().Remove("mining_xp");
+                response.Content = new StringContent(node.ToJsonString());
+            }
+            if (MiningOnly && path == "/maps" && Corruption == "access")
+            {
+                var node = JsonNode.Parse(await response.Content!.ReadAsStringAsync(token))!;
+                foreach (var map in node["data"]!.AsArray()) map!["access"]!["type"] = "conditional";
+                response.Content = new StringContent(node.ToJsonString());
+            }
             if (path == "/token") Cancel?.Cancel();
             if (path.Contains("/action/"))
             { Actions++; if (Corruption == "loss") { response.Dispose(); throw new HttpRequestException(); } }

@@ -14,7 +14,7 @@ Configuration order is output-directory `appsettings.json`, environment JSON, us
 | `Execution:ExpectedApiVersion` | Supported version, currently `8.2.3`; mismatch blocks staged execution |
 | `Execution:FreshnessSeconds` | 1–300, default 30; bounds observation collection and readiness age |
 | `Portfolio:Skills` | Array of `{Skill, Target, Value}`; mining/woodcutting use one strategy |
-| `Portfolio:CombatTarget`, `Monster`, `Equipment` | Explicit milestone, supported opponent and owned weapon goal |
+| `Portfolio:CombatTarget`, `Monster`, `Equipment` | Omit all for profession-only; positive combat target requires opponent; owned weapon goal is optional |
 | `Portfolio:CombatValue`, `EquipmentValue` | Useful progress weights, defaults 10/100 |
 | `Portfolio:MoveSeconds`, `GatherSeconds`, `FightSeconds`, `RestSeconds`, `EquipmentSeconds` | Estimated cycle components, defaults 7/5/8/6/3 |
 | `Telemetry:Endpoint` | OTLP HTTP/protobuf trace receiver, default `http://localhost:4318/v1/traces` |
@@ -47,6 +47,8 @@ dotnet run --project Artiact/Artiact.csproj --no-launch-profile -- --Execution:M
 The web process remains available for health/metrics after the staged worker finishes; one-shot does not imply process exit. Do not repeatedly restart a lost/unknown action without reviewing reconciliation. Across process restart there is no durable command journal.
 
 ## Health, drift and freshness
+
+A minimal independent mining profile uses `Portfolio:Skills:0:Skill=mining`, `Portfolio:Skills:0:Target=20` and `Portfolio:Skills:0:Value=30`, with combat fields absent/zero/empty. Do not inherit the mixed mock profile's combat settings. Its probe requires character/maps/resources and move/gathering only, including selected profession integer fields and inventory capacity. Primitive schema references (including MapLayer) are resolved locally. Existing mixed profiles retain the broader probe.
 
 `GET /health/live` returns 200 when the web process answers. `/health/ready` and `/health` return 200 only after successful inspection, a verified one-shot action/completed target or successful read-only reconciliation, while probe and observation remain fresh. Otherwise they return 503 with state/reason, expected/observed successful API version, observation timestamp and fingerprint. They perform no API requests and contain no raw character state or credentials. Expired readiness does not silently trigger another action. Legacy does not publish staged readiness.
 

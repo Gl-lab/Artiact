@@ -1,5 +1,7 @@
 # Known limitations
 
+- R1 gathering is independent of combat normalization and supports profession-only configuration. It still accepts only same-layer standard maps without conditions/transitions and one guaranteed positive bounded resource drop. Unknown resource effects/access remain outside the supported subset; no live mining action has been verified by R1.
+
 This list records behavior visible in the current source. It is not a roadmap and does not imply authorization to fix unrelated items.
 
 ## Planning and domain

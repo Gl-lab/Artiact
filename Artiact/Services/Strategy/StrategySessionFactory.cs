@@ -11,23 +11,25 @@ public sealed class StrategySessionFactory(GameClient client, CombatCatalog cata
     {
         policy.Validate();
         var port = new StrategyActionPort(client, characters);
-        var strategies = policy.Skills.Select(x => (IProgressionStrategy)new GatheringStrategy(x, policy, port))
-            .Concat([new CombatMilestoneStrategy(policy, port), new EquipmentStrategy(policy, port)]);
-        return new(new HttpStrategyObserver(client, catalog, characters, policy.Identity, compatibility), strategies, cooldown, limits);
+        var strategies = policy.Skills.Select(x => (IProgressionStrategy)new GatheringStrategy(x, policy, port)).ToList();
+        if (policy.CombatEnabled) strategies.Add(new CombatMilestoneStrategy(policy, port));
+        if (!string.IsNullOrWhiteSpace(policy.Equipment)) strategies.Add(new EquipmentStrategy(policy, port));
+        return new(new HttpStrategyObserver(client, catalog, characters, policy.Identity, compatibility, policy), strategies, cooldown, limits);
     }
 }
 
 public sealed class HttpStrategyObserver(GameClient client, CombatCatalog catalog,
-    ICharacterService characters, string policy, Artiact.Services.Operation.ApiCompatibility? compatibility = null) : IStrategyObserver
+    ICharacterService characters, string policy, Artiact.Services.Operation.ApiCompatibility? compatibility = null,
+    PortfolioPolicy? profile = null) : IStrategyObserver
 {
     public async Task<StrategyObservation> ObserveAsync(CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
         using var operation = client.BeginOperation(token);
         var started = compatibility?.Now;
-        if (compatibility is not null) await compatibility.CheckAsync(token);
+        if (compatibility is not null) await compatibility.CheckAsync(token, profile);
         var catalogs = ImmutableDictionary.CreateBuilder<string, ImmutableArray<System.Text.Json.JsonElement>>(StringComparer.Ordinal);
-        foreach (string name in new[] { "maps", "resources", "items", "monsters" })
+        foreach (string name in profile is { CombatEnabled: false } ? new[] { "maps", "resources" } : new[] { "maps", "resources", "items", "monsters" })
             catalogs[name] = (await catalog.ReadPagesAsync(name, token)).ToImmutableArray();
         characters.SaveCharacter(await client.GetCharacter());
         token.ThrowIfCancellationRequested();
