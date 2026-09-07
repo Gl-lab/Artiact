@@ -1,5 +1,11 @@
 # Roadmap delivery evidence — 2026-09-07
 
+## First milestone operational closure
+
+R1–R5 and the bounded operational acceptance are delivered. [Live gathering](../openspec/changes/bounded-live-gathering/execution-evidence.md) verified two gathers, durable session reconstruction, stop and terminal-state reopening; independent read showed mining 1 / XP 26. [Container acceptance](../openspec/changes/container-rollout/execution-evidence.md) verified non-root persistent storage, HTTP health/stop, preservation across app container recreation, Prometheus samples and Zipkin traces. The local Docker daemon is now available. These results supersede the historical outstanding statuses below.
+
+Scope remains bounded: no claim of reaching mining level 2 during the stop trial, sustained production load, remote production deployment, arbitrary API support or live combat. Section 10 is outside the first milestone. Container services are stopped after acceptance while the journal volume is preserved.
+
 First real OneShot now confirmed: [approved Move:277](../openspec/changes/approved-first-move/execution-evidence.md) completed once for gllab, CommandVerified, cooldown 10 seconds; independent read confirmed (2, 0). This supersedes historical statements below that no game action was issued. Live gathering, bounded runs and container telemetry remain outstanding.
 
 Follow-up: [isolated live Inspect](../openspec/changes/read-only-live-inspect/execution-evidence.md) exposed the single-drop restriction. [Optional-drop support](../openspec/changes/gathering-optional-drops/execution-evidence.md) cleared it: production planning selected Move:277 for mining target 2 with zero attempts. The historical unverified Inspect status below is superseded by this dated follow-up; OneShot/container telemetry remain outstanding.

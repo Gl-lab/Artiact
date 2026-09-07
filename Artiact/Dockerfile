@@ -15,5 +15,6 @@ RUN dotnet publish Artiact/Artiact.csproj -c Release -o /app --no-restore
 FROM mcr.microsoft.com/dotnet/aspnet:9.0
 WORKDIR /app
 COPY --from=build /app .
+RUN mkdir -p /var/lib/artiact && chown app:app /var/lib/artiact
 USER $APP_UID
 ENTRYPOINT ["dotnet", "Artiact.dll"]

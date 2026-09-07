@@ -1,0 +1,61 @@
+name: artiact-rollout
+services:
+  mock:
+    build:
+      context: .
+      dockerfile: deployment/Mock.Dockerfile
+    ports:
+      - '127.0.0.1:5188:8080'
+  reset:
+    image: curlimages/curl:8.12.1
+    network_mode: service:mock
+    depends_on: [mock]
+    command: ['--fail', '--retry', '20', '--retry-connrefused', '--retry-delay', '1', '-X', 'POST', 'http://localhost:5000/__mock/reset', '-H', 'Content-Type: application/json', '-d', '{"scenario":"strategy-portfolio"}']
+  app:
+    build:
+      context: .
+      dockerfile: Artiact/Dockerfile
+    network_mode: service:mock
+    depends_on:
+      reset:
+        condition: service_completed_successfully
+      collector:
+        condition: service_started
+    environment:
+      ASPNETCORE_HTTP_PORTS: '8080'
+      ApiSettings__BaseUrl: http://localhost:5000
+      ApiSettings__Username: mock
+      ApiSettings__Password: mock
+      ApiSettings__Character: researcher
+      Execution__Mode: Bounded
+      Execution__AllowActions: 'true'
+      Execution__LiveActionsApproved: 'false'
+      Execution__FreshnessSeconds: '300'
+      Execution__RunId: container-rollout-v1
+      Execution__RunDirectory: /var/lib/artiact
+      Execution__MaxActions: '20'
+      Execution__MaxDecisions: '40'
+      Execution__MaxSeconds: '600'
+      Portfolio__Skills__0__Skill: mining
+      Portfolio__Skills__0__Target: '10'
+      Portfolio__Skills__0__Value: '30'
+      Telemetry__Endpoint: http://collector:4318/v1/traces
+    volumes:
+      - journal:/var/lib/artiact
+  collector:
+    image: otel/opentelemetry-collector-contrib:0.123.0
+    volumes:
+      - ./deployment/collector.yml:/etc/otelcol-contrib/config.yaml:ro
+    depends_on: [zipkin]
+  prometheus:
+    image: prom/prometheus:v3.2.1
+    ports:
+      - '127.0.0.1:9091:9090'
+    volumes:
+      - ./deployment/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+  zipkin:
+    image: openzipkin/zipkin:3.5.1
+    ports:
+      - '127.0.0.1:9412:9411'
+volumes:
+  journal:

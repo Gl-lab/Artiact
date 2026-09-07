@@ -65,6 +65,7 @@ internal class Program
                    .AddTelemetrySdk()
                    .AddEnvironmentVariableDetector())
                .WithMetrics( metrics => metrics
+                                       .AddAspNetCoreInstrumentation()
                                        .AddMeter( "Artiact.Application" )
                                        .AddPrometheusExporter() )
                .WithTracing( tracing => tracing

@@ -51,17 +51,17 @@ This list records behavior visible in the current source. It is not a roadmap an
 ## Build and dependency baseline
 
 - Warning sources and the vulnerable Zipkin exporter were removed in Epic 8. CI treats build warnings as errors. Exact build/audit results belong in dated change evidence.
-- Tracing now requires an OTLP receiver; the retained Compose Zipkin service is not directly compatible with the new exporter. Actual trace delivery is unverified.
+- Tracing now requires an OTLP receiver; the retained Compose Zipkin service is not directly compatible with the new exporter. The separate [local rollout](container-rollout.md) confirms OTLP Collector-to-Zipkin delivery.
 
 ## Mock and operations
 
 - MockService proves scripted combat/equipment and bounded loot/craft/equip progression through real clients. Independent legacy multi-action step graphs remain a separate compatibility path.
 - The mock supports basic-mining/mining-progression and the additional scripted combat-progression/combat-equipment/combat-crafting/strategy-portfolio scenarios; unsupported routes return a local 404. Legacy Swagger/YARP dependencies and configuration were removed in `8171c6e`.
-- Compose uses mutable image tags and development credentials; no production deployment definition is present.
-- Prometheus runs in a container but scrapes `localhost:5000`, which points back into that container rather than to a host-run Artiact process. Port 5000 is also the documented mock-service port.
-- `Artiact/Dockerfile` now uses repository-root context and a non-root runtime user. Docker is unavailable in the implementation environment; its image build passed in CI at 920e406, but container execution remains unverified.
+- The original monitoring-only Compose uses mutable image tags and development credentials; no remote production deployment definition is present. The separate rollout profile uses pinned local acceptance images and mock credentials.
+- The original monitoring-only Prometheus target `localhost:5000` points into its own container. The separate [rollout profile](container-rollout.md) uses the verified `mock:8080` application target.
+- `Artiact/Dockerfile` now uses repository-root context and a non-root runtime user. Local Docker execution, non-root journal ownership and volume preservation across app recreation are now verified in [container acceptance](../openspec/changes/container-rollout/execution-evidence.md).
 - CI now runs the solution and the separate `Category=RealApiOffline` suite, but branch protection is not documented or enforced by this repository.
-- Default tests now cover bounded orchestration, hosted-worker cancellation/recovery, optional tracing and step cancellation/reconciliation. Transport/auth refresh, cache filesystem behavior and staged execution are covered offline. Real-character execution, deployed health routing, container execution and telemetry delivery remain unverified.
+- Default tests now cover bounded orchestration, hosted-worker cancellation/recovery, optional tracing and step cancellation/reconciliation. Transport/auth refresh, cache filesystem behavior and staged execution are covered offline. Bounded live movement/gathering and local container health/telemetry are now verified; remote production deployment, sustained load and live combat remain outside that evidence.
 
 ## Documentation maintenance
 

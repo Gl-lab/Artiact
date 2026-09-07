@@ -1,6 +1,7 @@
 .git
 .serena
 .hermes
+.artiact-runs
 .env
 **/.env
 **/bin
