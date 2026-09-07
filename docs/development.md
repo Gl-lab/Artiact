@@ -111,6 +111,8 @@ The live command reads the ignored root `.env` only after the exact opt-in guard
 
 ### Isolated live planning
 
+The one-time approved rollout is a separate `RealApiOneShot` category. It requires the exact `ARTIACT_APPROVED_ONESHOT=gllab:Move:277` opt-in and uses production OneShot with a transport restricted to that movement. Its ignored `.artiact-runs/approved-gllab-move-277.intent` marker is written before POST and blocks replay across invocations. Do not remove it to repeat the test: inspect the actual character state after an uncertain outcome. This category is never part of offline/default CI checks. See [approved first movement](../openspec/changes/approved-first-move/proposal.md); future actions require their own rollout scope.
+
 The separate API test project references the application to reuse production planning without hosting. Run `Category=RealApiInspect` with `ARTIACT_REAL_API_READONLY=1` to inspect the configured character for mining target 2. Its dedicated transport allows only character, OpenAPI and paginated maps/resources reads and prohibits game POSTs. It does not write caches. A blocked decision fails actionable live acceptance and reports rejection reasons. Use the environment cleanup shown in [delivery evidence](roadmap-delivery-evidence.md), changing the test filter to `Category=RealApiInspect`. Default solution and RealApiOffline remain offline.
 
 ### Against the real API

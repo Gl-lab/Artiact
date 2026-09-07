@@ -1,5 +1,7 @@
 # Roadmap delivery evidence — 2026-09-07
 
+First real OneShot now confirmed: [approved Move:277](../openspec/changes/approved-first-move/execution-evidence.md) completed once for gllab, CommandVerified, cooldown 10 seconds; independent read confirmed (2, 0). This supersedes historical statements below that no game action was issued. Live gathering, bounded runs and container telemetry remain outstanding.
+
 Follow-up: [isolated live Inspect](../openspec/changes/read-only-live-inspect/execution-evidence.md) exposed the single-drop restriction. [Optional-drop support](../openspec/changes/gathering-optional-drops/execution-evidence.md) cleared it: production planning selected Move:277 for mining target 2 with zero attempts. The historical unverified Inspect status below is superseded by this dated follow-up; OneShot/container telemetry remain outstanding.
 
 Published R1–R5 on `codex/autonomous-roadmap`: a949e5c, 7b69fe6, 6843216, 178859c, 41895f8, 4aca343, f0668d9. Each epic has specification, implementation, tests and dated evidence in OpenSpec.

@@ -81,7 +81,7 @@ internal sealed class ReadOnlyApiVerifier( HttpClient httpClient )
         return new HttpClientHandler { AllowAutoRedirect = false };
     }
 
-    private async Task<string> AuthenticateAsync(
+    internal async Task<string> AuthenticateAsync(
         Uri baseUri,
         RealApiConfiguration configuration,
         CancellationToken cancellationToken )
@@ -130,7 +130,7 @@ internal sealed class ReadOnlyApiVerifier( HttpClient httpClient )
         }
     }
 
-    private async Task<HttpResponseMessage> SendAsync(
+    internal async Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request,
         string operation,
         CancellationToken cancellationToken )
