@@ -11,7 +11,7 @@ public sealed record AtomicCommand(string Id, string SourceFingerprint, bool Pro
     Func<StrategyObservation, bool> Postcondition, Func<CancellationToken, Task<StrategyReply>> Dispatch);
 public sealed record StrategyCandidate(string Id, string Category, decimal Value, decimal ActionSeconds,
     decimal TravelSeconds, decimal RecoverySeconds, string? Rejection, bool Complete, [property: JsonIgnore] AtomicCommand? Command,
-    string EstimateSource = "Configured", int Samples = 0)
+    string EstimateSource = "Configured", int Samples = 0, SkillPrerequisite? Prerequisite = null)
 {
     public decimal? TotalSeconds => ActionSeconds is >= 0.001m and <= 1_000_000 &&
         TravelSeconds is >= 0 and <= 1_000_000 && RecoverySeconds is >= 0 and <= 1_000_000
@@ -19,6 +19,7 @@ public sealed record StrategyCandidate(string Id, string Category, decimal Value
     public decimal? Score => Rejection is null && !Complete && Value is > 0 and <= 1_000_000 &&
         TotalSeconds is { } total ? Value / total : null;
 }
+public sealed record SkillPrerequisite(string Parent, string Skill, int Target, string? TrainingItem);
 public interface IProgressionStrategy
 {
     StrategyCandidate Evaluate(StrategyObservation observation);

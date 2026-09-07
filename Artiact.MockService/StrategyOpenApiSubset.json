@@ -18,6 +18,7 @@
     "BankItemTransactionSchema": { "type": "object", "properties": { "items": { "type": "array" }, "bank": { "type": "array" }, "character": { "$ref": "#/components/schemas/CharacterSchema" }, "cooldown": { "$ref": "#/components/schemas/CooldownSchema" } } },
     "CharacterSchema": { "type": "object", "properties": {
       "inventory_max_items": { "type": "integer" },
+      "weaponcrafting_level": { "type": "integer" }, "weaponcrafting_xp": { "type": "integer" }, "weaponcrafting_max_xp": { "type": "integer" },
       "mining_level": { "type": "integer" }, "mining_xp": { "type": "integer" }, "mining_max_xp": { "type": "integer" },
       "woodcutting_level": { "type": "integer" }, "woodcutting_xp": { "type": "integer" }, "woodcutting_max_xp": { "type": "integer" },
       "name": { "type": "string" }, "level": { "type": "integer" }, "xp": { "type": "integer" }, "hp": { "type": "integer" }, "max_hp": { "type": "integer" },

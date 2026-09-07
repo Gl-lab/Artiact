@@ -39,6 +39,10 @@ public sealed class ApiCompatibility(IGameHttpClient http, ExecutionSettings set
             foreach (string action in gatheringOnly ? new[] { "move", "gathering" } : new[] { "move", "gathering", "fight", "rest", "equip", "unequip", "crafting" })
                 if (paths.GetProperty("/my/{name}/action/" + action).GetProperty("post").ValueKind != JsonValueKind.Object) return false;
             var schemas = root.GetProperty("components").GetProperty("schemas");
+            if (profile?.Preparation is not null)
+                foreach (string skill in new[] { "mining", "weaponcrafting" })
+                    foreach (string field in new[] { "level", "xp", "max_xp" })
+                        if (!Type(schemas, "CharacterSchema", skill + "_" + field, "integer")) return false;
             if (profile is not null && (!profile.Items.IsDefaultOrEmpty || profile.PrepareEquipment))
             {
                 if (paths.GetProperty("/items").GetProperty("get").ValueKind != JsonValueKind.Object ||

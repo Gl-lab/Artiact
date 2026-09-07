@@ -21,6 +21,7 @@ This directory is the source-grounded guide for developers and AI agents working
 | [Local container rollout](container-rollout.md) | Mock-only Docker profile, durable volume, health/stop, Prometheus and OTLP-to-Zipkin acceptance |
 | [Gathering with bank](gathering-bank.md) | Allowed deposits, retained stock, conserved bank/inventory and mock scenario |
 | [Item production](item-production.md) | Independent quantity goals, nested resources, bank ingredients and atomic craft |
+| [Skill preparation](skill-preparation.md) | Parent-bound weaponcrafting and mining prerequisites for item goals |
 | [Measured selection](measured-selection.md) | Alternative candidates, observed cooldown estimates and switching threshold |
 | [Roadmap delivery](roadmap-progress.md) | Completed core epics, publication evidence and remaining live rollout boundary |
 | [Новый роадмап на русском](roadmap-next-ru.md) | Проект R6–R10, включая R8a «Расходники и их производство»: актуальная готовность, приоритеты и критерии приёмки |

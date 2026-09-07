@@ -10,6 +10,7 @@ namespace Artiact.MockService.Tests;
 
 public class RunProcessRecoveryTests(Xunit.Abstractions.ITestOutputHelper output)
 {
+    private TaskCompletionSource _hostFinished = new(TaskCreationOptions.RunContinuationsAsynchronously);
     [Theory]
     [InlineData("before-acceptance", 0, "UnknownOutcome")]
     [InlineData("after-acceptance", 1, "Blocked")]
@@ -43,6 +44,7 @@ public class RunProcessRecoveryTests(Xunit.Abstractions.ITestOutputHelper output
             await Kill(process); process.Dispose(); process = null;
             proxy.Release.TrySetResult();
             process = StartHost(directory, proxy.Origin);
+            await _hostFinished.Task.WaitAsync(TimeSpan.FromSeconds(30));
             var restored = await WaitForCheckpoint(directory, c => c.Terminal is not null);
             Assert.Equal(terminal, restored.Terminal!.Status.ToString());
             Assert.Equal(1, restored.Attempts);
@@ -84,7 +86,16 @@ public class RunProcessRecoveryTests(Xunit.Abstractions.ITestOutputHelper output
         start.Environment["ASPNETCORE_ENVIRONMENT"] = "Production";
         start.Environment["DOTNET_ENVIRONMENT"] = "Production";
         var process = Process.Start(start)!;
-        process.OutputDataReceived += (_, e) => { if (e.Data is not null) output.WriteLine(e.Data); };
+        var finished = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _hostFinished = finished;
+        process.OutputDataReceived += (_, e) =>
+        {
+            if (e.Data is not null)
+            {
+                output.WriteLine(e.Data);
+                if (e.Data.Contains("Staged decision", StringComparison.Ordinal)) finished.TrySetResult();
+            }
+        };
         process.ErrorDataReceived += (_, e) => { if (e.Data is not null) output.WriteLine(e.Data); };
         process.BeginOutputReadLine(); process.BeginErrorReadLine();
         return process;

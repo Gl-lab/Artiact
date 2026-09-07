@@ -46,7 +46,8 @@ public sealed class GatheringStrategy(SkillMilestone goal, PortfolioPolicy polic
             var resources = observation.Catalogs["resources"];
             if (resources.Select(x => x.GetProperty("code").GetString()).Distinct().Count() != resources.Length) return Result("InvalidCatalog");
             foreach (var resource in resources.Where(x => x.GetProperty("skill").GetString() == goal.Skill &&
-                x.GetProperty("level").GetInt32() > 0 && x.GetProperty("level").GetInt32() <= level)
+                x.GetProperty("level").GetInt32() > 0 && x.GetProperty("level").GetInt32() <= level &&
+                (long)level - x.GetProperty("level").GetInt32() < 10)
                 .OrderByDescending(x => x.GetProperty("level").GetInt32()).ThenBy(x => x.GetProperty("code").GetString(), StringComparer.Ordinal))
             {
                 if (!StrategyRules.Empty(resource, "conditions")) continue;

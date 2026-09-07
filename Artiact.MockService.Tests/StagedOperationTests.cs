@@ -16,6 +16,155 @@ namespace Artiact.MockService.Tests;
 public class StagedOperationTests
 {
     [Fact]
+    public async Task InaccessibleRequiredResourceDoesNotStartPointlessTraining()
+    {
+        await using var h = new Harness(new(), miningOnly: true); await h.Reset("resource-preparation");
+        h.Handler.Corruption = "training-no-access";
+        var policy = new PortfolioPolicy([], 0, "", "", Items: [new("tool", 1)], Preparation: new());
+        var result = await h.Factory.Create(policy).TickAsync();
+        Assert.Equal("NoSupportedResourcePrerequisite", Assert.Single(result.Candidates).Rejection);
+        Assert.Equal(0, h.Handler.Actions);
+    }
+
+    [Theory]
+    [InlineData("training-cycle", 12, "RecipeCycle")]
+    [InlineData(null, 1, "PrerequisiteCycleOrDepth")]
+    public async Task CyclicOrTooDeepTrainingStopsBeforeAction(string? corruption, int depth, string rejection)
+    {
+        await using var h = new Harness(new(), miningOnly: true); await h.Reset("skill-preparation");
+        h.Handler.Corruption = corruption;
+        var policy = new PortfolioPolicy([], 0, "", "", Items: [new("tool", 1)], Preparation: new(MaxDepth: depth));
+        var result = await h.Factory.Create(policy).TickAsync();
+        Assert.Equal(StrategyStatus.Blocked, result.Status);
+        Assert.Equal(rejection, Assert.Single(result.Candidates).Rejection);
+        Assert.Equal(0, h.Handler.Actions);
+    }
+
+    [Fact]
+    public async Task TrainingMockRejectsUnmetSkillWithoutMutatingStockOrTrace()
+    {
+        await using var factory = new MockServiceFactory();
+        using var client = new HttpClient(factory.Server.CreateHandler()) { BaseAddress = new("http://localhost") };
+        using var reset = await client.PostAsync("/__mock/reset", new StringContent("{\"scenario\":\"skill-preparation\"}", Encoding.UTF8, "application/json"));
+        reset.EnsureSuccessStatusCode();
+        await client.GetStringAsync("/characters/researcher");
+        using var move = await client.PostAsync("/my/researcher/action/move", new StringContent("{\"map_id\":3}", Encoding.UTF8, "application/json"));
+        move.EnsureSuccessStatusCode();
+        string before = await client.GetStringAsync("/__mock/state/researcher"), trace = await client.GetStringAsync("/__mock/trace");
+        using var craft = await client.PostAsync("/my/researcher/action/crafting", new StringContent("{\"code\":\"tool\",\"quantity\":1}", Encoding.UTF8, "application/json"));
+        Assert.Equal(422, (int)craft.StatusCode);
+        Assert.Equal(before, await client.GetStringAsync("/__mock/state/researcher"));
+        Assert.Equal(trace, await client.GetStringAsync("/__mock/trace"));
+    }
+
+    [Fact]
+    public async Task MissingTrainingSkillSchemaBlocksBeforeDispatch()
+    {
+        await using var h = new Harness(new(), miningOnly: true); await h.Reset("skill-preparation");
+        h.Handler.Corruption = "training-schema";
+        var policy = new PortfolioPolicy([], 0, "", "", Items: [new("tool", 1)], Preparation: new());
+        Assert.Equal(StrategyStatus.Blocked, (await h.Factory.Create(policy).TickAsync()).Status);
+        Assert.Equal(0, h.Handler.Actions);
+    }
+
+    [Fact]
+    public async Task TrainingMaterialCeilingRejectsBeforeSpendingStock()
+    {
+        await using var h = new Harness(new(), miningOnly: true); await h.Reset("item-production-bank");
+        h.Handler.Corruption = "training-requirement";
+        var policy = new PortfolioPolicy([], 0, "", "", Bank: BankPolicy.Bank, Items: [new("tool", 1)], Preparation: new(MaxIngredientUnits: 1));
+        var result = await h.Factory.Create(policy).TickAsync();
+        Assert.Equal(StrategyStatus.Blocked, result.Status);
+        Assert.Equal("NoSupportedTrainingRecipe:weaponcrafting", Assert.Single(result.Candidates).Rejection);
+        Assert.Equal(0, h.Handler.Actions);
+    }
+
+    [Fact]
+    public async Task TrainingWithoutXpStopsWithoutAnotherCraft()
+    {
+        await using var h = new Harness(new(), miningOnly: true); await h.Reset("skill-preparation");
+        var policy = new PortfolioPolicy([], 0, "", "", Items: [new("tool", 1)], Preparation: new());
+        var run = h.Factory.Create(policy);
+        for (int i = 0; i < 3; i++) await run.TickAsync();
+        h.Handler.Corruption = "training-no-xp";
+        Assert.Equal("InvalidPostcondition", (await run.TickAsync()).Reason);
+        Assert.Equal(StrategyStatus.Blocked, (await run.TickAsync()).Status);
+        Assert.Equal(4, h.Handler.Actions);
+    }
+
+    [Fact]
+    public async Task TrainingAndFinalGoalShareActionBudget()
+    {
+        await using var h = new Harness(new(), miningOnly: true); await h.Reset("skill-preparation");
+        var policy = new PortfolioPolicy([], 0, "", "", Items: [new("tool", 1)], Preparation: new());
+        var run = h.Factory.Create(policy, new(Actions: 4));
+        for (int i = 0; i < 4; i++) await run.TickAsync();
+        Assert.Equal("BudgetExhausted", (await run.TickAsync()).Reason);
+        Assert.Equal(4, h.Handler.Actions);
+    }
+
+    [Theory]
+    [InlineData("skill-preparation", 9, 50, 2, 1)]
+    [InlineData("resource-preparation", 7, 40, 1, 1)]
+    public async Task ItemGoalTrainsMissingSkillAndCompletesWithoutConfigurationChanges(string scenario, int actions, int seconds, int level, int xp)
+    {
+        await using var h = new Harness(new(), miningOnly: true); await h.Reset(scenario);
+        var policy = new PortfolioPolicy([], 0, "", "", Items: [new("tool", 1)], Preparation: new());
+        var saved = new Checkpoint();
+        var run = h.Factory.Create(policy, checkpoints: saved, identity: "preparation");
+        var decisions = new List<StrategyDecision>();
+        for (int i = 0; i <= actions; i++) decisions.Add(await run.TickAsync());
+        Assert.Equal(StrategyStatus.Completed, decisions[^1].Status);
+        Assert.Equal(actions, h.Handler.Actions); Assert.Equal(seconds, decisions[^1].CooldownSeconds);
+        Assert.Equal(level, run.State!.Character.GetProperty("weaponcrafting_level").GetInt32());
+        Assert.Equal(xp, run.State.Character.GetProperty("weaponcrafting_xp").GetInt32());
+        var inventory = CharacterObservation.Read(run.State.Character)!.Inventory;
+        Assert.Equal(1, inventory["tool"]); Assert.Equal(1, inventory["protected"]);
+        Assert.Equal(scenario == "skill-preparation" ? 1 : 0, inventory.GetValueOrDefault("bar"));
+        Assert.Equal(scenario == "resource-preparation" ? 2 : 0, inventory.GetValueOrDefault("ore"));
+        Assert.Equal(3, inventory.Count);
+        string?[] expected = scenario == "skill-preparation"
+            ? ["Move:4", "Gather:mining", "Move:3", "Craft:bar:1", "Move:4", "Gather:mining", "Move:3", "Craft:bar:1", "Craft:tool:1", null]
+            : ["Move:4", "Gather:mining", "Gather:mining", "Move:5", "Gather:mining", "Move:3", "Craft:tool:1", null];
+        Assert.Equal(expected, decisions.Select(x => x.Command));
+        Assert.Equal(StrategyStatus.Completed, (await h.Factory.Create(policy, checkpoints: saved, identity: "preparation").TickAsync()).Status);
+        Assert.Equal(actions, h.Handler.Actions);
+        Assert.Contains(decisions, x => x.Candidates.Any(c => c.Prerequisite?.Parent == "item:tool"));
+    }
+
+    [Fact]
+    public async Task TrainingReplyLossReconcilesWithoutRepeatingCraft()
+    {
+        await using var h = new Harness(new(), miningOnly: true); await h.Reset("skill-preparation");
+        var policy = new PortfolioPolicy([], 0, "", "", Items: [new("tool", 1)], Preparation: new());
+        var saved = new Checkpoint(); var run = h.Factory.Create(policy, checkpoints: saved, identity: "training-loss");
+        for (int i = 0; i < 3; i++) Assert.Equal(StrategyStatus.Selected, (await run.TickAsync()).Status);
+        h.Handler.Corruption = "loss";
+        Assert.Equal(StrategyStatus.UnknownOutcome, (await run.TickAsync()).Status);
+        h.Handler.Corruption = null;
+        Assert.Equal(StrategyStatus.Reconciled, (await h.Factory.Create(policy, checkpoints: saved, identity: "training-loss").TickAsync()).Status);
+        Assert.Equal(4, h.Handler.Actions);
+    }
+
+    [Fact]
+    public async Task MissingCraftSkillSelectsTrainingInsteadOfBlockedRecipe()
+    {
+        await using var h = new Harness(new(), miningOnly: true); await h.Reset("item-production-bank");
+        h.Handler.Corruption = "training-requirement";
+        var policy = new PortfolioPolicy([], 0, "", "", Bank: BankPolicy.Bank, Items: [new("tool", 1)], Preparation: new());
+        var run = h.Factory.Create(policy);
+        var decision = await run.InspectAsync();
+        Assert.Equal(StrategyStatus.Selected, decision.Status);
+        // Available bank materials are for the training recipe; preparation is explained before withdrawal.
+        var candidate = Assert.Single(decision.Candidates);
+        var json = System.Text.Json.JsonSerializer.SerializeToElement(candidate);
+        Assert.True(json.TryGetProperty("Prerequisite", out var prerequisite));
+        Assert.Equal("weaponcrafting", prerequisite.GetProperty("Skill").GetString());
+        Assert.Equal(2, prerequisite.GetProperty("Target").GetInt32());
+        Assert.Equal(0, h.Handler.Actions);
+    }
+
+    [Fact]
     public async Task MeasuredResourceAlternativesRetainFullWorldPreflightAndReply()
     {
         await using var h = new Harness(new(), miningOnly: true); await h.Reset();
@@ -373,6 +522,40 @@ public class StagedOperationTests
                 response.Content = new StringContent(node.ToJsonString());
             }
             if (request.Method == HttpMethod.Get) Reads.Add(path);
+            if (path == "/items" && Corruption == "training-requirement")
+            {
+                var node = JsonNode.Parse(await response.Content.ReadAsStringAsync(token))!;
+                foreach (var item in node["data"]!.AsArray())
+                {
+                    if (item!["code"]!.GetValue<string>() == "tool") item["craft"]!["level"] = 2;
+                    if (item["code"]!.GetValue<string>() == "bar") item["level"] = 1;
+                }
+                response.Content = new StringContent(node.ToJsonString());
+            }
+            if (path.EndsWith("/action/crafting", StringComparison.Ordinal) && Corruption == "training-no-xp")
+            {
+                var node = JsonNode.Parse(await response.Content.ReadAsStringAsync(token))!;
+                node["data"]!["character"]!["weaponcrafting_xp"] = 0;
+                response.Content = new StringContent(node.ToJsonString());
+            }
+            if (path == "/openapi.json" && Corruption == "training-schema")
+            {
+                var node = JsonNode.Parse(await response.Content.ReadAsStringAsync(token))!;
+                node["components"]!["schemas"]!["CharacterSchema"]!["properties"]!.AsObject().Remove("weaponcrafting_xp");
+                response.Content = new StringContent(node.ToJsonString());
+            }
+            if (path == "/items" && Corruption == "training-cycle")
+            {
+                var node = JsonNode.Parse(await response.Content.ReadAsStringAsync(token))!;
+                node["data"]!.AsArray().Single(x => x!["code"]!.GetValue<string>() == "bar")!["craft"]!["items"]![0]!["code"] = "tool";
+                response.Content = new StringContent(node.ToJsonString());
+            }
+            if (path == "/maps" && Corruption == "training-no-access")
+            {
+                var node = JsonNode.Parse(await response.Content.ReadAsStringAsync(token))!;
+                node["data"]!.AsArray().Single(x => x!["map_id"]!.GetValue<int>() == 5)!["access"]!["type"] = "conditional";
+                response.Content = new StringContent(node.ToJsonString());
+            }
             if (MiningOnly && (path.StartsWith("/characters/", StringComparison.Ordinal) || path.Contains("/action/")))
             {
                 var node = JsonNode.Parse(await response.Content!.ReadAsStringAsync(token))!;

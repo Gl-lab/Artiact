@@ -1,5 +1,7 @@
 # Known limitations
 
+- R7 optionally trains weaponcrafting/mining prerequisites for item goals. Other professions, standalone crafting-skill goals, equipment preparation and constrained-capacity training require separate acceptance; see [skill preparation](skill-preparation.md).
+
 - R4b supports explicit four-element arithmetic under the existing conservative bound, superseding the fire-only normalization restriction below. Weapon replacement remains fire-only, effects/negative resistance/non-normal opponents remain unsupported, and live combat remains unverified.
 
 - R4a adds independent item goals and required-ingredient withdrawals ([scope](item-production.md)). It does not globally optimize capacity/route allocation or acquire arbitrary mob-drop leaves; configured budgets bound production/deposit shuttling.

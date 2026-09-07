@@ -1,5 +1,7 @@
 # Independent item production
 
+R7 adds optional [skill preparation](skill-preparation.md) to item goals: supported weaponcrafting training and mining prerequisites share the parent's budgets. Without `Portfolio:Preparation`, low skills retain the previous refusal behavior.
+
 R4c adds explicit `Portfolio:PrepareEquipment=true` with combat target/opponent/weapon. The equipment candidate obtains missing materials through the same production ledger, including multiple drops of the configured supported opponent. The combat milestone waits for the weapon. Acquisition fights use current equipment viability, and all steps share the journal/budgets. A bank-owned weapon is withdrawn before equip. Broader opponents/gear, consumables and defeat recovery remain excluded.
 
 R4a adds `Portfolio:Items` entries with `Code`, positive `Quantity` (up to 10000) and `Value` (default 30). Skills may be empty for an item-only profile. Completion counts target inventory plus observed bank stock. Item goals load item catalogs and probe crafting; enabled bank support additionally probes withdrawal.

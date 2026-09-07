@@ -31,3 +31,5 @@ The gathering-bank scenario also serves this partial schema and adds GET /my/ban
 R4a's item-production/item-production-bank add bounded withdrawals and bar/tool crafting. Keep their fixtures and independent oracles aligned with ../docs/item-production.md.
 
 R4c combat-preparation adds two simultaneous drops and their consumption by crafted_blade. Preserve the 13-action/81-second oracle and current-equipment safety test.
+
+R7 skill-preparation/resource-preparation add synthetic weaponcrafting/mining requirements and fixed XP transitions. Preserve exact stock/command oracles in ../docs/skill-preparation.md and atomic rejection; do not describe scripted XP as the live formula.

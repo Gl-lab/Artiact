@@ -17,7 +17,7 @@ public sealed class StrategySessionFactory(GameClient client, CombatCatalog cata
         if (!policy.Monsters.IsDefaultOrEmpty) strategies.AddRange(policy.Monsters.Select(monster => new NamedStrategy("combat:" + monster,
             new CombatMilestoneStrategy(policy with { Monster = monster }, port))));
         if (!string.IsNullOrWhiteSpace(policy.Equipment)) strategies.Add(new EquipmentStrategy(policy, port));
-        if (!policy.Items.IsDefaultOrEmpty) strategies.AddRange(policy.Items.Select(x => new ItemProductionStrategy(x, policy, port)));
+        if (!policy.Items.IsDefaultOrEmpty) strategies.AddRange(policy.Items.Select(x => new SkillPrerequisiteStrategy(x, policy, port)));
         return new(new HttpStrategyObserver(client, catalog, characters, policy.Identity, compatibility, policy), strategies, cooldown, limits,
             checkpoints: checkpoints, identity: identity, selection: policy.Measurement);
     }
