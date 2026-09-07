@@ -15,6 +15,68 @@ namespace Artiact.MockService.Tests;
 
 public class StagedOperationTests
 {
+    private static PortfolioPolicy BankPolicy => new([new("mining", 4, 30)], 0, "", "", Bank: new(System.Collections.Immutable.ImmutableDictionary<string, int>.Empty.Add("ore", 0)));
+    private sealed class Checkpoint : IRunCheckpointStore
+    {
+        private RunCheckpoint? _saved;
+        public RunCheckpoint? Load() => _saved;
+        public void Save(RunCheckpoint value) => _saved = value;
+    }
+    [Fact]
+    public async Task IncompleteBankPagesBlockBeforeAction()
+    {
+        await using var h = new Harness(new(), miningOnly: true); await h.Reset("gathering-bank");
+        h.Handler.Corruption = "bank-pages";
+        Assert.Equal(StrategyStatus.Blocked, (await h.Factory.Create(BankPolicy).TickAsync()).Status);
+        Assert.Equal(0, h.Handler.Actions);
+    }
+    [Fact]
+    public async Task LostDepositReplyAfterRestartReconcilesBothInventoriesWithoutPost()
+    {
+        await using var h = new Harness(new(), miningOnly: true); await h.Reset("gathering-bank");
+        var store = new Checkpoint(); var run = h.Factory.Create(BankPolicy, checkpoints: store, identity: "bank-test");
+        for (int i = 0; i < 4; i++) Assert.Equal(StrategyStatus.Selected, (await run.TickAsync()).Status);
+        h.Handler.Corruption = "loss";
+        Assert.Equal(StrategyStatus.UnknownOutcome, (await run.TickAsync()).Status);
+        h.Handler.Corruption = null;
+        var resumed = h.Factory.Create(BankPolicy, checkpoints: store, identity: "bank-test");
+        Assert.Equal(StrategyStatus.Reconciled, (await resumed.TickAsync()).Status);
+        Assert.Equal(5, h.Handler.Actions); Assert.Equal(2, resumed.State!.Bank!.Items["ore"]);
+    }
+
+    [Theory]
+    [InlineData("bank-full", "BankFull")]
+    [InlineData("bank-access", "NoSupportedBank")]
+    [InlineData("protected-only", "NoDepositableStock")]
+    public async Task ImpossibleBankRemediationStopsWithoutDeposit(string corruption, string reason)
+    {
+        await using var h = new Harness(new(), miningOnly: true); await h.Reset("gathering-bank");
+        h.Handler.Corruption = corruption;
+        var policy = corruption == "protected-only" ? BankPolicy with { Bank = new(System.Collections.Immutable.ImmutableDictionary<string, int>.Empty.Add("ore", 2)) } : BankPolicy;
+        var run = h.Factory.Create(policy);
+        for (int i = 0; i < 3; i++) await run.TickAsync();
+        var blocked = await run.TickAsync();
+        Assert.Equal(StrategyStatus.Blocked, blocked.Status); Assert.Equal(reason, Assert.Single(blocked.Candidates).Rejection);
+        Assert.Equal(3, h.Handler.Actions);
+    }
+    [Fact]
+    public async Task GatheringBankConservesProtectedStockAcrossTwoDeposits()
+    {
+        await using var h = new Harness(new(), miningOnly: true);
+        await h.Reset("gathering-bank");
+        var policy = BankPolicy;
+        var run = h.Factory.Create(policy);
+        var decisions = new List<StrategyDecision>();
+        for (int i = 0; i < 14; i++) decisions.Add(await run.TickAsync());
+        Assert.Equal(StrategyStatus.Completed, decisions[^1].Status);
+        Assert.Equal(13, h.Handler.Actions);
+        Assert.Equal(71, decisions[^1].CooldownSeconds);
+        Assert.Equal(new string?[] { "Move:4", "Gather:mining", "Gather:mining", "Move:6", "Deposit:ore:2", "Move:4",
+            "Gather:mining", "Gather:mining", "Move:6", "Deposit:ore:2", "Move:4", "Gather:mining", "Gather:mining", null }, decisions.Select(x => x.Command));
+        Assert.Equal(4, run.State!.Bank!.Items["ore"]);
+        var character = CharacterObservation.Read(run.State.Character)!;
+        Assert.Equal(2, character.Inventory["ore"]); Assert.Equal(1, character.Inventory["protected"]);
+    }
     [Fact]
     public async Task BoundedMiningCompletesAndRestartDoesNotDispatchAgain()
     {
@@ -174,9 +236,9 @@ public class StagedOperationTests
             api.BaseUrl = origin;
             Runner = new(execution, api, miningOnly ? new() { Skills = [new("mining", 2, 30)] } : new() { Skills = [new("mining", 2, 30), new("woodcutting", 2, 20)], CombatTarget = 2, Monster = "dummy", Equipment = "quick_blade" }, factory, State);
         }
-        public async Task Reset()
+        public async Task Reset(string scenario = "strategy-portfolio")
         {
-            using var response = await _transport.PostAsync("/__mock/reset", new StringContent("{\"scenario\":\"strategy-portfolio\"}", Encoding.UTF8, "application/json"));
+            using var response = await _transport.PostAsync("/__mock/reset", new StringContent(System.Text.Json.JsonSerializer.Serialize(new { scenario }), Encoding.UTF8, "application/json"));
             response.EnsureSuccessStatusCode();
         }
         public async ValueTask DisposeAsync() { _transport.Dispose(); await _factory.DisposeAsync(); }
@@ -192,6 +254,16 @@ public class StagedOperationTests
         {
             var response = await base.SendAsync(request, token);
             string path = request.RequestUri!.AbsolutePath;
+            if (path == "/my/bank" && Corruption == "bank-full")
+                response.Content = new StringContent("{\"data\":{\"slots\":0}}");
+            if (path == "/my/bank/items" && Corruption == "bank-pages")
+                response.Content = new StringContent("{\"data\":[],\"page\":1,\"pages\":1,\"total\":1,\"size\":50}");
+            if (path == "/maps" && Corruption == "bank-access")
+            {
+                var node = JsonNode.Parse(await response.Content!.ReadAsStringAsync(token))!;
+                foreach (var map in node["data"]!.AsArray().Where(x => x!["map_id"]!.GetValue<int>() == 6)) map!["access"]!["type"] = "conditional";
+                response.Content = new StringContent(node.ToJsonString());
+            }
             if (request.Method == HttpMethod.Get) Reads.Add(path);
             if (MiningOnly && (path.StartsWith("/characters/", StringComparison.Ordinal) || path.Contains("/action/")))
             {

@@ -16,6 +16,8 @@ public interface IGameClient
     public Task<ActionResponse> UseItem( Item item );
     public Task<ActionResponse> Recycling( Item item );
     public Task<ActionResponse> DeleteItem( Item item );
+    public Task<BankSnapshot> GetBank();
+    public Task<ActionResponse> DepositBankItems(IReadOnlyList<Item> items);
 
 
     Task<List<MapPlace>> GetMap();

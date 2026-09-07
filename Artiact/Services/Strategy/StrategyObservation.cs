@@ -12,18 +12,21 @@ public sealed class StrategyObservation
     public string Policy { get; }
     public string Fingerprint { get; }
     public string WorldFingerprint { get; }
+    public Artiact.Contracts.Models.Api.BankSnapshot? Bank { get; }
     public string Name => Character.GetProperty("name").GetString()!;
 
-    public StrategyObservation(JsonElement character, IReadOnlyDictionary<string, ImmutableArray<JsonElement>> catalogs, string policy)
+    public StrategyObservation(JsonElement character, IReadOnlyDictionary<string, ImmutableArray<JsonElement>> catalogs, string policy,
+        Artiact.Contracts.Models.Api.BankSnapshot? bank = null)
     {
         Character = character.Clone();
         Catalogs = catalogs.ToImmutableDictionary(x => x.Key, x => x.Value.Select(v => v.Clone()).ToImmutableArray(), StringComparer.Ordinal);
         Policy = policy;
+        Bank = bank;
         WorldFingerprint = Hash(JsonSerializer.SerializeToElement(new { catalogs = Catalogs, policy }));
-        Fingerprint = Hash(JsonSerializer.SerializeToElement(new { character = Character, world = WorldFingerprint }));
+        Fingerprint = Hash(JsonSerializer.SerializeToElement(new { character = Character, bank = Bank, world = WorldFingerprint }));
     }
 
-    public StrategyObservation WithCharacter(JsonElement character) => new(character, Catalogs, Policy);
+    public StrategyObservation WithCharacter(JsonElement character) => new(character, Catalogs, Policy, Bank);
     public bool SameWorld(StrategyObservation other) => Name == other.Name && WorldFingerprint == other.WorldFingerprint;
     public static string Hash(JsonElement value)
     {

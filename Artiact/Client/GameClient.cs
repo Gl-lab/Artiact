@@ -78,6 +78,47 @@ public class GameClient : IGameClient
         return await GetAction( detailsUrl );
     }
 
+    public async Task<BankSnapshot> GetBank()
+    {
+        using var response = await _httpClient.ReadAsync("/my/bank", _operationToken.Value);
+        response.EnsureSuccessStatusCode();
+        using var details = JsonDocument.Parse(await response.Content.ReadAsStringAsync(_operationToken.Value));
+        int slots = details.RootElement.GetProperty("data").GetProperty("slots").GetInt32();
+        var pages = new List<JsonElement>();
+        int expectedPages = 1, expectedTotal = -1;
+        for (int page = 1; page <= expectedPages; page++)
+        {
+            using var pageResponse = await _httpClient.ReadAsync($"/my/bank/items?page={page}", _operationToken.Value);
+            pageResponse.EnsureSuccessStatusCode();
+            using var document = JsonDocument.Parse(await pageResponse.Content.ReadAsStringAsync(_operationToken.Value));
+            var root = document.RootElement;
+            int count = root.GetProperty("pages").GetInt32(), total = root.GetProperty("total").GetInt32();
+            if (count is < 0 or > 1000 || total < 0 || root.GetProperty("page").GetInt32() != page ||
+                page > 1 && (count != expectedPages || total != expectedTotal)) throw new InvalidOperationException("Invalid bank pagination.");
+            expectedPages = count; expectedTotal = total;
+            pages.AddRange(root.GetProperty("data").EnumerateArray().Select(x => x.Clone()));
+        }
+        if (pages.Count != expectedTotal) throw new InvalidOperationException("Incomplete bank stock.");
+        var items = System.Collections.Immutable.ImmutableDictionary.CreateBuilder<string, int>(StringComparer.Ordinal);
+        foreach (var item in pages)
+        {
+            string code = item.GetProperty("code").GetString()!;
+            int quantity = item.GetProperty("quantity").GetInt32();
+            if (string.IsNullOrWhiteSpace(code) || quantity <= 0 || items.ContainsKey(code)) throw new InvalidOperationException("Invalid bank stock.");
+            items.Add(code, quantity);
+        }
+        if (slots < items.Count) throw new InvalidOperationException("Invalid bank capacity.");
+        return new(slots, items.ToImmutable());
+    }
+
+    public async Task<ActionResponse> DepositBankItems(IReadOnlyList<Item> items)
+    {
+        if (items.Count is < 1 or > 20 || items.Any(x => string.IsNullOrWhiteSpace(x.Code) || x.Quantity <= 0) ||
+            items.Select(x => x.Code).Distinct(StringComparer.Ordinal).Count() != items.Count) throw new ArgumentException("Invalid deposit.");
+        using var content = new StringContent(JsonSerializer.Serialize(items), Encoding.UTF8, "application/json");
+        return await GetAction($"/my/{_characterName}/action/bank/deposit/item", content);
+    }
+
     public async Task<ActionResponse> Fight()
     {
         string detailsUrl = $"/my/{_characterName}/action/fight";

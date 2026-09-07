@@ -1,0 +1,11 @@
+# Gathering with bank deposits
+
+R3 adds `Portfolio:BankRetain`, a dictionary from permitted deposit code to minimum quantity retained in inventory. Example JSON: `"BankRetain": { "ore": 0 }`. All unlisted codes are protected. Omit the dictionary to disable bank reads and actions. Negative retained amounts and empty configuration are invalid. Bank remains shared account state; this release owns one character, not every external account client.
+
+An unfinished gathering goal with inventory pressure can move to a supported same-layer standard bank, deposit excess allowed stock, and return to gathering. Each move/deposit is an atomic command under the same R2 action/time/decision limits. Bank is not a standalone goal after the skill target completes. Full/inaccessible bank, protected-only stock and malformed/incomplete reads produce finite Blocked outcomes.
+
+The client reads `GET /my/bank` and all `/my/bank/items?page=N` pages, validating total count, page consistency and unique positive stock. `POST /my/{name}/action/bank/deposit/item` sends 1–20 distinct code/quantity pairs once. The response's items, inventory and bank are compared to the exact baseline. Bank state participates in preflight fingerprints and durable pending observations; expected bank mutation does not change catalog identity. A lost deposit response triggers read-only reconciliation of both stores and never a blind retry.
+
+Public [OpenAPI](https://api.artifactsmmo.com/openapi.json) and [Inventory & Bank](https://docs.artifactsmmo.com/concepts/inventory_and_bank/) were consulted 2026-09-07. The supported subset uses bank slots for distinct codes and same-layer standard bank content; withdrawal, gold, expansion, trade and destruction are absent. The API describes three seconds per distinct deposited item; execution honors the validated returned cooldown rather than assuming it.
+
+Synthetic `gathering-bank` scenario (researcher): inventory capacity 3 and one protected item. Mining 1→4 takes six ore gathers, five moves and two deposits of two ore: 13 actions and 71 virtual seconds. Final inventory has protected=1 and ore=2; bank ore=4. This intentionally small scenario is not a model of live inventory capacity/progression. [Evidence](../openspec/changes/gathering-bank/execution-evidence.md) separates local tests from live operation.

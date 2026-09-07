@@ -56,7 +56,8 @@ public sealed class GatheringStrategy(SkillMilestone goal, PortfolioPolicy polic
                 string code = drop.GetProperty("code").GetString()!;
                 int min = drop.GetProperty("min_quantity").GetInt32(), max = drop.GetProperty("max_quantity").GetInt32();
                 if (string.IsNullOrWhiteSpace(code) || min <= 0 || max < min || drop.GetProperty("rate").GetInt32() != 1) continue;
-                if (state.FreeUnits < max) return Result("InventoryPressure");
+                if (state.FreeUnits < max) return policy.Bank is null ? Result("InventoryPressure") :
+                    BankPrerequisite.Evaluate(observation, Result("InventoryPressure"), policy.Bank, port, policy.MoveSeconds);
                 var map = maps.Where(x => StrategyRules.GatheringPlace(x, state) &&
                     x.GetProperty("interactions").GetProperty("content") is { ValueKind: JsonValueKind.Object } content &&
                     content.GetProperty("type").GetString() == "resource" && content.GetProperty("code").GetString() == resource.GetProperty("code").GetString())

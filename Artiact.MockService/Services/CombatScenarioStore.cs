@@ -12,6 +12,7 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
     private string? _scenario;
     private int _seconds;
     private readonly JsonArray _trace = [];
+    private JsonArray _bank = [];
 
     public (int Status, JsonNode Body)? Handle(string method, string path, string query, string body)
     {
@@ -38,15 +39,20 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
                 }
                 catch (System.Text.Json.JsonException) { return null; }
                 if (scenario is "basic-mining" or "mining-progression") { _scenario = null; return null; }
-                if (scenario is not ("combat-progression" or "combat-equipment" or "combat-crafting" or "strategy-portfolio")) return null;
+                if (scenario is not ("combat-progression" or "combat-equipment" or "combat-crafting" or "strategy-portfolio" or "gathering-bank")) return null;
                 _scenario = scenario;
                 _character = null;
                 _seconds = 0;
                 _trace.Clear();
+                _bank = [];
                 return (200, new JsonObject { ["scenario"] = scenario, ["trace_count"] = 0 });
             }
             if (_scenario is null || path == "/token") return null;
-            if (_scenario == "strategy-portfolio" && method == "GET" && path == "/openapi.json")
+            if (_scenario == "gathering-bank" && method == "GET" && path == "/my/bank")
+                return (200, new JsonObject { ["data"] = new JsonObject { ["slots"] = 50, ["expansions"] = 0, ["gold"] = 0, ["next_expansion_cost"] = 3500 } });
+            if (_scenario == "gathering-bank" && method == "GET" && path == "/my/bank/items")
+                return (200, new JsonObject { ["data"] = _bank.DeepClone(), ["total"] = _bank.Count, ["page"] = 1, ["size"] = 50, ["pages"] = 1 });
+            if (_scenario is "strategy-portfolio" or "gathering-bank" && method == "GET" && path == "/openapi.json")
                 return (200, JsonNode.Parse(File.ReadAllText(Path.Combine(environment.ContentRootPath, "StrategyOpenApiSubset.json")))!);
             if (method == "GET" && path == "/characters/researcher")
             {
@@ -69,30 +75,48 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
             if (_character is null) return Error(409, "character_not_initialized");
             string action = path["/my/researcher/action/".Length..];
             var next = _character.DeepClone();
+            var nextBank = _bank.DeepClone().AsArray();
             var dataResult = new JsonObject();
             int duration;
             try
             {
                 switch (action)
                 {
+                    case "bank/deposit/item":
+                        if (_scenario != "gathering-bank" || next["map_id"]!.GetValue<int>() != 6) return Error(598, "bank_not_found");
+                        var deposits = JsonNode.Parse(body)!.AsArray();
+                        if (deposits.Count is < 1 or > 20 || deposits.Select(x => x!["code"]!.GetValue<string>()).Distinct().Count() != deposits.Count)
+                            return Error(422, "invalid_deposit");
+                        foreach (var deposit in deposits)
+                        {
+                            string depositCode = deposit!["code"]!.GetValue<string>();
+                            int quantity = deposit["quantity"]!.GetValue<int>();
+                            if (string.IsNullOrWhiteSpace(depositCode) || quantity <= 0 || !Add(next, depositCode, -quantity)) return Error(478, "missing_items");
+                            var stock = nextBank.SingleOrDefault(x => x!["code"]!.GetValue<string>() == depositCode);
+                            if (stock is null) nextBank.Add(new JsonObject { ["code"] = depositCode, ["quantity"] = quantity });
+                            else stock["quantity"] = checked(stock["quantity"]!.GetValue<int>() + quantity);
+                        }
+                        if (nextBank.Count > 50) return Error(462, "bank_full");
+                        dataResult["items"] = deposits.DeepClone(); dataResult["bank"] = nextBank.DeepClone();
+                        duration = 3 * deposits.Count; break;
                     case "move":
                         var move = JsonNode.Parse(body);
                         if (move is not JsonObject moveObject || moveObject.Count != 1)
                             return Error(422, "destination_not_found");
                         int mapId = move["map_id"]!.GetValue<int>();
                         if (mapId != 2 && !(mapId == 3 && _scenario == "combat-crafting") &&
-                            !(_scenario == "strategy-portfolio" && mapId is 4 or 5)) return Error(422, "destination_not_found");
+                            !((_scenario is "strategy-portfolio" or "gathering-bank") && mapId is 4 or 5) && !(_scenario == "gathering-bank" && mapId == 6)) return Error(422, "destination_not_found");
                         next["map_id"] = mapId; next["x"] = mapId - 1;
                         dataResult["destination"] = Catalog("maps")[mapId - 1]!.DeepClone();
                         duration = 7; break;
                     case "gathering":
-                        if (_scenario != "strategy-portfolio" || !EmptyRequest(body) || Used(next) >= 10)
+                        if ((_scenario is not ("strategy-portfolio" or "gathering-bank")) || !EmptyRequest(body) || Used(next) >= next["inventory_max_items"]!.GetValue<int>())
                             return Error(422, "gather_not_available");
                         int gatherMap = next["map_id"]!.GetValue<int>();
                         if (gatherMap is not (4 or 5)) return Error(422, "gather_not_available");
                         string skill = gatherMap == 4 ? "mining" : "woodcutting";
                         string output = gatherMap == 4 ? "ore" : "wood";
-                        if (next[skill + "_level"]!.GetValue<int>() >= 2) return Error(422, "gather_not_available");
+                        if (next[skill + "_level"]!.GetValue<int>() >= (_scenario == "gathering-bank" ? 4 : 2)) return Error(422, "gather_not_available");
                         int skillXp = next[skill + "_xp"]!.GetValue<int>() + 5;
                         next[skill + "_level"] = next[skill + "_level"]!.GetValue<int>() + skillXp / 10;
                         next[skill + "_xp"] = skillXp % 10;
@@ -167,6 +191,7 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
                 ["expiration"] = epoch.AddSeconds(_seconds + duration).ToString("O"), ["reason"] = "mock_virtual_elapsed" };
             if (action != "fight") dataResult["character"] = next.DeepClone();
             _character = next;
+            _bank = nextBank;
             _seconds += duration;
             _trace.Add(new JsonObject { ["sequence"] = _trace.Count + 1, ["action"] = action,
                 ["duration_seconds"] = duration, ["virtual_seconds"] = _seconds });
@@ -177,6 +202,11 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
     private JsonNode Initial()
     {
         var state = _fixture["character"]!.DeepClone();
+        if (_scenario == "gathering-bank")
+        {
+            state["inventory_max_items"] = 3;
+            state["inventory"] = new JsonArray(new JsonObject { ["slot"] = 1, ["code"] = "protected", ["quantity"] = 1 });
+        }
         if (_scenario is "combat-equipment" or "strategy-portfolio")
         {
             state["weapon_slot"] = "old"; state["attack_fire"] = 5;
@@ -187,11 +217,12 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
     private JsonArray Catalog(string name)
     {
         var data = _fixture[name]!.DeepClone().AsArray();
-        if (_scenario != "strategy-portfolio") return data;
+        if (_scenario is not ("strategy-portfolio" or "gathering-bank")) return data;
         if (name == "maps")
         {
             data.Add(JsonNode.Parse("""{"map_id":4,"name":"Mine","skin":"plain","x":3,"y":0,"layer":"overworld","access":{"type":"standard","conditions":[]},"interactions":{"content":{"type":"resource","code":"ore_node"},"transition":null}}"""));
             data.Add(JsonNode.Parse("""{"map_id":5,"name":"Forest","skin":"plain","x":4,"y":0,"layer":"overworld","access":{"type":"standard","conditions":[]},"interactions":{"content":{"type":"resource","code":"wood_node"},"transition":null}}"""));
+            if (_scenario == "gathering-bank") data.Add(JsonNode.Parse("""{"map_id":6,"name":"Bank","skin":"plain","x":5,"y":0,"layer":"overworld","access":{"type":"standard","conditions":[]},"interactions":{"content":{"type":"bank","code":"bank"},"transition":null}}"""));
         }
         if (name == "resources")
         {

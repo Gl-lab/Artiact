@@ -39,6 +39,16 @@ public sealed class ApiCompatibility(IGameHttpClient http, ExecutionSettings set
             foreach (string action in gatheringOnly ? new[] { "move", "gathering" } : new[] { "move", "gathering", "fight", "rest", "equip", "unequip", "crafting" })
                 if (paths.GetProperty("/my/{name}/action/" + action).GetProperty("post").ValueKind != JsonValueKind.Object) return false;
             var schemas = root.GetProperty("components").GetProperty("schemas");
+            if (profile?.Bank is not null)
+            {
+                foreach (string path in new[] { "/my/bank", "/my/bank/items" })
+                    if (paths.GetProperty(path).GetProperty("get").ValueKind != JsonValueKind.Object) return false;
+                if (paths.GetProperty("/my/{name}/action/bank/deposit/item").GetProperty("post").GetProperty("requestBody").GetProperty("content")
+                    .GetProperty("application/json").GetProperty("schema").GetProperty("type").GetString() != "array" ||
+                    !Type(schemas, "BankSchema", "slots", "integer") || !Type(schemas, "BankItemTransactionSchema", "bank", "array") ||
+                    !Type(schemas, "BankItemTransactionSchema", "items", "array") || !Reference(schemas, "BankItemTransactionSchema", "character") ||
+                    !Reference(schemas, "BankItemTransactionSchema", "cooldown")) return false;
+            }
             foreach (string field in gatheringOnly ? new[] { "map_id", "inventory_max_items" }.Concat(profile!.Skills.SelectMany(s => new[] { s.Skill + "_level", s.Skill + "_xp", s.Skill + "_max_xp" })) : new[] { "level", "xp", "hp", "max_hp", "map_id" })
                 if (!Type(schemas, "CharacterSchema", field, "integer")) return false;
             foreach (string field in gatheringOnly ? new[] { "name", "layer" } : new[] { "name", "layer", "weapon_slot" })

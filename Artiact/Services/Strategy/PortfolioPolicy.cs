@@ -7,7 +7,7 @@ public sealed record SkillMilestone(string Skill, int Target, decimal Value);
 public sealed record PortfolioPolicy(ImmutableArray<SkillMilestone> Skills, int CombatTarget, string Monster,
     string Equipment, decimal CombatValue = 10, decimal EquipmentValue = 100,
     decimal MoveSeconds = 7, decimal GatherSeconds = 5, decimal FightSeconds = 8,
-    decimal RestSeconds = 6, decimal EquipmentSeconds = 3)
+    decimal RestSeconds = 6, decimal EquipmentSeconds = 3, BankPolicy? Bank = null)
 {
     [System.Text.Json.Serialization.JsonIgnore]
     public bool CombatEnabled => CombatTarget > 0;
@@ -15,6 +15,8 @@ public sealed record PortfolioPolicy(ImmutableArray<SkillMilestone> Skills, int 
     public string Identity => JsonSerializer.Serialize(this);
     public void Validate()
     {
+        if (Bank is not null && (Bank.Retain.IsEmpty || Bank.Retain.Any(x => string.IsNullOrWhiteSpace(x.Key) || x.Value < 0)))
+            throw new ArgumentException("Invalid bank policy.");
         if (Skills.IsDefaultOrEmpty || Skills.Any(x => x.Target <= 0 || x.Value is <= 0 or > 1_000_000 ||
                 string.IsNullOrWhiteSpace(x.Skill) || !x.Skill.All(c => c is >= 'a' and <= 'z')) ||
             Skills.Select(x => x.Skill).Distinct(StringComparer.Ordinal).Count() != Skills.Length || CombatTarget < 0 ||
@@ -23,3 +25,4 @@ public sealed record PortfolioPolicy(ImmutableArray<SkillMilestone> Skills, int 
                 .Any(x => x is <= 0 or > 1_000_000)) throw new ArgumentException("Invalid portfolio policy.");
     }
 }
+public sealed record BankPolicy(ImmutableDictionary<string, int> Retain);

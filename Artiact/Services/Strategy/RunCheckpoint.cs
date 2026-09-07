@@ -4,10 +4,10 @@ using System.Text.Json;
 namespace Artiact.Services.Strategy;
 
 public sealed record SavedObservation(JsonElement Character,
-    ImmutableDictionary<string, ImmutableArray<JsonElement>> Catalogs, string Policy)
+    ImmutableDictionary<string, ImmutableArray<JsonElement>> Catalogs, string Policy, Artiact.Contracts.Models.Api.BankSnapshot? Bank = null)
 {
-    public StrategyObservation Restore() => new(Character, Catalogs, Policy);
-    public static SavedObservation From(StrategyObservation state) => new(state.Character, state.Catalogs, state.Policy);
+    public StrategyObservation Restore() => new(Character, Catalogs, Policy, Bank);
+    public static SavedObservation From(StrategyObservation state) => new(state.Character, state.Catalogs, state.Policy, state.Bank);
 }
 public sealed record RunCheckpoint(int Version, string Identity, DateTimeOffset Started,
     int Decisions, int Attempts, int NoProgress, long Seconds, string[] Consumed,

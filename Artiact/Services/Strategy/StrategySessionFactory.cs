@@ -35,7 +35,8 @@ public sealed class HttpStrategyObserver(GameClient client, CombatCatalog catalo
             catalogs[name] = (await catalog.ReadPagesAsync(name, token)).ToImmutableArray();
         characters.SaveCharacter(await client.GetCharacter());
         token.ThrowIfCancellationRequested();
-        var result = new StrategyObservation(client.LastCharacterPayload!.Value, catalogs.ToImmutable(), policy);
+        var bank = profile?.Bank is null ? null : await client.GetBank();
+        var result = new StrategyObservation(client.LastCharacterPayload!.Value, catalogs.ToImmutable(), policy, bank);
         if (compatibility is not null) compatibility.Observed(started!.Value, result.Fingerprint);
         return result;
     }
