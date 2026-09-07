@@ -48,8 +48,8 @@ public sealed class CombatActionPort(GameClient client, ICharacterService charac
             if (command == CombatCommand.Fight)
             {
                 var fight = raw.GetProperty("fight");
-                if (fight.GetProperty("opponent").GetString() != destination.MonsterCode ||
-                    fight.GetProperty("turns").GetInt32() < 1 || fight.GetProperty("logs").ValueKind != JsonValueKind.Array) return false;
+                if (fight.GetProperty("result").GetString() is not ("win" or "loss") || fight.GetProperty("opponent").GetString() != destination.MonsterCode ||
+                    fight.GetProperty("turns").GetInt32() is < 1 or > 100 || fight.GetProperty("logs").ValueKind != JsonValueKind.Array) return false;
                 var participants = fight.GetProperty("characters").EnumerateArray()
                     .Where(x => x.GetProperty("character_name").GetString() == before.Name).ToArray();
                 return participants.Length == 1 && participants[0].GetProperty("xp").GetInt32() >= 0 &&

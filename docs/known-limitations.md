@@ -73,3 +73,5 @@ When a limitation is fixed, remove or amend it in the same change. If a limitati
 The mining-progression mock uses synthetic six-XP awards and ten-XP thresholds. Its exact offline completion/replay is not current OpenAPI payload compatibility or production rollout evidence.
 
 R2: explicit Bounded execution now persists its journal and budgets and holds a local character lease; see [bounded operation](bounded-operation.md). Earlier in-memory restart limitations still apply to standalone Inspect/OneShot/Legacy sessions.
+
+R9 local [autonomous combat](autonomous-combat.md) supports bounded stage/gear alternatives and R7/R8/R8a preparation. Only weapon/shield static effects qualify; other slots, combined loadout search, active effects and defeat recovery remain unsupported. Cooking/fishing preparation is now supported by R8a; broader profession coverage is still limited. No live combat acceptance.

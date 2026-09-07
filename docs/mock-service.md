@@ -157,3 +157,5 @@ Responses contain the complete committed character, unchanged embedded character
 The additional named strategy-portfolio reset uses researcher with the combat-equipment starting state, mine map 4 and forest map 5. It adds gathering for two professions and an old-weapon fight outcome. It preserves existing scenario responses. See [Strategy portfolio](strategy-portfolio.md) for the literal 12-action/69-second oracle and supported subset.
 
 Only strategy-portfolio also serves GET /openapi.json from StrategyOpenApiSubset.json. This authored subset supports staged drift/shape tests; it is not a full upstream specification or mechanics emulator. StagedOperationTests verify zero-action inspection, one-action execution, read-only loss reconciliation, schema/freshness refusal and readiness state.
+
+R9: autonomous-shield/autonomous-weapon add two scripted combat stages and static shield/water-weapon equip. See [autonomous combat](autonomous-combat.md) for exact independent stock, XP and cooldown oracles. No live-emulator claim.

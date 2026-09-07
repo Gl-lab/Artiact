@@ -48,3 +48,5 @@ Combat-crafting starts with quick_blade, obtains one feather, consumes it into c
 ## Remaining scope
 
 No live character run, effects/consumables, banking, defeat recovery or restart reconciliation follows from these deterministic results. Craft factory scope requires one missing leaf; it is not a generic crafting objective or automatic inventory cleanup policy. Failed craft-plan construction currently uses the general UnsupportedAccess terminal reason. The configurable strategy portfolio and an additional profession belong to Epic 7.
+
+R9 adds a separate [autonomous stage strategy](autonomous-combat.md) with static multi-element weapon/shield projection. Earlier fire-only replacement statements describe the standalone path.

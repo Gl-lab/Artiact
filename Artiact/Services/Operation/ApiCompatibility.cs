@@ -49,7 +49,8 @@ public sealed class ApiCompatibility(IGameHttpClient http, ExecutionSettings set
                  !Reference(schemas, "UseItemSchema", "item") || !Reference(schemas, "UseItemSchema", "character") || !Reference(schemas, "UseItemSchema", "cooldown") ||
                  !Type(schemas, "CharacterSchema", "hp", "integer") || !Type(schemas, "CharacterSchema", "max_hp", "integer") ||
                  profile.Consumable.AllowRest && paths.GetProperty("/my/{name}/action/rest").GetProperty("post").ValueKind != JsonValueKind.Object)) return false;
-            if (profile is not null && (!profile.Items.IsDefaultOrEmpty || profile.PrepareEquipment))
+            if (profile?.AutonomousCombat is not null && !Type(schemas, "CharacterSchema", "shield_slot", "string")) return false;
+            if (profile is not null && (!profile.Items.IsDefaultOrEmpty || profile.PrepareEquipment || profile.AutonomousCombat is not null))
             {
                 if (paths.GetProperty("/items").GetProperty("get").ValueKind != JsonValueKind.Object ||
                     paths.GetProperty("/my/{name}/action/crafting").GetProperty("post").ValueKind != JsonValueKind.Object) return false;

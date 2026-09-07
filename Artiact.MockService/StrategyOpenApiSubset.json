@@ -27,7 +27,7 @@
       "mining_level": { "type": "integer" }, "mining_xp": { "type": "integer" }, "mining_max_xp": { "type": "integer" },
       "woodcutting_level": { "type": "integer" }, "woodcutting_xp": { "type": "integer" }, "woodcutting_max_xp": { "type": "integer" },
       "name": { "type": "string" }, "level": { "type": "integer" }, "xp": { "type": "integer" }, "hp": { "type": "integer" }, "max_hp": { "type": "integer" },
-      "map_id": { "type": "integer" }, "layer": { "type": "string" }, "weapon_slot": { "type": "string" }, "inventory": { "type": "array", "items": { "type": "object" } }
+      "map_id": { "type": "integer" }, "layer": { "type": "string" }, "shield_slot": { "type": "string" }, "weapon_slot": { "type": "string" }, "inventory": { "type": "array", "items": { "type": "object" } }
     } },
     "MapSchema": { "type": "object", "properties": { "map_id": { "type": "integer" }, "layer": { "type": "string" }, "access": { "$ref": "#/components/schemas/AccessSchema" }, "interactions": { "$ref": "#/components/schemas/InteractionSchema" } } },
     "CharacterFightDataSchema": { "type": "object", "properties": { "characters": { "type": "array", "items": { "$ref": "#/components/schemas/CharacterSchema" } }, "fight": { "$ref": "#/components/schemas/FightDetailsSchema" }, "cooldown": { "$ref": "#/components/schemas/CooldownSchema" } } },

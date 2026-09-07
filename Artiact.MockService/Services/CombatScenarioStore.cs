@@ -13,8 +13,9 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
     private int _seconds;
     private readonly JsonArray _trace = [];
     private JsonArray _bank = [];
-    private bool IsConsumable => _scenario is "consumable-production" or "consumable-bank" or "consumable-training" or "consumable-capacity" or "consumable-full";
-    private bool IsTraining => _scenario is "skill-preparation" or "resource-preparation" or "capacity-training";
+    private bool IsAutonomous => _scenario is "autonomous-shield" or "autonomous-weapon";
+    private bool IsConsumable => IsAutonomous || _scenario is "consumable-production" or "consumable-bank" or "consumable-training" or "consumable-capacity" or "consumable-full";
+    private bool IsTraining => _scenario is "skill-preparation" or "resource-preparation" or "capacity-training" or "autonomous-weapon";
     private bool IsProduction => _scenario is "item-production" or "item-production-bank" or "capacity-production" || IsTraining || IsConsumable;
     private bool IsCombatCrafting => _scenario is "combat-crafting" or "combat-preparation";
 
@@ -43,7 +44,7 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
                 }
                 catch (System.Text.Json.JsonException) { return null; }
                 if (scenario is "basic-mining" or "mining-progression") { _scenario = null; return null; }
-                if (scenario is not ("combat-progression" or "combat-equipment" or "combat-crafting" or "strategy-portfolio" or "gathering-bank" or "item-production" or "item-production-bank" or "combat-preparation" or "skill-preparation" or "resource-preparation" or "capacity-production" or "capacity-training" or "consumable-production" or "consumable-bank" or "consumable-training" or "consumable-capacity" or "consumable-full")) return null;
+                if (scenario is not ("combat-progression" or "combat-equipment" or "combat-crafting" or "strategy-portfolio" or "gathering-bank" or "item-production" or "item-production-bank" or "combat-preparation" or "skill-preparation" or "resource-preparation" or "capacity-production" or "capacity-training" or "consumable-production" or "consumable-bank" or "consumable-training" or "consumable-capacity" or "consumable-full" or "autonomous-shield" or "autonomous-weapon")) return null;
                 _scenario = scenario;
                 _character = null;
                 _seconds = 0;
@@ -120,7 +121,7 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
                         if (move is not JsonObject moveObject || moveObject.Count != 1)
                             return Error(422, "destination_not_found");
                         int mapId = move["map_id"]!.GetValue<int>();
-                        if (!(IsConsumable && mapId is 7 or 8) && mapId != 2 && !(mapId == 3 && IsCombatCrafting) &&
+                        if (!(IsAutonomous && mapId == 9) && !(IsConsumable && mapId is 7 or 8) && mapId != 2 && !(mapId == 3 && IsCombatCrafting) &&
                             !((_scenario is "strategy-portfolio" or "gathering-bank" || IsProduction) && mapId is 4 or 5) && !((_scenario == "gathering-bank" || IsProduction) && mapId == 6) && !(IsProduction && mapId == 3)) return Error(422, "destination_not_found");
                         next["map_id"] = mapId; next["x"] = mapId - 1;
                         dataResult["destination"] = Catalog("maps")[mapId - 1]!.DeepClone();
@@ -153,6 +154,24 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
                         duration = 5; break;
                     case "fight":
                         if (!EmptyRequest(body)) return Error(422, "invalid_request");
+                        if (IsAutonomous)
+                        {
+                            int combatLevel = next["level"]!.GetValue<int>();
+                            bool guardian = next["map_id"]!.GetValue<int>() == 9;
+                            if (next["hp"]!.GetValue<int>() != 20 || Used(next) >= 10 || combatLevel >= 3 ||
+                                (!guardian && next["map_id"]!.GetValue<int>() != 2) || guardian &&
+                                (_scenario == "autonomous-shield" ? next["shield_slot"]!.GetValue<string>() != "ward" : next["weapon_slot"]!.GetValue<string>() != "water_blade"))
+                                return Error(422, "fight_not_available");
+                            int loss = guardian ? (_scenario == "autonomous-shield" ? 12 : 10) : 6;
+                            int earned = next["xp"]!.GetValue<int>() + 5;
+                            next["xp"] = earned % 10; next["level"] = combatLevel + earned / 10; next["hp"] = 20 - loss;
+                            Add(next, "feather", 1);
+                            dataResult["fight"] = new JsonObject { ["result"] = "win", ["turns"] = guardian ? (_scenario == "autonomous-shield" ? 8 : 2) : 4,
+                                ["opponent"] = guardian ? "guardian" : "dummy", ["logs"] = new JsonArray(), ["characters"] = new JsonArray(new JsonObject {
+                                    ["character_name"] = "researcher", ["xp"] = 5, ["gold"] = 0, ["final_hp"] = 20 - loss,
+                                    ["drops"] = new JsonArray(new JsonObject { ["code"] = "feather", ["quantity"] = 1 }) }) };
+                            dataResult["characters"] = new JsonArray(next.DeepClone()); duration = 8; break;
+                        }
                         if (next["map_id"]!.GetValue<int>() != 2 || next["hp"]!.GetValue<int>() != 20 ||
                             (next["weapon_slot"]!.GetValue<string>() != "quick_blade" &&
                                 !(_scenario == "strategy-portfolio" && next["weapon_slot"]!.GetValue<string>() == "old") &&
@@ -190,6 +209,27 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
                     case "equip":
                     case "unequip":
                         var request = JsonNode.Parse(body)!.AsArray();
+                        if (IsAutonomous)
+                        {
+                            if (request.Count != 1 || request[0]!["quantity"]!.GetValue<int>() != 1) return Error(422, "invalid_equipment");
+                            string targetSlot = request[0]!["slot"]!.GetValue<string>();
+                            if (targetSlot is not ("weapon" or "shield")) return Error(422, "invalid_equipment");
+                            string gearCode = action == "unequip" ? next[targetSlot + "_slot"]!.GetValue<string>() : request[0]!["code"]!.GetValue<string>();
+                            if (action == "unequip")
+                            {
+                                if (gearCode != "quick_blade" || Used(next) >= 10) return Error(422, "invalid_equipment");
+                                Add(next, gearCode, 1); next["weapon_slot"] = ""; next["attack_fire"] = 0;
+                            }
+                            else
+                            {
+                                if (next[targetSlot + "_slot"]!.GetValue<string>() != "" ||
+                                    !(targetSlot == "shield" && gearCode == "ward" || targetSlot == "weapon" && gearCode == "water_blade") || !Add(next, gearCode, -1)) return Error(422, "invalid_equipment");
+                                next[targetSlot + "_slot"] = gearCode;
+                                if (gearCode == "ward") next["res_fire"] = 75; else next["attack_water"] = 40;
+                            }
+                            dataResult["items"] = new JsonArray(new JsonObject { ["code"] = gearCode, ["slot"] = targetSlot, ["quantity"] = 1 });
+                            duration = 3; break;
+                        }
                         if (request.Count != 1 || request[0]!["slot"]!.GetValue<string>() != "weapon" ||
                             request[0]!["quantity"]!.GetValue<int>() != 1) return Error(422, "invalid_equipment");
                         string code;
@@ -214,6 +254,14 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
                         {
                             string product = requestCraft!["code"]!.GetValue<string>();
                             int batch = requestCraft["quantity"]!.GetValue<int>();
+                            if (IsAutonomous && product is "ward" or "water_blade")
+                            {
+                                if (next["map_id"]!.GetValue<int>() != 3 || batch != 1 ||
+                                    product == "water_blade" && next["weaponcrafting_level"]!.GetValue<int>() < 2 || !Add(next, "feather", -2)) return Error(422, "craft_not_available");
+                                Add(next, product, 1); next["weaponcrafting_xp"] = next["weaponcrafting_xp"]!.GetValue<int>() + 1;
+                                dataResult["details"] = new JsonObject { ["xp"] = 1, ["items"] = new JsonArray(new JsonObject { ["code"] = product, ["quantity"] = 1 }) };
+                                duration = 4; break;
+                            }
                             if (IsConsumable && product is "meal" or "snack")
                             {
                                 int required = _scenario == "consumable-training" && product == "meal" ? 2 : 1;
@@ -283,6 +331,7 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
         if (IsProduction) state["inventory"] = new JsonArray(new JsonObject { ["slot"] = 1, ["code"] = "protected", ["quantity"] = 1 });
         if (IsTraining) state["weaponcrafting_max_xp"] = 10;
         if (IsConsumable) state["hp"] = _scenario == "consumable-full" ? 20 : 4;
+        if (IsAutonomous) state["hp"] = 20;
         if (_scenario == "consumable-capacity") state["inventory_max_items"] = 3;
         if (_scenario is "gathering-bank" or "capacity-production" or "capacity-training")
         {
@@ -356,6 +405,21 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
             fish["code"] = "fish_node"; fish["skill"] = "fishing";
             fish["level"] = _scenario == "consumable-training" ? 2 : 1; fish["drops"]![0]!["code"] = "fish";
             data.Add(JsonNode.Parse("""{"code":"bait_node","skill":"fishing","level":1,"drops":[{"code":"baitfish","rate":1,"min_quantity":1,"max_quantity":1}]}"""));
+        }
+        if (IsAutonomous)
+        {
+            if (name == "maps") data.Add(JsonNode.Parse("""{"map_id":9,"name":"Guardian","skin":"plain","x":8,"y":0,"layer":"overworld","access":{"type":"standard","conditions":[]},"interactions":{"content":{"type":"monster","code":"guardian"},"transition":null}}"""));
+            if (name == "monsters")
+            {
+                var guardian = data[0]!.DeepClone(); guardian["code"] = "guardian"; guardian["level"] = 2; guardian["hp"] = 40; guardian["attack_fire"] = 10;
+                if (_scenario == "autonomous-weapon") guardian["res_fire"] = 100;
+                data.Add(guardian);
+            }
+            if (name == "items")
+            {
+                data.Add(JsonNode.Parse("""{"code":"ward","type":"shield","level":2,"conditions":[],"effects":[{"code":"res_fire","value":75}],"craft":{"skill":"weaponcrafting","level":1,"quantity":1,"items":[{"code":"feather","quantity":2}]}}"""));
+                data.Add(JsonNode.Parse("""{"code":"water_blade","type":"weapon","level":2,"conditions":[],"effects":[{"code":"attack_water","value":40}],"craft":{"skill":"weaponcrafting","level":2,"quantity":1,"items":[{"code":"feather","quantity":2}]}}"""));
+            }
         }
         return data;
     }

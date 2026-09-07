@@ -40,8 +40,10 @@ public sealed class CombatCatalog(IGameHttpClient http)
                 destinations.Length == 0) return (null, null);
             var destination = new CombatDestination(CombatObservation.Int(destinations[0], "map_id"), state.Layer, monsterCode, stats, true);
             var catalog = items.ToDictionary(x => x.GetProperty("code").GetString()!, StringComparer.Ordinal);
-            if (!catalog.TryGetValue(state.Weapon, out var currentWeapon) || !TryWeapon(currentWeapon, state.Level, out int oldAttack))
-                return (null, null);
+            if (state.Weapon.Length == 0) return (destination, null);
+            if (!catalog.TryGetValue(state.Weapon, out var currentWeapon)) return (null, null);
+            if (!TryWeapon(currentWeapon, state.Level, out int oldAttack))
+                return EquipmentProjection.Supported(currentWeapon, "weapon", state.Level) ? (destination, null) : (null, null);
             var baseline = CombatPrediction.Evaluate(state.Stats with { Hp = state.MaxHp }, stats);
             CombatGear? gear = null;
             long bestLoss = baseline.Viability == CombatViability.Safe ? baseline.MaximumLoss : long.MaxValue;
@@ -68,7 +70,7 @@ public sealed class CombatCatalog(IGameHttpClient http)
     internal static bool TryWeapon(JsonElement item, int level, out int attack)
     {
         attack = 0;
-        if (item.GetProperty("type").GetString() != "weapon" || CombatObservation.Int(item, "level") is < 1 ||
+        if (!item.TryGetProperty("type", out var type) || type.GetString() != "weapon" || CombatObservation.Int(item, "level") is < 1 ||
             CombatObservation.Int(item, "level") > level || !Empty(item, "conditions")) return false;
         var effects = item.GetProperty("effects");
         if (effects.ValueKind != JsonValueKind.Array || effects.GetArrayLength() != 1) return false;

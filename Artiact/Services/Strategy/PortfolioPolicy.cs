@@ -11,7 +11,8 @@ public sealed record PortfolioPolicy(ImmutableArray<SkillMilestone> Skills, int 
     MeasurementPolicy? Measurement = null, ImmutableArray<string> Monsters = default,
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] SkillPreparationPolicy? Preparation = null,
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] ProductionPolicy? Production = null,
-    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] ConsumablePolicy? Consumable = null)
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] ConsumablePolicy? Consumable = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] AutonomousCombatPolicy? AutonomousCombat = null)
 {
     [System.Text.Json.Serialization.JsonIgnore]
     public bool CombatEnabled => CombatTarget > 0;
@@ -19,7 +20,13 @@ public sealed record PortfolioPolicy(ImmutableArray<SkillMilestone> Skills, int 
     public string Identity => JsonSerializer.Serialize(this with { Items = Items.IsDefault ? [] : Items, Monsters = Monsters.IsDefault ? [] : Monsters });
     public void Validate()
     {
-        if (Consumable is { } food && (Items.IsDefaultOrEmpty || !Items.Any(x => x.Code == food.ParentItem) ||
+        if (AutonomousCombat is { } auto && (!CombatEnabled || PrepareEquipment || Equipment.Length != 0 || !Monsters.IsDefaultOrEmpty ||
+            auto.Stages.IsDefaultOrEmpty || auto.Stages.Length > 10 || auto.Stages[^1].Target != CombatTarget ||
+            auto.Stages.Select(x => x.Target).Where((x, i) => x <= (i == 0 ? 1 : auto.Stages[i - 1].Target)).Any() ||
+            auto.Stages.Any(x => x.Monsters.IsDefaultOrEmpty || x.Monsters.Length > 10 || x.Monsters.Any(string.IsNullOrWhiteSpace) || x.Monsters.Distinct().Count() != x.Monsters.Length) ||
+            auto.Equipment.IsDefault || auto.Equipment.Length > 20 || auto.Equipment.Any(string.IsNullOrWhiteSpace) || auto.Equipment.Distinct().Count() != auto.Equipment.Length))
+            throw new ArgumentException("Invalid autonomous combat policy.");
+        if (Consumable is { } food && (!(food.ParentItem == "combat" && AutonomousCombat is not null) && (Items.IsDefaultOrEmpty || !Items.Any(x => x.Code == food.ParentItem)) ||
                 string.IsNullOrWhiteSpace(food.Code) || food.Code == food.ParentItem || food.HpBelowPercent is < 1 or > 100 ||
                 food.Reserve < 0 || food.MinimumStock <= food.Reserve || food.TargetStock < food.MinimumStock || food.TargetStock > 10000 ||
                 food.MaxUsed <= 0 || food.MaxMaterialUnits <= 0 || food.UseSeconds <= 0 || food.PreparationSeconds < 0))
@@ -51,3 +58,5 @@ public sealed record ProductionPolicy(ImmutableDictionary<string, int> Reserved)
 public sealed record ConsumablePolicy(string ParentItem, string Code, int HpBelowPercent = 50,
     int MinimumStock = 1, int TargetStock = 2, int Reserve = 0, int MaxUsed = 10, int MaxMaterialUnits = 100,
     bool AllowRest = false, decimal UseSeconds = 3, decimal PreparationSeconds = 30);
+public sealed record CombatStage(int Target, ImmutableArray<string> Monsters);
+public sealed record AutonomousCombatPolicy(ImmutableArray<CombatStage> Stages, ImmutableArray<string> Equipment);

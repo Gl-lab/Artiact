@@ -12,7 +12,7 @@ public sealed record AtomicCommand(string Id, string SourceFingerprint, bool Pro
     ImmutableDictionary<string, int>? Charges = null, string? RefillCode = null, bool? Refilling = null);
 public sealed record StrategyCandidate(string Id, string Category, decimal Value, decimal ActionSeconds,
     decimal TravelSeconds, decimal RecoverySeconds, string? Rejection, bool Complete, [property: JsonIgnore] AtomicCommand? Command,
-    string EstimateSource = "Configured", int Samples = 0, SkillPrerequisite? Prerequisite = null)
+    string EstimateSource = "Configured", int Samples = 0, SkillPrerequisite? Prerequisite = null, CombatRoute? CombatRoute = null)
 {
     public decimal? TotalSeconds => ActionSeconds is >= 0.001m and <= 1_000_000 &&
         TravelSeconds is >= 0 and <= 1_000_000 && RecoverySeconds is >= 0 and <= 1_000_000
@@ -21,6 +21,7 @@ public sealed record StrategyCandidate(string Id, string Category, decimal Value
         TotalSeconds is { } total ? Value / total : null;
 }
 public sealed record SkillPrerequisite(string Parent, string Skill, int Target, string? TrainingItem);
+public sealed record CombatRoute(int Target, string Monster, string? Slot, string? Equipment, long MaximumLoss, decimal PreparationSeconds);
 public interface IProgressionStrategy
 {
     StrategyCandidate Evaluate(StrategyObservation observation);

@@ -6,6 +6,16 @@ namespace Artiact.Tests.Services;
 
 public class CombatObservationTests
 {
+    [Theory]
+    [InlineData("rune_slot")]
+    [InlineData("utility1_slot")]
+    [InlineData("utility2_slot")]
+    public void EquippedActiveItemCannotHideBehindEmptyEffects(string slot)
+    {
+        var json = JsonNode.Parse(CharacterJson)!;
+        json[slot] = "unsupported_active_item";
+        Assert.Null(CombatObservation.Read(JsonSerializer.SerializeToElement(json)));
+    }
     internal const string CharacterJson = """
         {"name":"researcher","level":1,"xp":0,"max_xp":10,"hp":20,"max_hp":20,
          "map_id":1,"layer":"overworld","weapon_slot":"quick_blade","inventory_max_items":10,"inventory":[],

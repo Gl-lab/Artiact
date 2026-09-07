@@ -16,6 +16,117 @@ namespace Artiact.MockService.Tests;
 
 public class StagedOperationTests
 {
+    [Fact]
+    public async Task AutonomousComparesPreparationCostAcrossSupportedGearAndOpponents()
+    {
+        await using var h = new Harness(new()); await h.Reset("autonomous-shield");
+        var policy = AutonomousPolicy("ward") with { AutonomousCombat = new([new(2, ["dummy"]), new(3, ["guardian", "missing"])], ["water_blade", "ward"]) };
+        var run = h.Factory.Create(policy);
+        for (int i = 0; i < 4; i++) await run.TickAsync();
+        var result = await run.TickAsync();
+        Assert.Equal("combat:guardian:shield:ward", result.Candidate);
+        var routes = result.Candidates.Where(x => x.CombatRoute?.Equipment is not null).ToArray();
+        Assert.Equal(2, routes.Length);
+        Assert.True(routes.Single(x => x.CombatRoute!.Equipment == "ward").TotalSeconds < routes.Single(x => x.CombatRoute!.Equipment == "water_blade").TotalSeconds);
+        Assert.Contains(result.Candidates, x => x.Rejection == "UnsupportedOrZeroXpOpponent:missing");
+    }
+    [Fact]
+    public async Task AutonomousCombatUsesBoundedFoodAndStopsRefillWithParent()
+    {
+        await using var h = new Harness(new()); await h.Reset("autonomous-shield");
+        var policy = AutonomousPolicy("ward") with { Consumable = new("combat", "meal", HpBelowPercent: 100, MaxUsed: 8, PreparationSeconds: 0) };
+        var saved = new Checkpoint(); var decisions = new List<StrategyDecision>(); StrategySession? run = null;
+        for (int i = 0; i < 90; i++)
+        {
+            run = h.Factory.Create(policy, new(NoProgress: 60), saved, "combat-food");
+            var result = await run.TickAsync(); decisions.Add(result);
+            if (result.Status != StrategyStatus.Selected) break;
+        }
+        Assert.True(decisions[^1].Status == StrategyStatus.Completed, System.Text.Json.JsonSerializer.Serialize(decisions));
+        Assert.Equal(4, decisions.Count(x => x.Command == "Fight"));
+        Assert.DoesNotContain(decisions, x => x.Command == "Rest");
+        Assert.Equal(4, saved.Load()!.Journal.Sum(x => x.Charges?.GetValueOrDefault("use:meal") ?? 0));
+        Assert.Equal(6, saved.Load()!.Journal.Sum(x => x.Charges?.GetValueOrDefault("materials:meal") ?? 0));
+        var state = CharacterObservation.Read(run!.State!.Character)!;
+        Assert.Equal(2, state.Inventory.GetValueOrDefault("meal") + (run.State.Bank?.Items.GetValueOrDefault("meal") ?? 0));
+        int actions = h.Handler.Actions;
+        await h.Factory.Create(policy, new(NoProgress: 60), saved, "combat-food").TickAsync(); Assert.Equal(actions, h.Handler.Actions);
+    }
+
+    [Theory]
+    [InlineData("combat-effects")]
+    [InlineData("combat-access")]
+    [InlineData("combat-gear-effect")]
+    [InlineData("combat-recipe")]
+    public async Task AutonomousUnsupportedSecondStageCannotDispatchFight(string corruption)
+    {
+        await using var h = new Harness(new()); await h.Reset("autonomous-shield");
+        var run = h.Factory.Create(AutonomousPolicy("ward"));
+        for (int i = 0; i < 4; i++) await run.TickAsync();
+        h.Handler.Corruption = corruption;
+        Assert.Equal(StrategyStatus.Blocked, (await run.TickAsync()).Status);
+        Assert.Equal(4, h.Handler.Actions);
+    }
+
+    [Theory]
+    [InlineData("loss", StrategyStatus.UnknownOutcome)]
+    [InlineData("combat-equip-result", StrategyStatus.Blocked)]
+    public async Task AutonomousEquipmentResponseIsVerifiedOrReconciledWithoutReplay(string corruption, StrategyStatus status)
+    {
+        await using var h = new Harness(new()); await h.Reset("autonomous-shield");
+        var saved = new Checkpoint(); var policy = AutonomousPolicy("ward");
+        var run = h.Factory.Create(policy, checkpoints: saved, identity: "gear-response");
+        for (int i = 0; i < 6; i++) await run.TickAsync();
+        h.Handler.Corruption = corruption; Assert.Equal(status, (await run.TickAsync()).Status);
+        h.Handler.Corruption = null;
+        var after = await h.Factory.Create(policy, checkpoints: saved, identity: "gear-response").TickAsync();
+        Assert.Equal(status == StrategyStatus.UnknownOutcome ? StrategyStatus.Reconciled : StrategyStatus.Blocked, after.Status);
+        Assert.Equal(7, h.Handler.Actions);
+    }
+    [Theory]
+    [InlineData("combat-unknown-result")]
+    [InlineData("combat-defeat")]
+    public async Task AutonomousUnverifiedFightStopsAndNeverReplays(string corruption)
+    {
+        await using var h = new Harness(new()); await h.Reset("autonomous-shield");
+        var policy = AutonomousPolicy("ward"); var saved = new Checkpoint();
+        var run = h.Factory.Create(policy, checkpoints: saved, identity: "fight-boundary");
+        await run.TickAsync(); h.Handler.Corruption = corruption;
+        Assert.Equal(corruption == "combat-defeat" ? StrategyStatus.Blocked : StrategyStatus.UnknownOutcome, (await run.TickAsync()).Status);
+        h.Handler.Corruption = null;
+        await h.Factory.Create(policy, checkpoints: saved, identity: "fight-boundary").TickAsync();
+        Assert.Equal(2, h.Handler.Actions);
+    }
+    private static PortfolioPolicy AutonomousPolicy(string gear) => new([], 3, "dummy", "", Preparation: new(),
+        Bank: new(ImmutableDictionary<string, int>.Empty.Add("feather", 0).Add("meal", 0)),
+        Production: new(ImmutableDictionary<string, int>.Empty),
+        AutonomousCombat: new([new(2, ["dummy"]), new(3, ["guardian"])], [gear]));
+
+    [Theory]
+    [InlineData("autonomous-shield", "ward", 12, 78)]
+    [InlineData("autonomous-weapon", "water_blade", 20, 120)]
+    public async Task AutonomousTwoStagesPrepareRequiredSlotAndSurviveEveryTickRestart(string scenario, string gear, int actions, int seconds)
+    {
+        await using var h = new Harness(new()); await h.Reset(scenario);
+        var policy = AutonomousPolicy(gear); var saved = new Checkpoint();
+        var decisions = new List<StrategyDecision>(); StrategySession? run = null;
+        for (int i = 0; i < 40; i++)
+        {
+            run = h.Factory.Create(policy, new(NoProgress: 30), saved, "autonomous");
+            var decision = await run.TickAsync(); decisions.Add(decision);
+            if (decision.Status != StrategyStatus.Selected) break;
+        }
+        Assert.True(decisions[^1].Status == StrategyStatus.Completed, System.Text.Json.JsonSerializer.Serialize(decisions));
+        Assert.Equal(actions, h.Handler.Actions); Assert.Equal(seconds, decisions[^1].CooldownSeconds);
+        Assert.Equal(3, run!.State!.Character.GetProperty("level").GetInt32());
+        var stock = CharacterObservation.Read(run.State.Character)!.Inventory;
+        Assert.Equal(2, stock["feather"]); Assert.Equal(1, stock["protected"]);
+        Assert.Contains(decisions.SelectMany(x => x.Candidates), x => x.CombatRoute?.Equipment == gear && x.CombatRoute.PreparationSeconds > 0);
+        Assert.Equal(4, decisions.Count(x => x.Command == "Fight"));
+        Assert.Equal(gear == "ward" ? 8 : 10, run.State.Character.GetProperty("hp").GetInt32());
+        Assert.Equal(StrategyStatus.Completed, (await h.Factory.Create(policy, new(NoProgress: 30), saved, "autonomous").TickAsync()).Status);
+        Assert.Equal(actions, h.Handler.Actions);
+    }
     [Theory]
     [InlineData("food-effect", 0, "UnsupportedConsumableEffectOrCondition")]
     [InlineData("food-use-schema", 0, null)]
@@ -738,6 +849,23 @@ public class StagedOperationTests
         {
             var response = await base.SendAsync(request, token);
             string path = request.RequestUri!.AbsolutePath;
+            if (path == "/monsters" && Corruption == "combat-effects" || path == "/maps" && Corruption == "combat-access" ||
+                path == "/items" && Corruption is "combat-gear-effect" or "combat-recipe" || path.EndsWith("/action/equip", StringComparison.Ordinal) && Corruption == "combat-equip-result")
+            {
+                var node = JsonNode.Parse(await response.Content.ReadAsStringAsync(token))!;
+                if (Corruption == "combat-effects") node["data"]!.AsArray().Single(x => x!["code"]!.GetValue<string>() == "guardian")!["effects"] = JsonNode.Parse("[{\"code\":\"poison\",\"value\":1}]");
+                if (Corruption == "combat-access") node["data"]!.AsArray().Single(x => x!["map_id"]!.GetValue<int>() == 9)!["access"]!["type"] = "conditional";
+                if (Corruption == "combat-gear-effect") node["data"]!.AsArray().Single(x => x!["code"]!.GetValue<string>() == "ward")!["effects"]![0]!["code"] = "unknown";
+                if (Corruption == "combat-recipe") node["data"]!.AsArray().Single(x => x!["code"]!.GetValue<string>() == "ward")!["craft"]!["items"]![0]!["code"] = "missing_material";
+                if (Corruption == "combat-equip-result") node["data"]!["character"]!["res_fire"] = 74;
+                response.Content = new StringContent(node.ToJsonString());
+            }
+            if (path.EndsWith("/action/fight", StringComparison.Ordinal) && Corruption is "combat-unknown-result" or "combat-defeat")
+            {
+                var node = JsonNode.Parse(await response.Content.ReadAsStringAsync(token))!;
+                node["data"]!["fight"]!["result"] = Corruption == "combat-defeat" ? "loss" : "unknown";
+                response.Content = new StringContent(node.ToJsonString());
+            }
             if (path == "/resources" && Corruption == "resource-alternatives")
             {
                 var node = JsonNode.Parse(await response.Content!.ReadAsStringAsync(token))!;

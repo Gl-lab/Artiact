@@ -11,6 +11,8 @@ public sealed record CombatObservation(string Name, int Level, int Xp, int MaxXp
     {
         try
         {
+            foreach (string slot in new[] { "rune_slot", "utility1_slot", "utility2_slot" })
+                if (raw.TryGetProperty(slot, out var equipped) && equipped.GetString() != "") return null;
             var stats = ReadStats(raw, false);
             if (stats is null) return null;
             var inventory = ImmutableDictionary.CreateBuilder<string, int>(StringComparer.Ordinal);

@@ -32,3 +32,5 @@ Default Inspect does not dispatch actions. Explicit OneShot/Legacy settings can 
 R2: explicit Bounded execution now persists its journal and budgets and holds a local character lease; see [bounded operation](../docs/bounded-operation.md). Earlier in-memory restart limitations still apply to standalone Inspect/OneShot/Legacy sessions.
 
 R8a journal entries carry conservative resource charges and refill phase; preserve these before dispatch and during pending-candidate reconstruction. Supply must not reset parent no-progress indefinitely. See ../docs/consumables.md for the supported immediate-heal subset.
+
+R9 autonomous mode uses EquipmentProjection for static weapon/shield changes; standalone fire-only replacement remains separate. Preserve exact inventory/stat checks and active-slot rejection; see ../docs/autonomous-combat.md.

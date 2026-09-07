@@ -6,6 +6,7 @@ This directory is the source-grounded guide for developers and AI agents working
 
 | Document | Use it for |
 |---|---|
+| [Autonomous combat](autonomous-combat.md) | R9 stages, opponent/weapon/shield selection, preparation and immediate healing |
 | [Architecture](architecture.md) | Components, dependencies, startup, background execution, HTTP and observability |
 | [Domain model](domain-model.md) | Goals, steps, crafting, inventory and looting-aware planning |
 | [Mock service](mock-service.md) | Local game-API substitute, endpoints, data and gaps |

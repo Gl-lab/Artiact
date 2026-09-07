@@ -37,3 +37,5 @@ R7 skill-preparation/resource-preparation add synthetic weaponcrafting/mining re
 R8 capacity-production/capacity-training constrain inventory to three units and reuse existing bank/craft transitions. Preserve ../docs/capacity-production.md oracles and never broaden the original scenarios' caps incidentally.
 
 R8a consumable-* scenarios add immediate heal use, cooking/fishing preparation and refill. Preserve ../docs/consumables.md oracles, full item/use envelope and atomic rejection; scripted meal/snack values are not live cooked-gudgeon data.
+
+R9 autonomous-shield/autonomous-weapon script two combat stages, a synthetic weaponcrafting shield and trained water weapon. Preserve ../docs/autonomous-combat.md oracles.

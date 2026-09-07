@@ -119,8 +119,9 @@ public sealed class CombatMilestoneStrategy(PortfolioPolicy policy, StrategyActi
                 if (changed is null || changed.Layer != state.Layer || changed.Weapon != state.Weapon) return false;
                 if (command == CombatCommand.Move) return StrategyRules.Moved(after, state, destination.MapId);
                 if (changed.MapId != state.MapId) return false;
-                if (command == CombatCommand.Rest) return changed.Stats.Hp > state.Stats.Hp && StrategyRules.Stock(state, changed);
+                if (command == CombatCommand.Rest) return changed.Stats.Hp == state.MaxHp && CharacterObservation.Preserved(observation.Character, after.Character, "hp");
                 return changed.Stats.Hp >= state.Stats.Hp - prediction.MaximumLoss && StrategyRules.Progress(observation.Character, after.Character, "") &&
+                    CharacterObservation.Preserved(observation.Character, after.Character, "hp", "max_hp", "level", "xp", "max_xp", "gold", "inventory", "inventory_max_items") &&
                     state.Inventory.All(x => changed.Inventory.GetValueOrDefault(x.Key) >= x.Value);
             }), travel: state.MapId != destination.MapId ? policy.MoveSeconds : 0);
         }

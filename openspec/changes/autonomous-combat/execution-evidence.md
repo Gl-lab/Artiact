@@ -1,0 +1,11 @@
+# R9 evidence — 2026-09-07
+
+Base `70624e4`; reviewed staged R9 diff on `codex/autonomous-roadmap`. Self-review covered normalization, exact equipment postconditions, candidate reconstruction, production/food integration, policy/config/API probes and mock atomicity. No independent agent review. Existing `.serena/project.yml` was excluded.
+
+Before production edits, `dotnet test Artiact.Tests/Artiact.Tests.csproj --no-restore --filter FullyQualifiedName~EquippedActiveItemCannotHideBehindEmptyEffects` failed three assertions: equipped rune/utility passed empty-effects normalization. Fixed and included in final suite. Other new tests were developed with implementation, not claimed as prior RED. An unknown fight-result test initially expected Blocked; the existing DTO rejects its enum before normalization, correctly yielding UnknownOutcome. The test was corrected to verify reconciliation without replay.
+
+`dotnet build Artiact.sln --no-restore`: zero warnings/errors. `dotnet test Artiact.sln --no-restore`: 509 application and 210 mock/process tests passed, none failed/skipped. `dotnet test Artiact.RealApiTests/Artiact.RealApiTests.csproj --no-restore --filter Category=RealApiOffline`: 54 passed. Focused autonomous tests cover two-stage progression with per-tick reconstruction, supported alternatives/cost, unknown effects/access/materials, bad equipment result, lost equipment reply, defeat/unknown fight and parent-bound food. Projection tests independently cover mixed channels, preserved defense and invalid subtraction.
+
+Independent scripted oracles are in docs/autonomous-combat.md. Shield: 12 actions/78 seconds; trained water weapon: 20/120. Four fights each; exact final stock/HP and terminal restart checked. Food: six meal crafts/four consumed/two retained. Mock recipes and XP are deliberate fixtures, including a synthetic weaponcrafting shield; they are not upstream recipes.
+
+Public combat/equipment pages and OpenAPI shield_slot/string and equip/array-of-EquipSchema were read without credentials. No main app, live character action, container rollout or live combat calibration. The local scope is delivered; live no-go remains. No tracked caches or shared Contracts were changed.

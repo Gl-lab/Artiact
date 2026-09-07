@@ -7,6 +7,23 @@ namespace Artiact.Services.Strategy;
 
 public sealed class StrategyActionPort(GameClient client, ICharacterService characters)
 {
+    public AtomicCommand Equipment(StrategyObservation observation, string slot, string code, bool remove,
+        Func<StrategyObservation, bool> postcondition) =>
+        new((remove ? "Unequip:" : "Equip:") + slot + ":" + code, observation.Fingerprint, false, postcondition, async token =>
+        {
+            using var operation = client.BeginOperation(token);
+            var response = remove ? await client.UnequipItem(new UnequipRequest(slot)) : await client.EquipItem(new EquipRequest(code, slot));
+            characters.SaveCharacter(response.RequireCharacter());
+            var data = client.LastActionPayload!.Value;
+            var timing = data.GetProperty("cooldown");
+            int total = timing.GetProperty("total_seconds").GetInt32(), remaining = timing.GetProperty("remaining_seconds").GetInt32();
+            var items = data.GetProperty("items");
+            bool valid = total >= 0 && remaining >= 0 && remaining <= total &&
+                timing.GetProperty("started_at").GetDateTimeOffset() <= timing.GetProperty("expiration").GetDateTimeOffset() &&
+                !string.IsNullOrWhiteSpace(timing.GetProperty("reason").GetString()) && items.GetArrayLength() == 1 &&
+                items[0].GetProperty("code").GetString() == code && items[0].GetProperty("slot").GetString() == slot && items[0].GetProperty("quantity").GetInt32() == 1;
+            return new(observation.WithCharacter(client.LastCharacterPayload!.Value), total, valid);
+        });
     public AtomicCommand Use(StrategyObservation observation, System.Text.Json.JsonElement item, int quantity, Func<StrategyObservation, bool> postcondition) =>
         new("Use:" + item.GetProperty("code").GetString() + ":" + quantity, observation.Fingerprint, false, postcondition, async token =>
         {

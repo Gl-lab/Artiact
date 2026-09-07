@@ -13,7 +13,12 @@ public sealed class StrategySessionFactory(GameClient client, CombatCatalog cata
         policy.Validate();
         var port = new StrategyActionPort(client, characters);
         var strategies = policy.Skills.Select(x => policy.Measurement is null ? (IProgressionStrategy)new GatheringStrategy(x, policy, port) : new ResourceAlternatives(x, policy, port)).ToList();
-        if (policy.CombatEnabled) strategies.Add(new CombatMilestoneStrategy(policy, port));
+        if (policy.AutonomousCombat is not null)
+        {
+            IProgressionStrategy combat = new AutonomousCombatStrategy(policy, port);
+            strategies.Add(policy.Consumable?.ParentItem == "combat" ? new ConsumableStrategy(combat, policy, port) : combat);
+        }
+        else if (policy.CombatEnabled) strategies.Add(new CombatMilestoneStrategy(policy, port));
         if (!policy.Monsters.IsDefaultOrEmpty) strategies.AddRange(policy.Monsters.Select(monster => new NamedStrategy("combat:" + monster,
             new CombatMilestoneStrategy(policy with { Monster = monster }, port))));
         if (!string.IsNullOrWhiteSpace(policy.Equipment)) strategies.Add(new EquipmentStrategy(policy, port));
