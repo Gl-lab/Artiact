@@ -97,6 +97,7 @@ public sealed class CombatMilestoneStrategy(PortfolioPolicy policy, StrategyActi
             var state = CombatObservation.Read(observation.Character);
             if (state is null) return Result("UnsupportedObservation");
             if (state.Level >= policy.CombatTarget) return Result(null, true);
+            if (policy.PrepareEquipment && state.Weapon != policy.Equipment) return Result("EquipmentPreparationPending");
             if (state.FreeUnits < 1) return Result("InventoryPressure");
             var world = CombatCatalog.Resolve(state, policy.Monster, observation.Catalogs["monsters"], observation.Catalogs["maps"], observation.Catalogs["items"]);
             if (world.Destination is not { } destination) return Result("UnsupportedAccessOrEquipment");
@@ -129,10 +130,16 @@ public sealed class EquipmentStrategy(PortfolioPolicy policy, StrategyActionPort
             var state = CombatObservation.Read(observation.Character);
             if (state is null) return Result("UnsupportedObservation");
             if (state.Weapon == policy.Equipment) return Result(null, true);
-            if (state.Inventory.GetValueOrDefault(policy.Equipment) < 1) return Result("NotOwned");
+            if (policy.PrepareEquipment && state.Level >= policy.CombatTarget) return Result(null, true);
             var items = observation.Catalogs["items"];
             var target = items.Single(x => x.GetProperty("code").GetString() == policy.Equipment);
             if (!CombatCatalog.TryWeapon(target, state.Level, out int attack)) return Result("UnsupportedEquipment");
+            if (state.Inventory.GetValueOrDefault(policy.Equipment) < 1)
+            {
+                if (!policy.PrepareEquipment) return Result("NotOwned");
+                var production = new ItemProductionStrategy(new(policy.Equipment, 1, policy.EquipmentValue), policy, port, requireInventory: true).Evaluate(observation);
+                return Result(production.Rejection, command: production.Command);
+            }
             int oldAttack = 0;
             if (state.Weapon.Length > 0 && !CombatCatalog.TryWeapon(items.Single(x => x.GetProperty("code").GetString() == state.Weapon), state.Level, out oldAttack))
                 return Result("UnsupportedEquipment");

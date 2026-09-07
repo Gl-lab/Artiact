@@ -8,7 +8,8 @@ public sealed record ProductionStep(string Kind, string Code, int Quantity, int 
 public sealed record ItemProductionPlan(ImmutableArray<ProductionStep> Steps, string? Rejection)
 {
     public static ItemProductionPlan Build(string code, int quantity, IReadOnlyDictionary<string, int> inventory,
-        IReadOnlyDictionary<string, int> bank, IReadOnlyList<JsonElement> items, IReadOnlyList<JsonElement> resources)
+        IReadOnlyDictionary<string, int> bank, IReadOnlyList<JsonElement> items, IReadOnlyList<JsonElement> resources,
+        IReadOnlyList<JsonElement>? monsters = null)
     {
         var steps = ImmutableArray.CreateBuilder<ProductionStep>();
         try
@@ -45,6 +46,9 @@ public sealed record ItemProductionPlan(ImmutableArray<ProductionStep> Steps, st
                 }
                 else if (resources.Any(x => x.GetProperty("drops").EnumerateArray().Any(d => d.GetProperty("code").GetString() == item)))
                     steps.Add(new("Gather", item, count));
+                else if (monsters?.Any(x => x.GetProperty("drops").EnumerateArray().Any(d => d.GetProperty("code").GetString() == item &&
+                    d.GetProperty("rate").GetInt32() > 0 && d.GetProperty("max_quantity").GetInt32() > 0)) == true)
+                    steps.Add(new("Loot", item, count));
                 else throw new InvalidOperationException("UnavailableIngredient:" + item);
                 visiting.Remove(item);
             }

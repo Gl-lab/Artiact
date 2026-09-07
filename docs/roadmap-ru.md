@@ -104,7 +104,7 @@
 
 ## 7. R4 — производство и боевая прогрессия
 
-**R4a локально реализовано:** [спека и доказательства](../openspec/changes/item-production/execution-evidence.md). **R4b локально реализовано:** [элементальная модель](../openspec/changes/elemental-combat/execution-evidence.md); R4c следует отдельно.
+**R4a локально реализовано:** [спека и доказательства](../openspec/changes/item-production/execution-evidence.md). **R4b локально реализовано:** [элементальная модель](../openspec/changes/elemental-combat/execution-evidence.md); **R4c локально реализовано:** [подготовка к боевой цели](../openspec/changes/combat-preparation/execution-evidence.md).
 
 Этот этап состоит из двух веток. Производство из имеющихся или добываемых ресурсов может развиваться до готовности расширенного боя.
 

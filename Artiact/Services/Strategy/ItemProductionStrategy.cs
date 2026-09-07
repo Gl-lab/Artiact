@@ -4,7 +4,7 @@ using System.Text.Json;
 
 namespace Artiact.Services.Strategy;
 
-public sealed class ItemProductionStrategy(ItemMilestone goal, PortfolioPolicy policy, StrategyActionPort port) : IProgressionStrategy
+public sealed class ItemProductionStrategy(ItemMilestone goal, PortfolioPolicy policy, StrategyActionPort port, bool requireInventory = false) : IProgressionStrategy
 {
     public StrategyCandidate Evaluate(StrategyObservation observation)
     {
@@ -14,12 +14,19 @@ public sealed class ItemProductionStrategy(ItemMilestone goal, PortfolioPolicy p
         {
             var state = CharacterObservation.Read(observation.Character);
             if (state is null) return Result("InvalidItemObservation");
-            if ((long)state.Inventory.GetValueOrDefault(goal.Code) + (observation.Bank?.Items.GetValueOrDefault(goal.Code) ?? 0) >= goal.Quantity)
+            if ((long)state.Inventory.GetValueOrDefault(goal.Code) + (requireInventory ? 0 : observation.Bank?.Items.GetValueOrDefault(goal.Code) ?? 0) >= goal.Quantity)
                 return Result(null, true);
             var plan = ItemProductionPlan.Build(goal.Code, goal.Quantity, state.Inventory,
-                observation.Bank?.Items ?? ImmutableDictionary<string, int>.Empty, observation.Catalogs["items"], observation.Catalogs["resources"]);
+                observation.Bank?.Items ?? ImmutableDictionary<string, int>.Empty, observation.Catalogs["items"], observation.Catalogs["resources"],
+                policy.PrepareEquipment ? observation.Catalogs["monsters"].Where(x => x.GetProperty("code").GetString() == policy.Monster).ToArray() : null);
             if (plan.Rejection is not null) return Result(plan.Rejection);
             var next = plan.Steps[0];
+            if (next.Kind == "Loot")
+            {
+                var combat = new CombatMilestoneStrategy(policy with { PrepareEquipment = false,
+                    CombatTarget = checked(observation.Character.GetProperty("level").GetInt32() + 1) }, port).Evaluate(observation);
+                return Result(combat.Rejection, command: combat.Command);
+            }
             if (next.Kind == "Gather")
             {
                 var resources = observation.Catalogs["resources"].Where(x => x.GetProperty("drops").EnumerateArray()

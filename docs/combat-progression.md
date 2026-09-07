@@ -1,5 +1,7 @@
 # Bounded deterministic combat progression
 
+R4c's opt-in portfolio preparation composes loot, production and weapon swapping before the combat milestone. The `combat-preparation` fixture obtains feather+shard, crafts/equips a blade and reaches level 3 in 13 actions/81 virtual seconds; final HP17, weapon crafted_blade, stock feather3/shard3/quick_blade1. [Evidence](../openspec/changes/combat-preparation/execution-evidence.md) also covers unsafe prerequisite rejection and the shared budget. The separate historical CombatRun below remains available.
+
 R4b extends normalized prediction to four independently rounded attack/bonus/resistance channels; [ADR revisit](decisions/0001-combat-viability-and-recovery.md) and [evidence](../openspec/changes/elemental-combat/execution-evidence.md) define the boundary. Historical fire-only fixtures below remain valid. Weapon replacement still supports fire-attack-only effects. Effects, negative resistances, unsupported gear and non-normal opponents remain rejected; no live combat approval is established.
 
 Epic 6's first HTTP slice is available through `CombatSessionFactory`. It is registered in DI but is available separately from default staged portfolio inspection. Creating a session reads the character and fresh combat catalogs; repeatedly call `CombatRun.ExecuteCycleAsync` until Completed or Blocked. Callers supply `CombatLevelGoal`, monster code and `CombatLimits`; no default live-combat startup or durable recovery is provided.

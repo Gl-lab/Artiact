@@ -1,5 +1,7 @@
 # Independent item production
 
+R4c adds explicit `Portfolio:PrepareEquipment=true` with combat target/opponent/weapon. The equipment candidate obtains missing materials through the same production ledger, including multiple drops of the configured supported opponent. The combat milestone waits for the weapon. Acquisition fights use current equipment viability, and all steps share the journal/budgets. A bank-owned weapon is withdrawn before equip. Broader opponents/gear, consumables and defeat recovery remain excluded.
+
 R4a adds `Portfolio:Items` entries with `Code`, positive `Quantity` (up to 10000) and `Value` (default 30). Skills may be empty for an item-only profile. Completion counts target inventory plus observed bank stock. Item goals load item catalogs and probe crafting; enabled bank support additionally probes withdrawal.
 
 The pure plan reserves one shared ledger across sorted nested recipe ingredients and preserves batch surplus. It rejects cycles, invalid quantities/conditions, unavailable leaves and bounded depth/step/arithmetic failures before dispatch. Runtime reevaluation checks selected recipe skill, supported workshop access and inventory capacity. Missing resource leaves use the gathering strategy restricted to that output. General mob-drop acquisition is deferred to R4c.

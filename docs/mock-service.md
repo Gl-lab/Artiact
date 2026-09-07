@@ -4,6 +4,8 @@ The additional `combat-progression`, `combat-equipment` and `combat-crafting` sc
 
 ## Purpose
 
+R4c adds `combat-preparation`, a scripted dual-drop crafting/equipment chain with the oracle in [combat progression](combat-progression.md). It extends authored fixtures only and is not evidence of live monster drop probabilities.
+
 R4a adds `item-production` and `item-production-bank` scripted scenarios, including required-stock withdrawals and bar/tool recipes. Their independent stock/action/time oracles are in [item production](item-production.md); the existing mining fixtures remain unchanged.
 
 The `gathering-bank` reset extends the scripted strategy kernel with bank details/items reads and bank item deposits; its fixed capacity and exact action/stock oracle are documented in [gathering with bank](gathering-bank.md). Deposits mutate character/bank/trace together; rejected requests commit neither store.

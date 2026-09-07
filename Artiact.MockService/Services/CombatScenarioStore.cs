@@ -14,6 +14,7 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
     private readonly JsonArray _trace = [];
     private JsonArray _bank = [];
     private bool IsProduction => _scenario is "item-production" or "item-production-bank";
+    private bool IsCombatCrafting => _scenario is "combat-crafting" or "combat-preparation";
 
     public (int Status, JsonNode Body)? Handle(string method, string path, string query, string body)
     {
@@ -40,7 +41,7 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
                 }
                 catch (System.Text.Json.JsonException) { return null; }
                 if (scenario is "basic-mining" or "mining-progression") { _scenario = null; return null; }
-                if (scenario is not ("combat-progression" or "combat-equipment" or "combat-crafting" or "strategy-portfolio" or "gathering-bank" or "item-production" or "item-production-bank")) return null;
+                if (scenario is not ("combat-progression" or "combat-equipment" or "combat-crafting" or "strategy-portfolio" or "gathering-bank" or "item-production" or "item-production-bank" or "combat-preparation")) return null;
                 _scenario = scenario;
                 _character = null;
                 _seconds = 0;
@@ -54,7 +55,7 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
                 return (200, new JsonObject { ["data"] = new JsonObject { ["slots"] = 50, ["expansions"] = 0, ["gold"] = 0, ["next_expansion_cost"] = 3500 } });
             if ((_scenario == "gathering-bank" || IsProduction) && method == "GET" && path == "/my/bank/items")
                 return (200, new JsonObject { ["data"] = _bank.DeepClone(), ["total"] = _bank.Count, ["page"] = 1, ["size"] = 50, ["pages"] = 1 });
-            if (_scenario is "strategy-portfolio" or "gathering-bank" or "item-production" or "item-production-bank" && method == "GET" && path == "/openapi.json")
+            if (_scenario is "strategy-portfolio" or "gathering-bank" or "item-production" or "item-production-bank" or "combat-preparation" && method == "GET" && path == "/openapi.json")
                 return (200, JsonNode.Parse(File.ReadAllText(Path.Combine(environment.ContentRootPath, "StrategyOpenApiSubset.json")))!);
             if (method == "GET" && path == "/characters/researcher")
             {
@@ -116,13 +117,13 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
                         if (move is not JsonObject moveObject || moveObject.Count != 1)
                             return Error(422, "destination_not_found");
                         int mapId = move["map_id"]!.GetValue<int>();
-                        if (mapId != 2 && !(mapId == 3 && _scenario == "combat-crafting") &&
+                        if (mapId != 2 && !(mapId == 3 && IsCombatCrafting) &&
                             !((_scenario is "strategy-portfolio" or "gathering-bank" or "item-production" or "item-production-bank") && mapId is 4 or 5) && !((_scenario == "gathering-bank" || IsProduction) && mapId == 6) && !(IsProduction && mapId == 3)) return Error(422, "destination_not_found");
                         next["map_id"] = mapId; next["x"] = mapId - 1;
                         dataResult["destination"] = Catalog("maps")[mapId - 1]!.DeepClone();
                         duration = 7; break;
                     case "gathering":
-                        if ((_scenario is not ("strategy-portfolio" or "gathering-bank" or "item-production" or "item-production-bank")) || !EmptyRequest(body) || Used(next) >= next["inventory_max_items"]!.GetValue<int>())
+                        if ((_scenario is not ("strategy-portfolio" or "gathering-bank" or "item-production" or "item-production-bank" or "combat-preparation")) || !EmptyRequest(body) || Used(next) >= next["inventory_max_items"]!.GetValue<int>())
                             return Error(422, "gather_not_available");
                         int gatherMap = next["map_id"]!.GetValue<int>();
                         if (gatherMap is not (4 or 5)) return Error(422, "gather_not_available");
@@ -141,18 +142,20 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
                         if (next["map_id"]!.GetValue<int>() != 2 || next["hp"]!.GetValue<int>() != 20 ||
                             (next["weapon_slot"]!.GetValue<string>() != "quick_blade" &&
                                 !(_scenario == "strategy-portfolio" && next["weapon_slot"]!.GetValue<string>() == "old") &&
-                                !(_scenario == "combat-crafting" && next["weapon_slot"]!.GetValue<string>() == "crafted_blade")) || Used(next) >= 10 ||
-                            next["level"]!.GetValue<int>() >= (_scenario == "combat-crafting" ? 3 : 2)) return Error(422, "fight_not_available");
+                                !(IsCombatCrafting && next["weapon_slot"]!.GetValue<string>() == "crafted_blade")) || Used(next) >= 10 ||
+                            next["level"]!.GetValue<int>() >= (IsCombatCrafting ? 3 : 2)) return Error(422, "fight_not_available");
                         int xp = next["xp"]!.GetValue<int>() + 5;
                         int finalHp = next["weapon_slot"]!.GetValue<string>() == "crafted_blade" ? 17 :
                             next["weapon_slot"]!.GetValue<string>() == "old" ? 8 : 14;
                         next["xp"] = xp % 10; next["level"] = next["level"]!.GetValue<int>() + xp / 10; next["hp"] = finalHp;
                         Add(next, "feather", 1);
+                        if (_scenario == "combat-preparation") Add(next, "shard", 1);
                         dataResult["fight"] = new JsonObject { ["result"] = "win", ["turns"] = finalHp == 8 ? 4 : 2, ["opponent"] = "dummy",
                             ["logs"] = new JsonArray(), ["characters"] = new JsonArray(new JsonObject {
                                 ["character_name"] = "researcher", ["xp"] = 5, ["gold"] = 0, ["final_hp"] = finalHp,
                                 ["drops"] = new JsonArray(new JsonObject { ["code"] = "feather", ["quantity"] = 1 }) }) };
                         dataResult["characters"] = new JsonArray(next.DeepClone());
+                        if (_scenario == "combat-preparation") dataResult["fight"]!["characters"]![0]!["drops"]!.AsArray().Add(new JsonObject { ["code"] = "shard", ["quantity"] = 1 });
                         duration = 8; break;
                     case "rest":
                         if (!EmptyRequest(body)) return Error(422, "invalid_request");
@@ -169,13 +172,13 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
                         if (action == "unequip")
                         {
                             code = next["weapon_slot"]!.GetValue<string>();
-                            if ((code != "old" && !(_scenario == "combat-crafting" && code == "quick_blade")) || Used(next) >= 10) return Error(422, "invalid_equipment");
+                            if ((code != "old" && !(IsCombatCrafting && code == "quick_blade")) || Used(next) >= 10) return Error(422, "invalid_equipment");
                             Add(next, code, 1); next["weapon_slot"] = ""; next["attack_fire"] = 0;
                         }
                         else
                         {
                             code = request[0]!["code"]!.GetValue<string>();
-                            if ((code != "quick_blade" && !(_scenario == "combat-crafting" && code == "crafted_blade")) || next["weapon_slot"]!.GetValue<string>() != "" ||
+                            if ((code != "quick_blade" && !(IsCombatCrafting && code == "crafted_blade")) || next["weapon_slot"]!.GetValue<string>() != "" ||
                                 !Add(next, code, -1)) return Error(422, "invalid_equipment");
                             next["weapon_slot"] = code; next["attack_fire"] = code == "crafted_blade" ? 20 : 10;
                         }
@@ -193,11 +196,12 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
                             dataResult["details"] = new JsonObject { ["xp"] = batch, ["items"] = new JsonArray(new JsonObject { ["code"] = product, ["quantity"] = batch }) };
                             duration = 4; break;
                         }
-                        if (_scenario != "combat-crafting" || next["map_id"]!.GetValue<int>() != 3 ||
+                        if (!IsCombatCrafting || next["map_id"]!.GetValue<int>() != 3 ||
                             requestCraft is not JsonObject craftObject || craftObject.Count != 2 ||
                             requestCraft["code"]!.GetValue<string>() != "crafted_blade" || requestCraft["quantity"]!.GetValue<int>() != 1 ||
                             !Add(next, "feather", -1)) return Error(422, "craft_not_available");
                         Add(next, "crafted_blade", 1);
+                        if (_scenario == "combat-preparation" && !Add(next, "shard", -1)) return Error(478, "missing_shard");
                         next["weaponcrafting_xp"] = next["weaponcrafting_xp"]!.GetValue<int>() + 1;
                         dataResult["details"] = new JsonObject { ["xp"] = 1, ["items"] = new JsonArray(new JsonObject {
                             ["code"] = "crafted_blade", ["quantity"] = 1 }) };
@@ -240,7 +244,12 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
     private JsonArray Catalog(string name)
     {
         var data = _fixture[name]!.DeepClone().AsArray();
-        if (_scenario is not ("strategy-portfolio" or "gathering-bank" or "item-production" or "item-production-bank")) return data;
+        if (_scenario == "combat-preparation")
+        {
+            if (name == "monsters") data[0]!["drops"]!.AsArray().Add(new JsonObject { ["code"] = "shard", ["rate"] = 1, ["min_quantity"] = 1, ["max_quantity"] = 1 });
+            if (name == "items") data.Single(x => x!["code"]!.GetValue<string>() == "crafted_blade")!["craft"]!["items"]!.AsArray().Add(new JsonObject { ["code"] = "shard", ["quantity"] = 1 });
+        }
+        if (_scenario is not ("strategy-portfolio" or "gathering-bank" or "item-production" or "item-production-bank" or "combat-preparation")) return data;
         if (name == "maps")
         {
             data.Add(JsonNode.Parse("""{"map_id":4,"name":"Mine","skin":"plain","x":3,"y":0,"layer":"overworld","access":{"type":"standard","conditions":[]},"interactions":{"content":{"type":"resource","code":"ore_node"},"transition":null}}"""));

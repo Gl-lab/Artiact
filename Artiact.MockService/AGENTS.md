@@ -29,3 +29,5 @@ The strategy-portfolio scenario alone serves GET /openapi.json from the authored
 The gathering-bank scenario also serves this partial schema and adds GET /my/bank, paginated /my/bank/items and POST bank/deposit/item. Preserve atomic inventory/bank/trace commits and the documented 13-action conservation oracle in ../docs/gathering-bank.md.
 
 R4a's item-production/item-production-bank add bounded withdrawals and bar/tool crafting. Keep their fixtures and independent oracles aligned with ../docs/item-production.md.
+
+R4c combat-preparation adds two simultaneous drops and their consumption by crafted_blade. Preserve the 13-action/81-second oracle and current-equipment safety test.

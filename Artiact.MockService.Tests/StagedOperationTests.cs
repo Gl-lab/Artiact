@@ -15,6 +15,34 @@ namespace Artiact.MockService.Tests;
 
 public class StagedOperationTests
 {
+    [Fact]
+    public async Task UnsafePreparationNeverUsesFutureWeaponToAuthorizeFight()
+    {
+        await using var h = new Harness(new(), miningOnly: true); await h.Reset("combat-preparation");
+        h.Handler.Corruption = "unsafe-preparation";
+        Assert.Equal(StrategyStatus.Blocked, (await h.Factory.Create(new([], 3, "dummy", "crafted_blade", PrepareEquipment: true)).TickAsync()).Status);
+        Assert.Equal(0, h.Handler.Actions);
+    }
+    [Fact]
+    public async Task PreparationUsesOneBudgetAcrossLootAndCraft()
+    {
+        await using var h = new Harness(new(), miningOnly: true); await h.Reset("combat-preparation");
+        var run = h.Factory.Create(new([], 3, "dummy", "crafted_blade", PrepareEquipment: true), new(Actions: 2));
+        await run.TickAsync(); await run.TickAsync();
+        Assert.Equal("BudgetExhausted", (await run.TickAsync()).Reason); Assert.Equal(2, h.Handler.Actions);
+    }
+    [Fact]
+    public async Task CombatPreparationObtainsTwoLeavesCraftsEquipsAndCompletes()
+    {
+        await using var h = new Harness(new(), miningOnly: true); await h.Reset("combat-preparation");
+        var run = h.Factory.Create(new([], 3, "dummy", "crafted_blade", PrepareEquipment: true));
+        StrategyDecision? last = null;
+        for (int i = 0; i < 14; i++) last = await run.TickAsync();
+        Assert.Equal(StrategyStatus.Completed, last!.Status); Assert.Equal(13, h.Handler.Actions); Assert.Equal(81, last.CooldownSeconds);
+        var state = CombatObservation.Read(run.State!.Character)!;
+        Assert.Equal(3, state.Level); Assert.Equal(17, state.Stats.Hp); Assert.Equal("crafted_blade", state.Weapon);
+        Assert.Equal(3, state.Inventory["feather"]); Assert.Equal(3, state.Inventory["shard"]); Assert.Equal(1, state.Inventory["quick_blade"]);
+    }
     [Theory]
     [InlineData("item-production-bank", 1)]
     [InlineData("item-production", 4)]
@@ -283,6 +311,11 @@ public class StagedOperationTests
         {
             var response = await base.SendAsync(request, token);
             string path = request.RequestUri!.AbsolutePath;
+            if (path.StartsWith("/characters/", StringComparison.Ordinal) && Corruption == "unsafe-preparation")
+            {
+                var node = JsonNode.Parse(await response.Content!.ReadAsStringAsync(token))!;
+                node["data"]!["attack_fire"] = 0; response.Content = new StringContent(node.ToJsonString());
+            }
             if (path == "/my/bank" && Corruption == "bank-full")
                 response.Content = new StringContent("{\"data\":{\"slots\":0}}");
             if (path == "/my/bank/items" && Corruption == "bank-pages")

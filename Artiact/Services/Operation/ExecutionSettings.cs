@@ -38,6 +38,7 @@ public sealed class PortfolioSettings
 {
     public Dictionary<string, int>? BankRetain { get; set; }
     public ItemMilestone[] Items { get; set; } = [];
+    public bool PrepareEquipment { get; set; }
     public SkillMilestone[] Skills { get; set; } = [];
     public int CombatTarget { get; set; }
     public string Monster { get; set; } = "";
@@ -53,7 +54,7 @@ public sealed class PortfolioSettings
     {
         var result = new PortfolioPolicy(Skills.ToImmutableArray(), CombatTarget, Monster, Equipment, CombatValue,
             EquipmentValue, MoveSeconds, GatherSeconds, FightSeconds, RestSeconds, EquipmentSeconds,
-            BankRetain is null ? null : new(BankRetain.ToImmutableDictionary(StringComparer.Ordinal)), Items.ToImmutableArray());
+            BankRetain is null ? null : new(BankRetain.ToImmutableDictionary(StringComparer.Ordinal)), Items.ToImmutableArray(), PrepareEquipment);
         result.Validate(); return result;
     }
 }
