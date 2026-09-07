@@ -10,6 +10,7 @@ public class SkillPreparationPolicyTests
     {
         var policy = new PortfolioPolicy([], 0, "", "", Items: [new("tool", 1)]);
         Assert.DoesNotContain("Preparation", policy.Identity);
+        Assert.DoesNotContain("Production", policy.Identity);
         Assert.Contains("Preparation", (policy with { Preparation = new() }).Identity);
     }
 

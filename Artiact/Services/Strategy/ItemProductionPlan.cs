@@ -9,7 +9,7 @@ public sealed record ItemProductionPlan(ImmutableArray<ProductionStep> Steps, st
 {
     public static ItemProductionPlan Build(string code, int quantity, IReadOnlyDictionary<string, int> inventory,
         IReadOnlyDictionary<string, int> bank, IReadOnlyList<JsonElement> items, IReadOnlyList<JsonElement> resources,
-        IReadOnlyList<JsonElement>? monsters = null)
+        IReadOnlyList<JsonElement>? monsters = null, bool capacityAware = false)
     {
         var steps = ImmutableArray.CreateBuilder<ProductionStep>();
         try
@@ -26,7 +26,11 @@ public sealed record ItemProductionPlan(ImmutableArray<ProductionStep> Steps, st
                 stock[item] = stock.GetValueOrDefault(item) - owned; count -= owned;
                 if (count == 0) return;
                 int fromBank = Math.Min(count, stored.GetValueOrDefault(item));
-                if (fromBank > 0) { stored[item] -= fromBank; count -= fromBank; steps.Add(new("Withdraw", item, fromBank)); }
+                if (fromBank > 0)
+                {
+                    stored[item] -= fromBank; count -= fromBank;
+                    if (!capacityAware || count == 0) steps.Add(new("Withdraw", item, fromBank));
+                }
                 if (count == 0) return;
                 if (!visiting.Add(item)) throw new InvalidOperationException("RecipeCycle");
                 if (catalog.TryGetValue(item, out var raw) && raw.TryGetProperty("craft", out var craft) && craft.ValueKind == JsonValueKind.Object)
@@ -39,9 +43,22 @@ public sealed record ItemProductionPlan(ImmutableArray<ProductionStep> Steps, st
                     var ingredients = craft.GetProperty("items").EnumerateArray().ToImmutableDictionary(x => x.GetProperty("code").GetString()!,
                         x => checked(x.GetProperty("quantity").GetInt32() * batches));
                     if (ingredients.IsEmpty || ingredients.Any(x => string.IsNullOrWhiteSpace(x.Key) || x.Value <= 0)) throw new InvalidOperationException("InvalidRecipe");
-                    foreach (var ingredient in ingredients.OrderBy(x => x.Key, StringComparer.Ordinal)) Need(ingredient.Key, ingredient.Value);
                     int made = checked(output * batches);
-                    steps.Add(new("Craft", item, batches, made, skill, ingredients));
+                    if (capacityAware)
+                    {
+                        var unit = ingredients.ToImmutableDictionary(x => x.Key, x => x.Value / batches, StringComparer.Ordinal);
+                        for (int batch = 0; batch < batches; batch++)
+                        {
+                            if (steps.Count >= 100) throw new InvalidOperationException("PlanBoundExceeded");
+                            foreach (var ingredient in unit.OrderBy(x => x.Key, StringComparer.Ordinal)) Need(ingredient.Key, ingredient.Value);
+                            steps.Add(new("Craft", item, 1, output, skill, unit));
+                        }
+                    }
+                    else
+                    {
+                        foreach (var ingredient in ingredients.OrderBy(x => x.Key, StringComparer.Ordinal)) Need(ingredient.Key, ingredient.Value);
+                        steps.Add(new("Craft", item, batches, made, skill, ingredients));
+                    }
                     stock[item] = checked(stock.GetValueOrDefault(item) + made - count);
                 }
                 else if (resources.Any(x => x.GetProperty("drops").EnumerateArray().Any(d => d.GetProperty("code").GetString() == item)))
@@ -50,6 +67,7 @@ public sealed record ItemProductionPlan(ImmutableArray<ProductionStep> Steps, st
                     d.GetProperty("rate").GetInt32() > 0 && d.GetProperty("max_quantity").GetInt32() > 0)) == true)
                     steps.Add(new("Loot", item, count));
                 else throw new InvalidOperationException("UnavailableIngredient:" + item);
+                if (capacityAware && fromBank > 0) steps.Add(new("Withdraw", item, fromBank));
                 visiting.Remove(item);
             }
             Need(code, quantity);

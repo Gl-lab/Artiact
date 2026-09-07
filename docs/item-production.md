@@ -1,5 +1,7 @@
 # Independent item production
 
+R8 adds optional [capacity-aware production](capacity-production.md): one-batch planning, protected stock, other-goal quotas and inventory-pressure deposits. Bank-owned final output contributes to completion without unnecessary withdrawal.
+
 R7 adds optional [skill preparation](skill-preparation.md) to item goals: supported weaponcrafting training and mining prerequisites share the parent's budgets. Without `Portfolio:Preparation`, low skills retain the previous refusal behavior.
 
 R4c adds explicit `Portfolio:PrepareEquipment=true` with combat target/opponent/weapon. The equipment candidate obtains missing materials through the same production ledger, including multiple drops of the configured supported opponent. The combat milestone waits for the weapon. Acquisition fights use current equipment viability, and all steps share the journal/budgets. A bank-owned weapon is withdrawn before equip. Broader opponents/gear, consumables and defeat recovery remain excluded.

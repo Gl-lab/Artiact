@@ -15,4 +15,4 @@ Independent synthetic scenarios:
 
 Both use real clients, exact command/stock oracles and terminal reconstruction. Lost training replies reconcile without another POST; action limits cover training and the final goal together. Mock skill rejection commits neither stock nor trace. No live training or new profession compatibility is claimed.
 
-R8 owns capacity-aware batches and cross-goal reservations. This release may block when retained training products fill inventory, training needs an unsupported profession or no supported route exists. Standalone crafting-skill milestones and equipment preparation do not yet use this item-goal wrapper. Their extension requires separate acceptance.
+Optional [R8 capacity production](capacity-production.md) supplies batches and cross-goal reservations, including a constrained training scenario. Unsupported professions and inaccessible routes still block. Standalone crafting-skill milestones and equipment preparation do not yet use this item-goal wrapper. Their extension requires separate acceptance.

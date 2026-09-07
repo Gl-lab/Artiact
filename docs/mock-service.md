@@ -4,6 +4,8 @@ The additional `combat-progression`, `combat-equipment` and `combat-crafting` sc
 
 ## Purpose
 
+R8 adds `capacity-production` and `capacity-training`: three-unit inventory, larger orders, existing bank/craft routes and the oracles in [capacity production](capacity-production.md). The former extends the synthetic mining cap so the ten-ore acceptance can complete; it does not change existing scenarios or model live XP.
+
 R7 adds `skill-preparation` and `resource-preparation` in the scripted kernel. Their independent command/stock/XP oracles are documented in [skill preparation](skill-preparation.md). They expose existing crafting/gathering routes, enforce synthetic skill requirements atomically, and do not implement the live XP formula.
 
 R4c adds `combat-preparation`, a scripted dual-drop crafting/equipment chain with the oracle in [combat progression](combat-progression.md). It extends authored fixtures only and is not evidence of live monster drop probabilities.

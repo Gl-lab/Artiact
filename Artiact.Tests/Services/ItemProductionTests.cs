@@ -6,6 +6,20 @@ namespace Artiact.Tests.Services;
 
 public class ItemProductionTests
 {
+    [Fact]
+    public void CapacityPlanMakesMissingIntermediateBeforeWithdrawingItsBankSibling()
+    {
+        var items = new[]
+        {
+            Json("""{"code":"tool","craft":{"skill":"weaponcrafting","level":1,"quantity":1,"items":[{"code":"bar","quantity":2}]}}"""),
+            Json("""{"code":"bar","craft":{"skill":"weaponcrafting","level":1,"quantity":1,"items":[{"code":"ore","quantity":2}]}}""")
+        };
+        var resources = new[] { Json("""{"code":"ore_node","skill":"mining","drops":[{"code":"ore","rate":1,"min_quantity":1,"max_quantity":1}]}""") };
+        var plan = ItemProductionPlan.Build("tool", 1, new Dictionary<string, int>(), new Dictionary<string, int> { ["bar"] = 1 }, items, resources, capacityAware: true);
+        Assert.Null(plan.Rejection);
+        Assert.Equal(new[] { "Gather:ore:2", "Craft:bar:1", "Withdraw:bar:1", "Craft:tool:1" }, plan.Steps.Select(x => $"{x.Kind}:{x.Code}:{x.Quantity}"));
+    }
+
     private static JsonElement Json(string value) => JsonDocument.Parse(value).RootElement.Clone();
     [Fact]
     public void SharedNestedIngredientsReserveStockOnceAndRetainBatchSurplus()

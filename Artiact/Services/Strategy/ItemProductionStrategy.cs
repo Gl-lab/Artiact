@@ -17,10 +17,18 @@ public sealed class ItemProductionStrategy(ItemMilestone goal, PortfolioPolicy p
             if (state is null) return Result("InvalidItemObservation");
             if ((long)state.Inventory.GetValueOrDefault(goal.Code) + (requireInventory ? 0 : observation.Bank?.Items.GetValueOrDefault(goal.Code) ?? 0) >= goal.Quantity)
                 return Result(null, true);
-            var plan = ItemProductionPlan.Build(goal.Code, goal.Quantity, state.Inventory,
-                observation.Bank?.Items ?? ImmutableDictionary<string, int>.Empty, observation.Catalogs["items"], observation.Catalogs["resources"],
-                policy.PrepareEquipment ? observation.Catalogs["monsters"].Where(x => x.GetProperty("code").GetString() == policy.Monster).ToArray() : null);
+            var plan = ProductionStock.Plan(observation, goal, policy, requireInventory);
             if (plan.Rejection is not null) return Result(plan.Rejection);
+            StrategyCandidate Pressure()
+            {
+                var blocked = Result("InventoryPressure");
+                return policy.Production is null ? blocked : BankPrerequisite.Evaluate(observation, blocked,
+                    ProductionStock.Retain(observation, policy, plan), port, policy.MoveSeconds);
+            }
+            if (policy.Production is not null && plan.Steps.Where(x => x.Kind == "Craft").Any(x =>
+                    Math.Max(x.Ingredients!.Values.Sum(v => (long)v), x.Output) + policy.Production.Reserved.Sum(r =>
+                        (long)Math.Min(r.Value, state.Inventory.GetValueOrDefault(r.Key))) > state.Capacity))
+                return Result("MinimalRecipeExceedsCapacity");
             if (policy.Measurement is not null)
                 prerequisites = Math.Max(0, plan.Steps.Sum(x => x.Kind switch
                 { "Gather" => x.Quantity * policy.GatherSeconds, "Loot" => x.Quantity * (policy.FightSeconds + policy.RestSeconds),
@@ -39,7 +47,8 @@ public sealed class ItemProductionStrategy(ItemMilestone goal, PortfolioPolicy p
                 var resource = resources.OrderBy(x => x.GetProperty("code").GetString(), StringComparer.Ordinal).First();
                 string skill = resource.GetProperty("skill").GetString()!;
                 var filtered = new StrategyObservation(observation.Character, observation.Catalogs.SetItem("resources", resources), observation.Policy, observation.Bank);
-                var candidate = new GatheringStrategy(new(skill, checked(observation.Character.GetProperty(skill + "_level").GetInt32() + 1), goal.Value), policy, port).Evaluate(filtered);
+                var gatherPolicy = policy.Production is null ? policy : policy with { Bank = ProductionStock.Retain(observation, policy, plan) };
+                var candidate = new GatheringStrategy(new(skill, checked(observation.Character.GetProperty(skill + "_level").GetInt32() + 1), goal.Value), gatherPolicy, port).Evaluate(filtered);
                 // Re-evaluate dispatch against the complete world fingerprint; filtered catalogs are planning-only.
                 if (candidate.Command is null) return Result(candidate.Rejection);
                 var selected = candidate.Command;
@@ -70,7 +79,7 @@ public sealed class ItemProductionStrategy(ItemMilestone goal, PortfolioPolicy p
             var stock = state.Inventory.ToBuilder();
             if (next.Kind == "Withdraw")
             {
-                if (state.FreeUnits < next.Quantity) return Result("InventoryPressure");
+                if (state.FreeUnits < next.Quantity) return Pressure();
                 stock[next.Code] = checked(stock.GetValueOrDefault(next.Code) + next.Quantity);
                 var bank = observation.Bank!.Items.ToBuilder(); bank[next.Code] -= next.Quantity;
                 if (bank[next.Code] == 0) bank.Remove(next.Code);
@@ -85,7 +94,7 @@ public sealed class ItemProductionStrategy(ItemMilestone goal, PortfolioPolicy p
                 if (stock[ingredient.Key] == 0) stock.Remove(ingredient.Key);
             }
             stock[next.Code] = checked(stock.GetValueOrDefault(next.Code) + next.Output);
-            if (stock.Values.Sum(x => (long)x) > state.Capacity) return Result("InventoryPressure");
+            if (stock.Values.Sum(x => (long)x) > state.Capacity) return Pressure();
             return Result(null, command: port.Craft(observation, next, after => Matches(stock, after) &&
                 CharacterObservation.Preserved(observation.Character, after.Character, "inventory", next.Skill + "_xp", next.Skill + "_level", next.Skill + "_max_xp")));
         }

@@ -25,9 +25,7 @@ public sealed class SkillPrerequisiteStrategy(ItemMilestone goal, PortfolioPolic
             var state = CharacterObservation.Read(observation.Character)!;
             var items = observation.Catalogs["items"];
             var resources = observation.Catalogs["resources"];
-            var plan = ItemProductionPlan.Build(target.Code, target.Quantity, state.Inventory,
-                observation.Bank?.Items ?? ImmutableDictionary<string, int>.Empty, items, resources,
-                policy.PrepareEquipment ? observation.Catalogs["monsters"].Where(x => x.GetProperty("code").GetString() == policy.Monster).ToArray() : null);
+            var plan = ProductionStock.Plan(observation, target, policy, requireInventory);
             if (plan.Rejection is not null) return candidate;
             foreach (var step in plan.Steps.Where(x => x.Kind == "Craft"))
             {

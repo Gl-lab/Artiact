@@ -9,7 +9,8 @@ public sealed record PortfolioPolicy(ImmutableArray<SkillMilestone> Skills, int 
     decimal MoveSeconds = 7, decimal GatherSeconds = 5, decimal FightSeconds = 8,
     decimal RestSeconds = 6, decimal EquipmentSeconds = 3, BankPolicy? Bank = null, ImmutableArray<ItemMilestone> Items = default, bool PrepareEquipment = false,
     MeasurementPolicy? Measurement = null, ImmutableArray<string> Monsters = default,
-    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] SkillPreparationPolicy? Preparation = null)
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] SkillPreparationPolicy? Preparation = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] ProductionPolicy? Production = null)
 {
     [System.Text.Json.Serialization.JsonIgnore]
     public bool CombatEnabled => CombatTarget > 0;
@@ -17,6 +18,8 @@ public sealed record PortfolioPolicy(ImmutableArray<SkillMilestone> Skills, int 
     public string Identity => JsonSerializer.Serialize(this with { Items = Items.IsDefault ? [] : Items, Monsters = Monsters.IsDefault ? [] : Monsters });
     public void Validate()
     {
+        if (Production is not null && (Bank is null || Production.Reserved is null || Production.Reserved.Any(x => string.IsNullOrWhiteSpace(x.Key) || x.Value < 0)))
+            throw new ArgumentException("Invalid production reserve policy.");
         if (Preparation is not null && (Preparation.MaxIngredientUnits is < 1 or > 1000 || Preparation.MaxDepth is < 1 or > 16))
             throw new ArgumentException("Invalid skill preparation policy.");
         if (PrepareEquipment && (!CombatEnabled || string.IsNullOrWhiteSpace(Equipment))) throw new ArgumentException("Invalid preparation policy.");
@@ -38,3 +41,4 @@ public sealed record PortfolioPolicy(ImmutableArray<SkillMilestone> Skills, int 
 public sealed record BankPolicy(ImmutableDictionary<string, int> Retain);
 public sealed record ItemMilestone(string Code, int Quantity, decimal Value = 30);
 public sealed record SkillPreparationPolicy(int MaxIngredientUnits = 100, int MaxDepth = 12);
+public sealed record ProductionPolicy(ImmutableDictionary<string, int> Reserved);

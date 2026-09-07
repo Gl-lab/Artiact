@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Collections.Immutable;
 using System.Text;
 using System.Text.Json.Nodes;
 using Artiact;
@@ -15,6 +16,91 @@ namespace Artiact.MockService.Tests;
 
 public class StagedOperationTests
 {
+    [Theory]
+    [InlineData("capacity-production", 9, 5)]
+    [InlineData("capacity-production", 4, 5)]
+    [InlineData("item-production-bank", 1, 1)]
+    public async Task CapacityBankAndCraftRepliesReconcileWithoutRepeatedPost(string scenario, int beforeAction, int quantity)
+    {
+        await using var h = new Harness(new(), miningOnly: true); await h.Reset(scenario);
+        var policy = CapacityPolicy(new ItemMilestone("tool", quantity));
+        var saved = new Checkpoint(); var run = h.Factory.Create(policy, checkpoints: saved, identity: "capacity-loss");
+        for (int i = 0; i < beforeAction; i++) Assert.Equal(StrategyStatus.Selected, (await run.TickAsync()).Status);
+        h.Handler.Corruption = "loss";
+        Assert.Equal(StrategyStatus.UnknownOutcome, (await run.TickAsync()).Status);
+        h.Handler.Corruption = null;
+        Assert.Equal(StrategyStatus.Reconciled, (await h.Factory.Create(policy, checkpoints: saved, identity: "capacity-loss").TickAsync()).Status);
+        Assert.Equal(beforeAction + 1, h.Handler.Actions);
+    }
+
+    [Theory]
+    [InlineData("capacity-too-small", "MinimalRecipeExceedsCapacity", 0)]
+    [InlineData("bank-full", "BankFull", 8)]
+    public async Task ImpossibleCapacityOrFullBankStopsWithoutShuttling(string corruption, string reason, int actions)
+    {
+        await using var h = new Harness(new(), miningOnly: true); await h.Reset("capacity-production");
+        h.Handler.Corruption = corruption;
+        var run = h.Factory.Create(CapacityPolicy(new ItemMilestone("tool", 5)));
+        StrategyDecision? last = null;
+        for (int i = 0; i < 20; i++) { last = await run.TickAsync(); if (last.Status == StrategyStatus.Blocked) break; }
+        Assert.Equal(StrategyStatus.Blocked, last!.Status);
+        Assert.Equal(reason, Assert.Single(last.Candidates).Rejection);
+        Assert.Equal(actions, h.Handler.Actions);
+    }
+
+    private static PortfolioPolicy CapacityPolicy(params ItemMilestone[] goals) => new([], 0, "", "", Items: goals.ToImmutableArray(),
+        Bank: new(System.Collections.Immutable.ImmutableDictionary<string, int>.Empty.Add("ore", 0).Add("bar", 0).Add("tool", 0).Add("protected", 1)),
+        Production: new(System.Collections.Immutable.ImmutableDictionary<string, int>.Empty.Add("protected", 1)));
+
+    [Fact]
+    public async Task SharedIngredientGoalRetainsItsQuotaWhileAnotherGoalCrafts()
+    {
+        await using var h = new Harness(new(), miningOnly: true); await h.Reset("capacity-production");
+        var run = h.Factory.Create(CapacityPolicy(new("bar", 1), new("tool", 1)));
+        StrategyDecision? last = null;
+        for (int i = 0; i < 30; i++) { last = await run.TickAsync(); if (last.Status is StrategyStatus.Completed or StrategyStatus.Blocked) break; }
+        Assert.Equal(StrategyStatus.Completed, last!.Status);
+        var inventory = CharacterObservation.Read(run.State!.Character)!.Inventory;
+        Assert.Equal(1, inventory.GetValueOrDefault("bar") + run.State.Bank!.Items.GetValueOrDefault("bar"));
+        Assert.Equal(1, inventory.GetValueOrDefault("tool") + run.State.Bank.Items.GetValueOrDefault("tool"));
+        Assert.Equal(1, inventory["protected"]);
+        Assert.Equal(14, last.Attempts); Assert.Equal(77, last.CooldownSeconds);
+    }
+
+    [Fact]
+    public async Task SkillPreparationAndLargerOrderShareSmallInventory()
+    {
+        await using var h = new Harness(new(), miningOnly: true); await h.Reset("capacity-training");
+        var run = h.Factory.Create(CapacityPolicy(new ItemMilestone("tool", 3)) with { Preparation = new() });
+        StrategyDecision? last = null;
+        for (int i = 0; i < 50; i++) { last = await run.TickAsync(); if (last.Status is StrategyStatus.Completed or StrategyStatus.Blocked) break; }
+        Assert.Equal(StrategyStatus.Completed, last!.Status);
+        var inventory = CharacterObservation.Read(run.State!.Character)!.Inventory;
+        Assert.Equal(3, inventory.GetValueOrDefault("tool") + run.State.Bank!.Items.GetValueOrDefault("tool"));
+        Assert.Equal(1, inventory["protected"]);
+        Assert.Equal(2, run.State.Character.GetProperty("weaponcrafting_level").GetInt32());
+    }
+
+    [Fact]
+    public async Task OrderLargerThanInventoryCompletesThroughBankAndNestedBatches()
+    {
+        await using var h = new Harness(new(), miningOnly: true); await h.Reset("capacity-production");
+        var retain = System.Collections.Immutable.ImmutableDictionary<string, int>.Empty.Add("ore", 0).Add("bar", 0).Add("tool", 0).Add("protected", 1);
+        var policy = new PortfolioPolicy([], 0, "", "", Items: [new("tool", 5)], Bank: new(retain),
+            Production: new(System.Collections.Immutable.ImmutableDictionary<string, int>.Empty.Add("protected", 1)));
+        var run = h.Factory.Create(policy);
+        StrategyDecision? last = null;
+        for (int i = 0; i < 60; i++)
+        {
+            last = await run.TickAsync();
+            if (last.Status is StrategyStatus.Completed or StrategyStatus.Blocked) break;
+        }
+        Assert.Equal(StrategyStatus.Completed, last!.Status);
+        Assert.Equal(5, run.State!.Bank!.Items.GetValueOrDefault("tool") + CharacterObservation.Read(run.State.Character)!.Inventory.GetValueOrDefault("tool"));
+        Assert.Equal(1, CharacterObservation.Read(run.State.Character)!.Inventory["protected"]);
+        Assert.Equal(42, last.Attempts); Assert.Equal(228, last.CooldownSeconds);
+    }
+
     [Fact]
     public async Task InaccessibleRequiredResourceDoesNotStartPointlessTraining()
     {
@@ -554,6 +640,12 @@ public class StagedOperationTests
             {
                 var node = JsonNode.Parse(await response.Content.ReadAsStringAsync(token))!;
                 node["data"]!.AsArray().Single(x => x!["map_id"]!.GetValue<int>() == 5)!["access"]!["type"] = "conditional";
+                response.Content = new StringContent(node.ToJsonString());
+            }
+            if (path.StartsWith("/characters/", StringComparison.Ordinal) && Corruption == "capacity-too-small")
+            {
+                var node = JsonNode.Parse(await response.Content.ReadAsStringAsync(token))!;
+                node["data"]!["inventory_max_items"] = 2;
                 response.Content = new StringContent(node.ToJsonString());
             }
             if (MiningOnly && (path.StartsWith("/characters/", StringComparison.Ordinal) || path.Contains("/action/")))

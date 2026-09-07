@@ -33,3 +33,5 @@ R4a's item-production/item-production-bank add bounded withdrawals and bar/tool 
 R4c combat-preparation adds two simultaneous drops and their consumption by crafted_blade. Preserve the 13-action/81-second oracle and current-equipment safety test.
 
 R7 skill-preparation/resource-preparation add synthetic weaponcrafting/mining requirements and fixed XP transitions. Preserve exact stock/command oracles in ../docs/skill-preparation.md and atomic rejection; do not describe scripted XP as the live formula.
+
+R8 capacity-production/capacity-training constrain inventory to three units and reuse existing bank/craft transitions. Preserve ../docs/capacity-production.md oracles and never broaden the original scenarios' caps incidentally.

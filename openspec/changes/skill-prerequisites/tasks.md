@@ -6,4 +6,4 @@
 - [x] Add independent mock training scenarios, atomic failure checks and real-client completion/restart oracles.
 - [x] Update relevant API-subset probes and profession observation checks.
 - [x] Update docs/instructions/limitations, run focused and solution checks, self-review diff.
-- [ ] Record exact evidence, commit and push R7 before specifying R8.
+- [x] Record evidence, commit/push R7 (`a6e02f4`), then specify R8.

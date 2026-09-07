@@ -13,8 +13,8 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
     private int _seconds;
     private readonly JsonArray _trace = [];
     private JsonArray _bank = [];
-    private bool IsTraining => _scenario is "skill-preparation" or "resource-preparation";
-    private bool IsProduction => _scenario is "item-production" or "item-production-bank" || IsTraining;
+    private bool IsTraining => _scenario is "skill-preparation" or "resource-preparation" or "capacity-training";
+    private bool IsProduction => _scenario is "item-production" or "item-production-bank" or "capacity-production" || IsTraining;
     private bool IsCombatCrafting => _scenario is "combat-crafting" or "combat-preparation";
 
     public (int Status, JsonNode Body)? Handle(string method, string path, string query, string body)
@@ -42,7 +42,7 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
                 }
                 catch (System.Text.Json.JsonException) { return null; }
                 if (scenario is "basic-mining" or "mining-progression") { _scenario = null; return null; }
-                if (scenario is not ("combat-progression" or "combat-equipment" or "combat-crafting" or "strategy-portfolio" or "gathering-bank" or "item-production" or "item-production-bank" or "combat-preparation" or "skill-preparation" or "resource-preparation")) return null;
+                if (scenario is not ("combat-progression" or "combat-equipment" or "combat-crafting" or "strategy-portfolio" or "gathering-bank" or "item-production" or "item-production-bank" or "combat-preparation" or "skill-preparation" or "resource-preparation" or "capacity-production" or "capacity-training")) return null;
                 _scenario = scenario;
                 _character = null;
                 _seconds = 0;
@@ -135,7 +135,7 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
                             skill = "mining"; output = "rare_ore";
                             if (next["mining_level"]!.GetValue<int>() < 2) return Error(422, "skill_too_low");
                         }
-                        if (next[skill + "_level"]!.GetValue<int>() >= (_scenario == "gathering-bank" || IsTraining ? 4 : 2)) return Error(422, "gather_not_available");
+                        if (next[skill + "_level"]!.GetValue<int>() >= (_scenario == "capacity-production" ? 50 : _scenario == "gathering-bank" || IsTraining ? 4 : 2)) return Error(422, "gather_not_available");
                         int skillXp = next[skill + "_xp"]!.GetValue<int>() + 5;
                         next[skill + "_level"] = next[skill + "_level"]!.GetValue<int>() + skillXp / 10;
                         next[skill + "_xp"] = skillXp % 10;
@@ -198,7 +198,7 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
                             int batch = requestCraft["quantity"]!.GetValue<int>();
                             if (IsTraining)
                             {
-                                int required = _scenario == "skill-preparation" && product == "tool" ? 2 : 1;
+                                int required = (_scenario is "skill-preparation" or "capacity-training") && product == "tool" ? 2 : 1;
                                 string ingredient = _scenario == "resource-preparation" && product == "tool" ? "rare_ore" : product == "bar" ? "ore" : "bar";
                                 if (next["map_id"]!.GetValue<int>() != 3 || batch != 1 || product is not ("bar" or "tool") ||
                                     next["weaponcrafting_level"]!.GetValue<int>() < required || !Add(next, ingredient, -1)) return Error(422, "craft_not_available");
@@ -251,7 +251,7 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
         var state = _fixture["character"]!.DeepClone();
         if (IsProduction) state["inventory"] = new JsonArray(new JsonObject { ["slot"] = 1, ["code"] = "protected", ["quantity"] = 1 });
         if (IsTraining) state["weaponcrafting_max_xp"] = 10;
-        if (_scenario == "gathering-bank")
+        if (_scenario is "gathering-bank" or "capacity-production" or "capacity-training")
         {
             state["inventory_max_items"] = 3;
             state["inventory"] = new JsonArray(new JsonObject { ["slot"] = 1, ["code"] = "protected", ["quantity"] = 1 });
@@ -294,7 +294,7 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
             bar["level"] = 1; bar["craft"]!["items"]![0]!["quantity"] = 1;
             var tool = data.Single(x => x!["code"]!.GetValue<string>() == "tool")!;
             tool["level"] = 2;
-            if (_scenario == "skill-preparation") tool["craft"]!["level"] = 2;
+            if (_scenario is "skill-preparation" or "capacity-training") tool["craft"]!["level"] = 2;
             else tool["craft"]!["items"]![0]!["code"] = "rare_ore";
         }
         if (_scenario == "resource-preparation" && name == "maps")

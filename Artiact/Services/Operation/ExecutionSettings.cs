@@ -37,6 +37,8 @@ public sealed class ExecutionSettings
 public sealed class PortfolioSettings
 {
     public SkillPreparationPolicy? Preparation { get; set; }
+    public bool CapacityAwareProduction { get; set; }
+    public Dictionary<string, int> ProductionReserves { get; set; } = [];
     public Dictionary<string, int>? BankRetain { get; set; }
     public ItemMilestone[] Items { get; set; } = [];
     public bool PrepareEquipment { get; set; }
@@ -60,7 +62,8 @@ public sealed class PortfolioSettings
         var result = new PortfolioPolicy(Skills.ToImmutableArray(), CombatTarget, Monster, Equipment, CombatValue,
             EquipmentValue, MoveSeconds, GatherSeconds, FightSeconds, RestSeconds, EquipmentSeconds,
             BankRetain is null ? null : new(BankRetain.ToImmutableDictionary(StringComparer.Ordinal)), Items.ToImmutableArray(), PrepareEquipment,
-            MeasuredSelection ? new(UnknownMultiplier, SwitchRatio) : null, MonsterAlternatives.ToImmutableArray(), Preparation);
+            MeasuredSelection ? new(UnknownMultiplier, SwitchRatio) : null, MonsterAlternatives.ToImmutableArray(), Preparation,
+            CapacityAwareProduction ? new(ProductionReserves.ToImmutableDictionary(StringComparer.Ordinal)) : null);
         result.Validate(); return result;
     }
 }
