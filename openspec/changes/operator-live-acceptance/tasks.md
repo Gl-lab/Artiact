@@ -4,7 +4,7 @@
 - [x] Test and fix smaller decision budget compatibility.
 - [x] Add guarded autonomous read-only inspection and offline allowlist tests.
 - [x] Focused/solution/separate-offline gates and self-review of preparation.
-- [ ] Publish preparation and record revision.
+- [x] Publish preparation and record revision (`e1e1c9f`, origin/master).
 - [ ] Resolve R16 operational prerequisite or record an explicit scoped acceptance decision.
 - [ ] Capture fresh actionable character/command/stock/revision and obtain concrete live scope approval.
 - [ ] Implement/review approved transport allowlist and run the operator live cycle.
