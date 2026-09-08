@@ -1,5 +1,7 @@
 # Durable bounded execution
 
+R12 [autonomous gathering](autonomous-goals.md) shares these budgets and lifecycle commands. Its version-2 checkpoints additionally archive verified `Stopped/AutonomousBudgetExhausted` and `Stopped/NoUsefulSupportedGoals`, including an observed zero-action cap stop. Unknown, arbitrary Blocked and Cancelled remain ineligible. Active goal/history are reported separately, and an archived structured RunId cannot be reused with changed policy/limits.
+
 R10 `run-result` adds performance coverage, known XP/unknown transitions, consumed inputs and dispatched candidate switches. Action facts are persisted before cooldown and completed wait time afterward; unknown/reconciled outcomes create no timing samples. See [full-path selection](full-path-selection.md) for the distinction between returned cooldown, measured processing/wait and total elapsed time.
 
 R8a adds optional resource charges, refill state and selected pending-candidate identity to the journal; see [consumables](consumables.md). `Execution:MaxNoProgress` defaults to 10 and may be explicitly raised for longer preparation chains, up to MaxDecisions. Existing default identities/limits are preserved.

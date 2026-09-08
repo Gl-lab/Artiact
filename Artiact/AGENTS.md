@@ -1,6 +1,6 @@
 # Main application instructions
 
-R11: autonomous gathering discovery is Inspect-only. Preserve stable manual policy serialization, explicit bank permission, bounded resource generation and zero recipe utility without a proven need. See ../docs/autonomous-goals.md.
+R11/R12: autonomous gathering uses Inspect or durable Bounded execution. Preserve version-1 manual identity, version-2 active goal/history, pending baseline context, explicit bank permission, bounded generation and zero recipe utility without a proven need. Stopped is distinct from milestone completion and Blocked. See ../docs/autonomous-goals.md.
 
 R10: keep actual action facts separate from conservative resource charges and route estimates. Persist verified facts before wait, retain null for incomplete wait/unknown timing, and never learn XP/cooldown from reconciliation. Full-path context must change with relevant levels/equipment/catalogs. Preserve all feasible parent alternatives through consumable wrappers. See ../docs/full-path-selection.md.
 

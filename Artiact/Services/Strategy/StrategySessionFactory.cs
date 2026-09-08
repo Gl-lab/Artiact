@@ -33,7 +33,7 @@ public sealed class StrategySessionFactory(GameClient client, CombatCatalog cata
         return new(new HttpStrategyObserver(client, catalog, characters, policy.Identity, compatibility, policy), strategies, cooldown, limits,
             checkpoints: checkpoints, identity: identity, selection: policy.Measurement,
             resourceLimits: policy.Consumable is { } food ? new Dictionary<string, int> { ["use:" + food.Code] = food.MaxUsed, ["materials:" + food.Code] = food.MaxMaterialUnits } : null,
-            inspectOnly: policy.AutonomousGoals);
+            inspectOnly: policy.AutonomousGoals && checkpoints is null, autonomous: policy.AutonomousGoals);
     }
 }
 

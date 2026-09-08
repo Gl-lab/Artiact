@@ -12,6 +12,35 @@ namespace Artiact.Tests.Services;
 
 public class AutonomousGoalDiscoveryTests
 {
+    private sealed class Clock : TimeProvider
+    {
+        public DateTimeOffset Now = DateTimeOffset.UtcNow;
+        public override DateTimeOffset GetUtcNow() => Now;
+    }
+    private sealed class DelayCounter : IMiningCooldownDelay
+    {
+        public int Calls;
+        public Task WaitAsync(int seconds, CancellationToken token) { Calls++; return Task.CompletedTask; }
+    }
+    private sealed class BoundaryOption(Clock clock) : IProgressionStrategy
+    {
+        public StrategyCandidate Evaluate(StrategyObservation state) => new("skill:mining:ore", "skill", 1, 1, 0, 0, null, false,
+            new("Gather:mining", state.Fingerprint, true, _ => true, _ =>
+            {
+                clock.Now += TimeSpan.FromSeconds(2);
+                return Task.FromResult(new StrategyReply(state, 10));
+            }), Discovery: new("discovery-v1", "mining", 2, null, 0, 0.1m, 0, [], "synthetic boundary", "target"));
+    }
+    [Fact]
+    public async Task ElapsedBudgetAfterConfirmedPostStopsBeforeStartingCooldownWait()
+    {
+        var clock = new Clock(); var delay = new DelayCounter();
+        var run = new StrategySession(new Observer(World()), [new BoundaryOption(clock)], delay, new(10, 1, 2, 1), time: clock, autonomous: true);
+        var result = await run.TickAsync();
+        Assert.Equal(StrategyStatus.Stopped, result.Status);
+        Assert.Equal("AutonomousBudgetExhausted", result.Reason); Assert.Equal(1, result.Attempts);
+        Assert.Equal(0, delay.Calls);
+    }
     [Fact]
     public void LegacyRegistrationRejectsAutonomousGoalsBeforeStartingWorker()
     {
@@ -22,6 +51,16 @@ public class AutonomousGoalDiscoveryTests
             ["ApiSettings:Username"] = "mock", ["ApiSettings:Password"] = "mock"
         }).Build();
         Assert.Throws<ArgumentException>(() => new ServiceCollection().AddStagedOperation(configuration));
+    }
+
+    [Fact]
+    public void BoundedRegistrationAcceptsAutonomousGoals()
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Execution:Mode"] = "Bounded", ["Portfolio:AutonomousGoals"] = "true"
+        }).Build();
+        new ServiceCollection().AddStagedOperation(configuration);
     }
     private sealed class Observer(StrategyObservation state) : IStrategyObserver
     {

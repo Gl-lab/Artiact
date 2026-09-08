@@ -2,7 +2,7 @@
 
 Дата: **8 сентября 2026 года**. Исходная ревизия: `1df9b57f7aa12387f53582fccd6c9e03c1d7c778`.
 
-**Статус: R11 реализован и проверен offline; R12–R15 предстоят.** Продолжает [R6–R10](roadmap-next-ru.md). R11: [спецификация](../openspec/changes/autonomous-goal-discovery/proposal.md), [поведение](autonomous-goals.md), [проверки](../openspec/changes/autonomous-goal-discovery/verification.md). Следующий цикл — спецификация R12 и ограниченное исполнение динамических целей.
+**Статус: R11–R12 реализованы в локальном offline-объёме; R13–R15 предстоят.** Продолжает [R6–R10](roadmap-next-ru.md). См. [поведение](autonomous-goals.md), [R11](../openspec/changes/autonomous-goal-discovery/verification.md), [спецификацию R12](../openspec/changes/autonomous-goal-execution/proposal.md) и [проверки R12](../openspec/changes/autonomous-goal-execution/verification.md). Следующий цикл — спецификация R13: восстановление HP и полезные цепочки производства.
 
 ## 1. Продуктовая цель
 

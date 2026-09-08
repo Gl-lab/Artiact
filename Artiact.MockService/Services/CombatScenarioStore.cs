@@ -14,9 +14,10 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
     private readonly JsonArray _trace = [];
     private JsonArray _bank = [];
     private bool IsAutonomous => _scenario is "autonomous-shield" or "autonomous-weapon";
+    private bool IsDiscovery => _scenario is "discovery-new" or "discovery-uneven" or "discovery-bank" or "discovery-locked" or "discovery-capped";
     private bool IsConsumable => IsAutonomous || _scenario is "consumable-production" or "consumable-bank" or "consumable-training" or "consumable-capacity" or "consumable-full";
     private bool IsTraining => _scenario is "skill-preparation" or "resource-preparation" or "capacity-training" or "autonomous-weapon";
-    private bool IsProduction => _scenario is "item-production" or "item-production-bank" or "capacity-production" || IsTraining || IsConsumable;
+    private bool IsProduction => _scenario is "item-production" or "item-production-bank" or "capacity-production" || IsTraining || IsConsumable || IsDiscovery;
     private bool IsCombatCrafting => _scenario is "combat-crafting" or "combat-preparation";
 
     public (int Status, JsonNode Body)? Handle(string method, string path, string query, string body)
@@ -44,7 +45,7 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
                 }
                 catch (System.Text.Json.JsonException) { return null; }
                 if (scenario is "basic-mining" or "mining-progression") { _scenario = null; return null; }
-                if (scenario is not ("combat-progression" or "combat-equipment" or "combat-crafting" or "strategy-portfolio" or "gathering-bank" or "item-production" or "item-production-bank" or "combat-preparation" or "skill-preparation" or "resource-preparation" or "capacity-production" or "capacity-training" or "consumable-production" or "consumable-bank" or "consumable-training" or "consumable-capacity" or "consumable-full" or "autonomous-shield" or "autonomous-weapon")) return null;
+                if (scenario is not ("combat-progression" or "combat-equipment" or "combat-crafting" or "strategy-portfolio" or "gathering-bank" or "item-production" or "item-production-bank" or "combat-preparation" or "skill-preparation" or "resource-preparation" or "capacity-production" or "capacity-training" or "consumable-production" or "consumable-bank" or "consumable-training" or "consumable-capacity" or "consumable-full" or "autonomous-shield" or "autonomous-weapon" or "discovery-new" or "discovery-uneven" or "discovery-bank" or "discovery-locked" or "discovery-capped")) return null;
                 _scenario = scenario;
                 _character = null;
                 _seconds = 0;
@@ -52,6 +53,7 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
                 _bank = [];
                 if (_scenario == "item-production-bank") _bank.Add(new JsonObject { ["code"] = "ore", ["quantity"] = 2 });
                 if (_scenario == "consumable-bank") _bank.Add(new JsonObject { ["code"] = "meal", ["quantity"] = 4 });
+                if (_scenario == "discovery-bank") _bank.Add(new JsonObject { ["code"] = "ore", ["quantity"] = 10 });
                 return (200, new JsonObject { ["scenario"] = scenario, ["trace_count"] = 0 });
             }
             if (_scenario is null || path == "/token") return null;
@@ -81,6 +83,7 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
                 return Error(404, "unsupported_route");
             if (_character is null) return Error(409, "character_not_initialized");
             string action = path["/my/researcher/action/".Length..];
+            if (IsDiscovery && action is not ("move" or "gathering")) return Error(404, "unsupported_route");
             var next = _character.DeepClone();
             var nextBank = _bank.DeepClone().AsArray();
             var dataResult = new JsonObject();
@@ -121,7 +124,8 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
                         if (move is not JsonObject moveObject || moveObject.Count != 1)
                             return Error(422, "destination_not_found");
                         int mapId = move["map_id"]!.GetValue<int>();
-                        if (!(IsAutonomous && mapId == 9) && !(IsConsumable && mapId is 7 or 8) && mapId != 2 && !(mapId == 3 && IsCombatCrafting) &&
+                        if (IsDiscovery && mapId == 7 && _scenario == "discovery-locked") return Error(422, "unsupported_access");
+                        if (!(IsDiscovery && mapId == 7) && !(IsAutonomous && mapId == 9) && !(IsConsumable && mapId is 7 or 8) && mapId != 2 && !(mapId == 3 && IsCombatCrafting) &&
                             !((_scenario is "strategy-portfolio" or "gathering-bank" || IsProduction) && mapId is 4 or 5) && !((_scenario == "gathering-bank" || IsProduction) && mapId == 6) && !(IsProduction && mapId == 3)) return Error(422, "destination_not_found");
                         next["map_id"] = mapId; next["x"] = mapId - 1;
                         dataResult["destination"] = Catalog("maps")[mapId - 1]!.DeepClone();
@@ -130,9 +134,16 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
                         if ((!IsProduction && _scenario is not ("strategy-portfolio" or "gathering-bank" or "combat-preparation")) || !EmptyRequest(body) || Used(next) >= next["inventory_max_items"]!.GetValue<int>())
                             return Error(422, "gather_not_available");
                         int gatherMap = next["map_id"]!.GetValue<int>();
-                        if (gatherMap is not (4 or 5) && !(IsConsumable && gatherMap == 8)) return Error(422, "gather_not_available");
+                        if (gatherMap is not (4 or 5) && !(IsConsumable && gatherMap == 8) && !(IsDiscovery && gatherMap == 7)) return Error(422, "gather_not_available");
                         string skill = gatherMap == 4 ? "mining" : "woodcutting";
                         string output = gatherMap == 4 ? "ore" : "wood";
+                        if (IsDiscovery && gatherMap == 7) { skill = "mining"; output = "iron"; }
+                        if (IsDiscovery)
+                        {
+                            int required = gatherMap == 7 ? 10 : gatherMap == 4 && _scenario is "discovery-uneven" or "discovery-locked" ? 9 : 1;
+                            int observed = next[skill + "_level"]!.GetValue<int>();
+                            if (observed < required || observed - required >= 10) return Error(422, "gather_not_available");
+                        }
                         if (IsConsumable && gatherMap is 5 or 8)
                         {
                             skill = "fishing"; output = gatherMap == 8 ? "baitfish" : "fish";
@@ -144,12 +155,12 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
                             skill = "mining"; output = "rare_ore";
                             if (next["mining_level"]!.GetValue<int>() < 2) return Error(422, "skill_too_low");
                         }
-                        if (next[skill + "_level"]!.GetValue<int>() >= (_scenario == "capacity-production" || IsConsumable ? 50 : _scenario == "gathering-bank" || IsTraining ? 4 : 2)) return Error(422, "gather_not_available");
-                        int skillXp = next[skill + "_xp"]!.GetValue<int>() + 5;
-                        next[skill + "_level"] = next[skill + "_level"]!.GetValue<int>() + skillXp / 10;
-                        next[skill + "_xp"] = skillXp % 10;
+                        if (next[skill + "_level"]!.GetValue<int>() >= (_scenario == "capacity-production" || IsConsumable || IsDiscovery ? 50 : _scenario == "gathering-bank" || IsTraining ? 4 : 2)) return Error(422, "gather_not_available");
+                        int skillXp = next[skill + "_xp"]!.GetValue<int>() + (IsDiscovery ? 13 : 5);
+                        next[skill + "_level"] = next[skill + "_level"]!.GetValue<int>() + skillXp / (IsDiscovery ? 26 : 10);
+                        next[skill + "_xp"] = skillXp % (IsDiscovery ? 26 : 10);
                         Add(next, output, 1);
-                        dataResult["details"] = new JsonObject { ["xp"] = 5, ["items"] = new JsonArray(new JsonObject {
+                        dataResult["details"] = new JsonObject { ["xp"] = IsDiscovery ? 13 : 5, ["items"] = new JsonArray(new JsonObject {
                             ["code"] = output, ["quantity"] = 1 }) };
                         duration = 5; break;
                     case "fight":
@@ -343,6 +354,14 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
             state["weapon_slot"] = "old"; state["attack_fire"] = 5;
             Add(state, "quick_blade", 1); Add(state, "heavy_blade", 1);
         }
+        if (IsDiscovery)
+        {
+            state["inventory"] = new JsonArray(); state["inventory_max_items"] = 100;
+            state["map_id"] = _scenario == "discovery-uneven" ? 4 : 5; state["x"] = state["map_id"]!.GetValue<int>() - 1;
+            state["mining_level"] = _scenario is "discovery-uneven" or "discovery-locked" ? 9 : 1;
+            foreach (string skill in new[] { "mining", "woodcutting", "fishing", "alchemy" })
+            { state[skill + "_max_xp"] = 26; if (_scenario == "discovery-capped") state[skill + "_level"] = 50; }
+        }
         return state;
     }
     private JsonArray Catalog(string name)
@@ -364,6 +383,17 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
         {
             data.Add(JsonNode.Parse("""{"name":"Ore","code":"ore_node","skill":"mining","level":1,"drops":[{"code":"ore","rate":1,"min_quantity":1,"max_quantity":1}]}"""));
             data.Add(JsonNode.Parse("""{"name":"Wood","code":"wood_node","skill":"woodcutting","level":1,"drops":[{"code":"wood","rate":1,"min_quantity":1,"max_quantity":1}]}"""));
+        }
+        if (IsDiscovery && name == "maps")
+        {
+            var iron = JsonNode.Parse("""{"map_id":7,"name":"Iron","skin":"plain","x":6,"y":0,"layer":"overworld","access":{"type":"standard","conditions":[]},"interactions":{"content":{"type":"resource","code":"iron_node"},"transition":null}}""")!;
+            if (_scenario == "discovery-locked") iron["access"]!["type"] = "conditional";
+            data.Add(iron);
+        }
+        if (IsDiscovery && name == "resources" && _scenario is "discovery-uneven" or "discovery-locked")
+        {
+            data.Single(x => x!["code"]!.GetValue<string>() == "ore_node")!["level"] = 9;
+            data.Add(JsonNode.Parse("""{"name":"Iron","code":"iron_node","skill":"mining","level":10,"drops":[{"code":"iron","rate":1,"min_quantity":1,"max_quantity":1}]}"""));
         }
         if (name == "items" && IsProduction)
         {

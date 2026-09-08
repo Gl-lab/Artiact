@@ -5,7 +5,10 @@ using System.Text.Json;
 
 namespace Artiact.Services.Strategy;
 
-public sealed record StrategyRunContext(ImmutableDictionary<string, int> Used, ImmutableDictionary<string, bool> Refilling)
+public sealed record StrategyRunContext(ImmutableDictionary<string, int> Used, ImmutableDictionary<string, bool> Refilling,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] AutonomousRunState? Autonomous = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] int? RemainingActions = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] decimal? RemainingSeconds = null)
 {
     public static StrategyRunContext Empty { get; } = new(ImmutableDictionary<string, int>.Empty, ImmutableDictionary<string, bool>.Empty);
 }

@@ -7,6 +7,18 @@ namespace Artiact.Tests.Services;
 
 public class RunLifecycleTests
 {
+    [Fact]
+    public void ArchivedRunIdCannotBeReusedWithDifferentPolicyOrLimits()
+    {
+        WithDirectory(directory =>
+        {
+            using var store = new FileRunCheckpointStore(directory, "hero");
+            var checkpoint = Completed() with { Identity = JsonSerializer.Serialize(new { RunId = "same", Policy = "old", Limit = 1 }) };
+            store.Save(checkpoint); store.ArchiveCompleted(FileRunCheckpointStore.IdentityDigest(checkpoint.Identity));
+            Assert.Throws<IOException>(() => store.Save(checkpoint with { Identity = JsonSerializer.Serialize(new { RunId = "same", Policy = "new", Limit = 100 }) }));
+            store.Save(checkpoint with { Identity = JsonSerializer.Serialize(new { RunId = "new", Policy = "new", Limit = 100 }) });
+        });
+    }
     private static RunCheckpoint Completed()
     {
         var state = new SavedObservation(JsonSerializer.SerializeToElement(new { name = "hero", mining_level = 2, mining_xp = 4 }),

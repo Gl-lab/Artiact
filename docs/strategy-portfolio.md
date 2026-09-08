@@ -1,6 +1,6 @@
 # Explicit strategy portfolio
 
-Manual profiles supply explicit goals and values, including in R10 full-path mode. R11 adds [automatic gathering discovery in Inspect](autonomous-goals.md). Milestone renewal and autonomous execution remain pending in the [R11–R15 roadmap](roadmap-autonomous-goals-ru.md).
+Manual profiles supply explicit goals and values, including in R10 full-path mode. R11/R12 add [automatic gathering discovery and bounded milestone renewal](autonomous-goals.md). Useful production and combat discovery remain pending in the [R11–R15 roadmap](roadmap-autonomous-goals-ru.md).
 
 R5 optionally ranks [alternative resources/opponents/items using measured cooldowns](measured-selection.md), persisted sample metadata and an incumbent switching threshold. Fixed ranking remains the default; unknown prerequisite costs remain explicit assumptions.
 
@@ -27,4 +27,4 @@ Expected commands: Unequip, Equip, Move(4), Gather, Gather, Move(5), Gather, Gat
 R2: explicit Bounded execution now persists its journal and budgets and holds a local character lease; see [bounded operation](bounded-operation.md). Earlier in-memory restart limitations still apply to standalone Inspect/OneShot/Legacy sessions.
 # Automatic goal source
 
-R11 adds opt-in [autonomous Inspect discovery](autonomous-goals.md). Manual goals remain required for action execution until R12.
+R11/R12 add opt-in [autonomous gathering](autonomous-goals.md) through Inspect or durable Bounded execution without manual skill goals.

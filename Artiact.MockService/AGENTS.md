@@ -1,5 +1,7 @@
 # Mock service instructions
 
+R12 discovery-* scenarios use the existing scripted kernel with 26-XP thresholds and 13-XP gathers, Move/Gather-only action allowlist, capacity 100 and explicit iron-map access rejection. Preserve original scenarios' XP/caps and the comparison oracles in ../openspec/changes/autonomous-goal-execution/comparisons.md.
+
 This project is a deterministic, incomplete substitute for selected Artifacts MMO endpoints. It must not silently be described as a complete emulator or production proxy. Parent instructions in `../AGENTS.md` also apply.
 
 Read `../docs/mock-service.md` before changes.

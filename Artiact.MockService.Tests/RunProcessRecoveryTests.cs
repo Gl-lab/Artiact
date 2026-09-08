@@ -12,22 +12,25 @@ public class RunProcessRecoveryTests(Xunit.Abstractions.ITestOutputHelper output
 {
     private TaskCompletionSource _hostFinished = new(TaskCreationOptions.RunContinuationsAsynchronously);
     [Theory]
-    [InlineData("before-acceptance", 0, "UnknownOutcome")]
-    [InlineData("after-acceptance", 1, "Blocked")]
-    [InlineData("verified-before-cooldown", 1, "Blocked")]
-    public async Task KilledHostRecoversWithoutRepeatingPendingPost(string point, int accepted, string terminal)
+    [InlineData("before-acceptance", 0, "UnknownOutcome", false)]
+    [InlineData("after-acceptance", 1, "Blocked", false)]
+    [InlineData("verified-before-cooldown", 1, "Blocked", false)]
+    [InlineData("before-acceptance", 0, "UnknownOutcome", true)]
+    [InlineData("after-acceptance", 2, "Stopped", true)]
+    [InlineData("verified-before-cooldown", 2, "Stopped", true)]
+    public async Task KilledHostRecoversWithoutRepeatingPendingPost(string point, int accepted, string terminal, bool autonomous)
     {
         string directory = Path.Combine(Path.GetTempPath(), "artiact-process-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
         await using var mock = new MockServiceFactory();
         using var upstream = new HttpClient(mock.Server.CreateHandler()) { BaseAddress = new("http://localhost") };
-        using var reset = await upstream.PostAsync("/__mock/reset", new StringContent("{\"scenario\":\"gathering-bank\"}", Encoding.UTF8, "application/json"));
+        using var reset = await upstream.PostAsync("/__mock/reset", new StringContent(JsonSerializer.Serialize(new { scenario = autonomous ? "discovery-new" : "gathering-bank" }), Encoding.UTF8, "application/json"));
         reset.EnsureSuccessStatusCode();
         await using var proxy = new GateProxy(upstream, point);
         Process? process = null;
         try
         {
-            process = StartHost(directory, proxy.Origin);
+            process = StartHost(directory, proxy.Origin, autonomous);
             await proxy.Reached.Task.WaitAsync(TimeSpan.FromSeconds(30));
             if (point == "verified-before-cooldown")
             {
@@ -39,19 +42,21 @@ public class RunProcessRecoveryTests(Xunit.Abstractions.ITestOutputHelper output
             else
             {
                 var pending = await WaitForCheckpoint(directory, c => c.PendingCommand is not null);
-                Assert.Equal("Move:4", pending.PendingCommand);
+                Assert.Equal(autonomous ? "Gather:woodcutting" : "Move:4", pending.PendingCommand);
             }
             await Kill(process); process.Dispose(); process = null;
             proxy.Release.TrySetResult();
-            process = StartHost(directory, proxy.Origin);
+            process = StartHost(directory, proxy.Origin, autonomous);
             await _hostFinished.Task.WaitAsync(TimeSpan.FromSeconds(30));
             var restored = await WaitForCheckpoint(directory, c => c.Terminal is not null);
             Assert.Equal(terminal, restored.Terminal!.Status.ToString());
-            Assert.Equal(1, restored.Attempts);
+            int attempts = autonomous && point != "before-acceptance" ? 2 : 1;
+            Assert.Equal(attempts, restored.Attempts);
             Assert.Equal(accepted, proxy.Accepted);
-            Assert.Equal(1, proxy.Posts);
-            Assert.Equal(point == "before-acceptance" ? "Intent" : point == "after-acceptance" ? "Reconciled" : "Verified", Assert.Single(restored.Journal).Status);
-            Assert.Equal(point == "verified-before-cooldown" ? 7 : 0, restored.Seconds);
+            Assert.Equal(attempts, proxy.Posts);
+            Assert.Equal(point == "before-acceptance" ? "Intent" : point == "after-acceptance" ? "Reconciled" : "Verified", restored.Journal[0].Status);
+            Assert.Equal(autonomous ? point == "before-acceptance" ? 0 : point == "after-acceptance" ? 5 : 10 : point == "verified-before-cooldown" ? 7 : 0, restored.Seconds);
+            if (autonomous && attempts == 2) Assert.Equal(2, Assert.Single(restored.Autonomous!.History).Goal.Target);
         }
         finally
         {
@@ -62,7 +67,7 @@ public class RunProcessRecoveryTests(Xunit.Abstractions.ITestOutputHelper output
         }
     }
 
-    private Process StartHost(string directory, string origin)
+    private Process StartHost(string directory, string origin, bool autonomous = false)
     {
         var start = new ProcessStartInfo("dotnet")
         {
@@ -74,13 +79,14 @@ public class RunProcessRecoveryTests(Xunit.Abstractions.ITestOutputHelper output
         {
             "--urls=http://127.0.0.1:0", "--Execution:Mode=Bounded", "--Execution:AllowActions=true",
             "--Execution:LiveActionsApproved=false", "--Execution:RunId=process-test", "--Execution:RunDirectory=" + directory,
-            "--Execution:MaxActions=1", "--Execution:MaxDecisions=20", "--Execution:MaxSeconds=60",
+            "--Execution:MaxActions=" + (autonomous ? 2 : 1), "--Execution:MaxDecisions=20", "--Execution:MaxSeconds=60",
             "--ApiSettings:BaseUrl=" + origin, "--ApiSettings:Character=researcher",
             "--ApiSettings:Username=mock", "--ApiSettings:Password=mock",
-            "--Portfolio:Skills:0:Skill=mining", "--Portfolio:Skills:0:Target=4", "--Portfolio:Skills:0:Value=30",
             "--Portfolio:CombatTarget=0", "--Portfolio:Equipment=", "--Portfolio:Monster=",
             "--Telemetry:Endpoint=" + origin + "/v1/traces"
         }) start.ArgumentList.Add(arg);
+        if (autonomous) start.ArgumentList.Add("--Portfolio:AutonomousGoals=true");
+        else foreach (string arg in new[] { "--Portfolio:Skills:0:Skill=mining", "--Portfolio:Skills:0:Target=4", "--Portfolio:Skills:0:Value=30" }) start.ArgumentList.Add(arg);
         start.Environment["LOCALAPPDATA"] = directory;
         start.Environment["XDG_DATA_HOME"] = directory;
         start.Environment["ASPNETCORE_ENVIRONMENT"] = "Production";

@@ -19,8 +19,8 @@ public sealed class StagedExecution(ExecutionSettings settings, ApiSettings api,
             PortfolioPolicy policy;
             try { mode = settings.Validate(api); policy = portfolio.Policy(); }
             catch (ArgumentException) { status.Set("ConfigurationRequiredOrInvalid"); return null; }
-            if (policy.AutonomousGoals && mode != ExecutionMode.Inspect)
-            { status.Set("AutonomousGoalsRequireInspect"); return null; }
+            if (policy.AutonomousGoals && mode is not (ExecutionMode.Inspect or ExecutionMode.Bounded))
+            { status.Set("AutonomousGoalsRequireInspectOrBounded"); return null; }
             if (mode == ExecutionMode.Legacy) { status.Set("LegacyCompatibilityMode"); return null; }
             if (mode == ExecutionMode.Bounded) return _result = await RunBoundedAsync(policy, token);
             var run = factory.Create(policy, policy.AutonomousGoals ? new(settings.MaxDecisions, settings.MaxNoProgress, settings.MaxActions, settings.MaxSeconds) : null);
@@ -44,14 +44,14 @@ public sealed class StagedExecution(ExecutionSettings settings, ApiSettings api,
         var saved = store.Load();
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(token, status.StopToken);
         var remaining = TimeSpan.FromSeconds(settings.MaxSeconds) - (DateTimeOffset.UtcNow - (saved?.Started ?? DateTimeOffset.UtcNow));
-        if (remaining > TimeSpan.Zero) stop.CancelAfter(remaining);
+        if (remaining > TimeSpan.Zero && !policy.AutonomousGoals) stop.CancelAfter(remaining);
         var run = factory.Create(policy, limits, store, identity);
         while (true)
         {
             var result = await run.TickAsync(stop.Token);
             status.Progress(settings.RunId, result);
             status.Finish("Bounded:" + result.Status + ":" + result.Reason, result.Status is StrategyStatus.Selected or StrategyStatus.Completed or StrategyStatus.Reconciled);
-            if (result.Status is StrategyStatus.Completed or StrategyStatus.Blocked or StrategyStatus.Cancelled) return result;
+            if (result.Status is StrategyStatus.Completed or StrategyStatus.Blocked or StrategyStatus.Cancelled or StrategyStatus.Stopped) return result;
             if (result.Status == StrategyStatus.UnknownOutcome)
             {
                 result = await run.TickAsync(stop.Token);
@@ -63,6 +63,11 @@ public sealed class StagedExecution(ExecutionSettings settings, ApiSettings api,
             {
                 var expiration = run.State!.Character.GetProperty("cooldown_expiration").GetDateTimeOffset();
                 var delay = expiration - DateTimeOffset.UtcNow;
+                if (policy.AutonomousGoals && store.Load() is { } current)
+                {
+                    var budget = current.Started.AddSeconds(settings.MaxSeconds) - DateTimeOffset.UtcNow;
+                    if (delay > budget) delay = budget;
+                }
                 try { if (delay > TimeSpan.Zero) await Task.Delay(delay, stop.Token); }
                 catch (OperationCanceledException) when (stop.IsCancellationRequested) { }
             }

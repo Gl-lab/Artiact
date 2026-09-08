@@ -4,7 +4,7 @@ using System.Text.Json.Serialization;
 
 namespace Artiact.Services.Strategy;
 
-public enum StrategyStatus { Selected, Completed, Blocked, Replan, Reconciled, UnknownOutcome, Cancelled, CoolingDown }
+public enum StrategyStatus { Selected, Completed, Blocked, Replan, Reconciled, UnknownOutcome, Cancelled, CoolingDown, Stopped }
 public sealed record StrategyLimits(int Decisions = 100, int NoProgress = 10, int Actions = 100, int DurationSeconds = 3600);
 public sealed record StrategyReply(StrategyObservation State, int Cooldown, bool Valid = true, bool Defeat = false);
 public sealed record AtomicCommand(string Id, string SourceFingerprint, bool Productive,
@@ -35,7 +35,7 @@ public sealed record StrategyDecision(StrategyStatus Status, string Reason, stri
 public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IProgressionStrategy> strategies,
     IMiningCooldownDelay cooldown, StrategyLimits? limits = null, TimeProvider? time = null,
     IRunCheckpointStore? checkpoints = null, string identity = "", MeasurementPolicy? selection = null,
-    IReadOnlyDictionary<string, int>? resourceLimits = null, bool inspectOnly = false)
+    IReadOnlyDictionary<string, int>? resourceLimits = null, bool inspectOnly = false, bool autonomous = false)
 {
     private readonly IProgressionStrategy[] _strategies = strategies.ToArray();
     private readonly StrategyLimits _limits = limits ?? new();
@@ -59,6 +59,7 @@ public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IPro
     private readonly List<JournalCommand> _journal = [];
     private readonly Dictionary<string, ActionMeasurement> _measurements = new(StringComparer.Ordinal);
     private string? _incumbent;
+    private AutonomousRunState? _goals = autonomous ? AutonomousRunState.Empty : null;
     public StrategyObservation? State { get; private set; }
     public async Task<StrategyDecision> TickAsync(CancellationToken token = default)
     {
@@ -94,9 +95,10 @@ public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IPro
             return Stop(StrategyStatus.Blocked, "InvalidLimits");
         if (selection is not null && (selection.UnknownMultiplier is < 1 or > 10 || selection.SwitchRatio is < 1 or > 10))
             return Stop(StrategyStatus.Blocked, "InvalidMeasurementPolicy");
-        if (_pending is null && (_decisions >= _limits.Decisions || _noProgress >= _limits.NoProgress || _attempts >= _limits.Actions ||
+        if (_pending is null && _noProgress >= _limits.NoProgress) return Stop(StrategyStatus.Blocked, "BudgetExhausted");
+        if (_pending is null && (_decisions >= _limits.Decisions || _attempts >= _limits.Actions ||
             _loaded && _time.GetUtcNow() - _started >= TimeSpan.FromSeconds(_limits.DurationSeconds)))
-            return Stop(StrategyStatus.Blocked, "BudgetExhausted");
+            return Stop(autonomous ? StrategyStatus.Stopped : StrategyStatus.Blocked, autonomous ? "AutonomousBudgetExhausted" : "BudgetExhausted");
         if (!inspect) { _decisions++; Save(); }
         try { State = (await observer.ObserveAsync(token)).WithContext(RunContext()); }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { return Stop(StrategyStatus.Cancelled, "Cancelled"); }
@@ -110,6 +112,7 @@ public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IPro
             _consumed.Add(Key(pending)); _pending = null;
             _verified = SavedObservation.From(State);
             RecordOutcome("Reconciled", State.Fingerprint);
+            if (_goals is not null) _goals = _goals.CompleteObserved(State);
             if (pending.Productive) _noProgress = 0;
             return Decision(StrategyStatus.Reconciled, "PostconditionObserved", command: pending.Id);
         }
@@ -119,13 +122,32 @@ public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IPro
             if (!State.Character.GetProperty("cooldown_expiration").TryGetDateTimeOffset(out var expiration))
                 return Stop(StrategyStatus.Blocked, "InvalidCooldown");
             if (expiration > _time.GetUtcNow()) return Decision(StrategyStatus.CoolingDown, "CooldownPending");
+            if (_goals is not null)
+            {
+                _goals = _goals.CompleteObserved(State);
+                if (_goals.Active is not null && _goals.ActiveWorld != State.WorldFingerprint)
+                    _goals = _goals.Transition("Rejected", State.Fingerprint);
+                if (_goals.History.Length >= 128) return Stop(StrategyStatus.Blocked, "AutonomousHistoryExhausted");
+                State = State.WithContext(RunContext());
+            }
             _candidates = _strategies.SelectMany(x => x.EvaluateAll(State)).Select(Measured).OrderBy(x => x.Id, StringComparer.Ordinal).ToImmutableArray();
+            if (autonomous && !_candidates.Any(x => x.Score.HasValue && x.Command is not null) &&
+                _candidates.Any(x => x.Rejection == "EstimatedPathExceedsBudget"))
+                return Stop(StrategyStatus.Stopped, "AutonomousBudgetExhausted");
+            if (_goals?.Active is not null && !_candidates.Any(x => x.Score.HasValue && x.Command is not null))
+            {
+                _goals = _goals.Transition("Rejected", State.Fingerprint);
+                State = State.WithContext(RunContext());
+                _candidates = _strategies.SelectMany(x => x.EvaluateAll(State)).Select(Measured).OrderBy(x => x.Id, StringComparer.Ordinal).ToImmutableArray();
+            }
             if (_candidates.Length == 0 || _candidates.Select(x => x.Id).Distinct(StringComparer.Ordinal).Count() != _candidates.Length ||
                 _candidates.Any(x => string.IsNullOrWhiteSpace(x.Id) || x.Value is <= 0 or > 1_000_000 ||
                     x.ActionSeconds is < 0.001m or > 1_000_000 || x.TravelSeconds is < 0 or > 1_000_000 || x.RecoverySeconds is < 0 or > 1_000_000))
                 return Stop(StrategyStatus.Blocked, "InvalidPolicy");
         }
         catch (Exception) { return Stop(StrategyStatus.Blocked, "InvalidObservationOrPolicy"); }
+        if (autonomous && _candidates.Length == 4 && _candidates.All(x => x.Rejection == "SupportedSkillCapReached"))
+            return Stop(StrategyStatus.Stopped, "NoUsefulSupportedGoals");
         if (_candidates.All(x => x.Complete)) return Stop(StrategyStatus.Completed, "TargetsReached");
         var selected = _candidates.Where(x => x.Score.HasValue && x.Command is not null)
             .OrderByDescending(x => x.Score).ThenBy(x => x.Id, StringComparer.Ordinal).FirstOrDefault();
@@ -134,6 +156,12 @@ public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IPro
             selected.Score <= incumbent.Score * selection.SwitchRatio) selected = incumbent;
         var command = selected.Command!;
         if (inspect) return Decision(StrategyStatus.Selected, "InspectOnly", selected.Id, command.Id);
+        if (_goals is not null && selected.Discovery is not null)
+        {
+            _goals = _goals with { Active = selected.Discovery, ActiveWorld = State.WorldFingerprint };
+            State = State.WithContext(RunContext());
+            Save();
+        }
         if (command.SourceFingerprint != State.Fingerprint || _consumed.Contains(Key(command)))
             return Stop(StrategyStatus.Blocked, "ConsumedOrInvalidCommand");
         if (command.Charges is not null && command.Charges.Any(x => x.Value <= 0 || resourceLimits is null ||
@@ -150,7 +178,7 @@ public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IPro
         { _noProgress++; return Decision(StrategyStatus.Replan, "StaleObservation", selected.Id); }
         if (token.IsCancellationRequested) return Stop(StrategyStatus.Cancelled, "Cancelled");
         if (_loaded && _time.GetUtcNow() - _started >= TimeSpan.FromSeconds(_limits.DurationSeconds))
-            return Stop(StrategyStatus.Blocked, "BudgetExhausted");
+            return Stop(autonomous ? StrategyStatus.Stopped : StrategyStatus.Blocked, autonomous ? "AutonomousBudgetExhausted" : "BudgetExhausted");
         _attempts++; _noProgress++;
         _pending = command;
         _pendingCandidate = selected.Id;
@@ -176,6 +204,7 @@ public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IPro
         { RecordOutcome("InvalidPostcondition"); return Stop(StrategyStatus.Blocked, "InvalidPostcondition"); }
         _verified = SavedObservation.From(State);
         RecordOutcome("Verified", State.Fingerprint);
+        if (_goals is not null) _goals = _goals.CompleteObserved(State);
         var facts = ActionFacts.Read(_baseline, State, selected, _time.GetElapsedTime(tickStarted, dispatched).TotalSeconds, _time.GetElapsedTime(dispatched).TotalSeconds);
         _journal[^1] = _journal[^1] with { Facts = facts };
         if (selection is not null && reply.Cooldown > 0)
@@ -190,9 +219,17 @@ public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IPro
         if (command.Productive) _noProgress = 0;
         Save();
         if (token.IsCancellationRequested) return Stop(StrategyStatus.Cancelled, "Cancelled");
+        using var deadline = autonomous ? CancellationTokenSource.CreateLinkedTokenSource(token) : null;
+        if (deadline is not null)
+        {
+            var remaining = TimeSpan.FromSeconds(_limits.DurationSeconds) - (_time.GetUtcNow() - _started);
+            if (remaining <= TimeSpan.Zero) return Stop(StrategyStatus.Stopped, "AutonomousBudgetExhausted");
+            deadline.CancelAfter(remaining);
+        }
         long waiting = _time.GetTimestamp();
-        try { await cooldown.WaitAsync(reply.Cooldown, token); }
+        try { await cooldown.WaitAsync(reply.Cooldown, deadline?.Token ?? token); }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { return Stop(StrategyStatus.Cancelled, "Cancelled"); }
+        catch (OperationCanceledException) when (deadline?.IsCancellationRequested == true) { return Stop(StrategyStatus.Stopped, "AutonomousBudgetExhausted"); }
         catch (Exception) { return Stop(StrategyStatus.Blocked, "CooldownFailed"); }
         _journal[^1] = _journal[^1] with { Facts = facts with { WaitSeconds = _time.GetElapsedTime(waiting).TotalSeconds } };
         if (token.IsCancellationRequested) return Stop(StrategyStatus.Cancelled, "Cancelled");
@@ -211,11 +248,13 @@ public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IPro
         _newRun = saved is null;
         if (saved is not null)
         {
-            if (saved.Version != 1 || saved.Identity != identity || saved.Decisions < 0 || saved.Attempts < 0 ||
+            if (saved.Version != (autonomous ? 2 : 1) || autonomous && saved.Autonomous is not { Valid: true } || !autonomous && saved.Autonomous is not null ||
+                saved.Identity != identity || saved.Decisions < 0 || saved.Attempts < 0 ||
                 saved.NoProgress < 0 || saved.Seconds < 0 || saved.Started > _started || saved.Consumed is null || saved.Journal.IsDefault ||
                 saved.Attempts != saved.Journal.Length || saved.Attempts > saved.Decisions)
                 throw new InvalidOperationException("Incompatible checkpoint");
             _started = saved.Started; _decisions = saved.Decisions; _attempts = saved.Attempts;
+            _goals = saved.Autonomous;
             _noProgress = saved.NoProgress; _seconds = saved.Seconds; _terminal = saved.Terminal;
             _consumed.UnionWith(saved.Consumed);
             _journal.AddRange(saved.Journal); _verified = saved.Verified;
@@ -242,9 +281,9 @@ public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IPro
         _loaded = true;
         Save();
     }
-    private void Save() => checkpoints?.Save(new(1, identity, _started, _decisions, _attempts, _noProgress, _seconds,
+    private void Save() => checkpoints?.Save(new(autonomous ? 2 : 1, identity, _started, _decisions, _attempts, _noProgress, _seconds,
         _consumed.ToArray(), _pending?.Id, _baseline is null ? null : SavedObservation.From(_baseline), _terminal, _verified, _journal.ToImmutableArray(),
-        _measurements.ToImmutableDictionary(StringComparer.Ordinal), _incumbent, _initial, _latest, _finished, _pending is null ? null : _pendingCandidate));
+        _measurements.ToImmutableDictionary(StringComparer.Ordinal), _incumbent, _initial, _latest, _finished, _pending is null ? null : _pendingCandidate, _goals));
     private static string MeasureKey(StrategyCandidate candidate) => candidate.Id + ":" + candidate.Command!.Id.Split(':')[0];
     private StrategyRunContext RunContext()
     {
@@ -265,7 +304,9 @@ public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IPro
                 refilling[entry.RefillCode] = entry.Refilling.Value;
             }
         }
-        return new(used.ToImmutable(), refilling.ToImmutable());
+        return new(used.ToImmutable(), refilling.ToImmutable(), _goals,
+            autonomous ? Math.Max(0, _limits.Actions - _attempts) : null,
+            autonomous ? Math.Max(0, _limits.DurationSeconds - (_loaded ? (decimal)(_time.GetUtcNow() - _started).TotalSeconds : 0)) : null);
     }
     private StrategyCandidate Measured(StrategyCandidate candidate)
     {

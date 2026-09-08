@@ -32,15 +32,25 @@ public sealed class AutonomousGoalDiscovery(PortfolioPolicy policy, StrategyActi
         var maps = observation.Catalogs["maps"];
         if (resources.Length > 4096 || items.Length > 16384 || DuplicateCodes(resources) || DuplicateCodes(items))
             return [Rejected("discovery", "InvalidDiscoveryCatalog")];
+        if (maps.IsEmpty || maps.Select(x => x.GetProperty("map_id").GetInt32()).Distinct().Count() != maps.Length ||
+            !StrategyRules.GatheringPlace(maps.Single(x => x.GetProperty("map_id").GetInt32() == state.MapId), state))
+            return [Rejected("discovery", "UnsupportedAccess")];
         bool Reachable(JsonElement resource) => SupportedDrops(resource) && StrategyRules.Empty(resource, "conditions") && maps.Any(map =>
             StrategyRules.GatheringPlace(map, state) && map.GetProperty("interactions").GetProperty("content") is { ValueKind: JsonValueKind.Object } content &&
             content.GetProperty("type").GetString() == "resource" && content.GetProperty("code").GetString() == resource.GetProperty("code").GetString());
         var result = ImmutableArray.CreateBuilder<StrategyCandidate>();
         foreach (string skill in Skills)
         {
+            var active = observation.Context.Autonomous?.Active;
+            if (active is not null && active.Skill != skill) continue;
             if (!observation.Character.TryGetProperty(skill + "_level", out var rawLevel) || !rawLevel.TryGetInt32(out int level) || level is < 1 or > SkillCap)
             { result.Add(Rejected("skill:" + skill, "UnsupportedSkillObservation")); continue; }
-            if (level == SkillCap) { result.Add(Rejected("skill:" + skill, "SupportedSkillCapReached")); continue; }
+            if (level == SkillCap)
+            {
+                bool valid = observation.Character.TryGetProperty(skill + "_xp", out var xp) && xp.TryGetInt32(out int value) && value >= 0 &&
+                    observation.Character.TryGetProperty(skill + "_max_xp", out var max) && max.TryGetInt32(out int maximum) && maximum >= value;
+                result.Add(Rejected("skill:" + skill, valid ? "SupportedSkillCapReached" : "UnsupportedSkillObservation")); continue;
+            }
             var eligible = resources.Where(x => x.GetProperty("skill").GetString() == skill)
                 .OrderBy(x => x.GetProperty("code").GetString(), StringComparer.Ordinal).Take(32).ToArray();
             var trainers = eligible.Where(x => x.GetProperty("level").GetInt32() is > 0 && x.GetProperty("level").GetInt32() <= level &&
@@ -56,6 +66,9 @@ public sealed class AutonomousGoalDiscovery(PortfolioPolicy policy, StrategyActi
                 hasUnlock ? 1 : 0, hasUnlock ? 0 : 0.1m, 0, hasUnlock ? Recipes(items, unlock) : [],
                 "Skill cap 50; recipe references have no utility without a proven need; future XP thresholds and yields are estimates.",
                 "Milestone reached, catalog/access change, or route becomes infeasible");
+            if (active is not null) { evidence = active; target = active.Target; }
+            if (observation.Context.Autonomous?.History.Any(x => x.Outcome == "Rejected" && x.Goal.Skill == skill && x.Goal.Target == target) == true)
+            { result.Add(Rejected("skill:" + skill, "PreviouslyRejectedMilestone")); continue; }
             var goal = new SkillMilestone(skill, target, evidence.UnlockUtility + evidence.ProgressUtility);
             var derived = policy with { Skills = [goal], AutonomousGoals = false };
             var strategy = new FullPathStrategy(new ResourceAlternatives(goal, derived, port), derived);
@@ -73,7 +86,8 @@ public sealed class AutonomousGoalDiscovery(PortfolioPolicy policy, StrategyActi
                         .Sum(x => (long)x.GetProperty("max_quantity").GetInt32());
                     string? rejection = target - 1 - trainingLevel >= 10 ? "TrainingCannotReachMilestone" :
                         policy.Bank is null && work * dropUnits > state.FreeUnits ? "EstimatedInventoryInsufficient" :
-                        work + (path.TravelSeconds > 0 ? 1 : 0) > limits.Actions || seconds * multiplier > limits.DurationSeconds ? "EstimatedPathExceedsBudget" : null;
+                        work + (path.TravelSeconds > 0 ? 1 : 0) > (observation.Context.RemainingActions ?? limits.Actions) ||
+                        seconds * multiplier > (observation.Context.RemainingSeconds ?? limits.DurationSeconds) ? "EstimatedPathExceedsBudget" : null;
                     if (rejection is not null) candidate = candidate with { Rejection = rejection, Command = null };
                 }
                 result.Add(candidate);
