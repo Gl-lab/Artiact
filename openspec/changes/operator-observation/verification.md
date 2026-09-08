@@ -13,3 +13,5 @@ Visual QA: CUA opened a loopback-only Python preview serving the actual panel as
 Review verified the shared character-key algorithm remains identical, readers use delete sharing, no read endpoint creates a directory/lease or dispatches actions, DTO extension is optional, resource/decision facts remain journal-grounded, and failed storage cannot display cached success after expiry. Updated architecture diagram, application instructions and configuration guide match the implementation.
 
 Not verified: live API, R19 operator cycle, remote/multi-user security, mobile visual layout and R16's historical transient cause. The user explicitly authorized proceeding with R17/R18 while R16 remains open.
+
+Published implementation `ebe20d6`, pushed to origin/master before R18 specification.

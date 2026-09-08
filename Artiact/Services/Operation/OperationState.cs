@@ -6,14 +6,23 @@ public sealed class OperationState(TimeProvider? time = null)
     private Strategy.StrategyDecision? _decision;
     private string? _runId;
     private string? _lastCommand, _goal;
-    private readonly CancellationTokenSource _stop = new();
+    private CancellationTokenSource _stop = new();
     private bool _running;
     public void WorkerStarted() { lock (_sync) _running = true; }
     public void WorkerStopped() { lock (_sync) _running = false; }
     public (bool Running, bool StopRequested, Strategy.StrategyDecision? Decision) WorkerSnapshot()
     { lock (_sync) return (_running, _stop.IsCancellationRequested, _decision); }
-    public CancellationToken StopToken => _stop.Token;
-    public void RequestStop() => _stop.Cancel();
+    public CancellationToken StopToken { get { lock (_sync) return _stop.Token; } }
+    public void RequestStop() { lock (_sync) _stop.Cancel(); }
+    public void ResetForRun()
+    {
+        lock (_sync)
+        {
+            if (_running) throw new InvalidOperationException("Executor busy.");
+            _stop.Dispose(); _stop = new(); _decision = null; _runId = null; _lastCommand = null; _goal = null;
+            _successful = false; _state = "NotInitialized"; _observed = null; _probe = null;
+        }
+    }
     public void Progress(string runId, Strategy.StrategyDecision decision)
     {
         lock (_sync) { _runId = runId; _decision = decision; _lastCommand = decision.Command ?? _lastCommand; _goal = decision.Candidate ?? _goal; }

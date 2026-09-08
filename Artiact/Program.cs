@@ -119,7 +119,11 @@ internal class Program
         // Добавляем эндпоинт для информации о состоянии
         app.MapGet("/health/live", () => Results.Ok(new { Status = "Alive" }));
         app.MapGet("/operation", (OperationState state) => Results.Ok(state.RunStatus()));
-        app.MapPost("/operation/stop", (OperationState state) => { state.RequestStop(); return Results.Accepted(); });
+        app.MapPost("/operation/stop", (HttpContext context, OperationState state) =>
+        {
+            if (!OperatorEndpoints.IsLocal(context) || !OperatorEndpoints.SameOrigin(context)) return Results.StatusCode(403);
+            state.RequestStop(); return Results.Accepted();
+        });
         app.MapGet("/health/ready", (OperationState state, ExecutionSettings settings) =>
         {
             var snapshot = state.Snapshot(settings.FreshnessSeconds);

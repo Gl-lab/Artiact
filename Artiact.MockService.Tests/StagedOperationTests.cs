@@ -1273,6 +1273,66 @@ public class StagedOperationTests(Xunit.Abstractions.ITestOutputHelper output)
         public override DateTimeOffset GetUtcNow() => _now;
         public void Advance(int seconds) => _now = _now.AddSeconds(seconds);
     }
+    private sealed class PanelExecution(Harness harness, ApiSettings api, PortfolioSettings portfolio) : IOperatorExecution
+    {
+        public Task<StrategyDecision?> ExecuteAsync(ExecutionSettings settings, CancellationToken token) =>
+            new StagedExecution(settings, api, portfolio, harness.Factory, harness.State).RunAsync(token);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task OperatorCycleUsesRealClientAndPreservesTerminalOnRestart(bool stopInFlight)
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "artiact-panel-cycle-" + Guid.NewGuid().ToString("N"));
+        var settings = new ExecutionSettings { AllowActions = true, RunDirectory = directory };
+        var api = new ApiSettings { BaseUrl = "http://localhost", Character = "researcher", Username = "mock", Password = "mock" };
+        var portfolio = new PortfolioSettings { Skills = [new("mining", 2, 30)] };
+        var request = new OperatorRunRequest("panel-cycle", 10, 300, 40, 10);
+        try
+        {
+            await using var h = new Harness(settings, miningOnly: true);
+            await h.Reset(); h.Handler.MiningOnly = true;
+            var coordinator = new OperatorCoordinator(settings, api, portfolio, h.State, new PanelExecution(h, api, portfolio));
+            var inspected = await coordinator.InspectAsync(request);
+            Assert.True(inspected.Accepted, inspected.Reason); Assert.Equal(0, h.Handler.Actions);
+            if (stopInFlight)
+            {
+                h.Handler.ActionReached = new(TaskCreationOptions.RunContinuationsAsynchronously);
+                h.Handler.ActionRelease = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            }
+            Assert.True((await coordinator.StartRunAsync(inspected.Receipt!)).Accepted);
+            Assert.True((await coordinator.StartRunAsync(inspected.Receipt!)).Accepted);
+            if (stopInFlight)
+            {
+                await h.Handler.ActionReached!.Task.WaitAsync(TimeSpan.FromSeconds(10));
+                Assert.Equal("StopRequested", (await coordinator.RequestStopAsync()).Reason);
+                h.Handler.ActionRelease!.TrySetResult();
+            }
+            await coordinator.WaitForIdleAsync().WaitAsync(TimeSpan.FromSeconds(10));
+            var expected = stopInFlight ? StrategyStatus.Cancelled : StrategyStatus.Completed;
+            using (var store = new FileRunCheckpointStore(directory, "http://localhost/researcher"))
+            {
+                var saved = store.Load()!;
+                Assert.Equal(expected, saved.Terminal!.Status);
+                Assert.Null(saved.PendingCommand);
+                Assert.All(saved.Journal, x => Assert.Equal("Verified", x.Status));
+                Assert.Equal(stopInFlight ? 1 : 3, saved.Attempts);
+            }
+            int actions = h.Handler.Actions;
+            var restarted = new StagedExecution(new ExecutionSettings { Mode = "Bounded", AllowActions = true, RunDirectory = directory,
+                RunId = request.RunId, MaxActions = request.MaxActions, MaxSeconds = request.MaxSeconds, MaxDecisions = request.MaxDecisions, MaxNoProgress = request.MaxNoProgress },
+                api, portfolio, h.Factory, h.State);
+            Assert.Equal(expected, (await restarted.RunAsync(CancellationToken.None))!.Status);
+            Assert.Equal(actions, h.Handler.Actions);
+            using var reader = new FileRunCheckpointStore(directory, "http://localhost/researcher");
+            string digest = FileRunCheckpointStore.IdentityDigest(reader.Load()!.Identity);
+            if (stopInFlight) Assert.Throws<IOException>(() => reader.ArchiveCompleted(digest));
+            else Assert.True(File.Exists(reader.ArchiveCompleted(digest)));
+        }
+        finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
+    }
+
     private sealed class Harness : IAsyncDisposable
     {
         private readonly MockServiceFactory _factory = new();
@@ -1318,6 +1378,7 @@ public class StagedOperationTests(Xunit.Abstractions.ITestOutputHelper output)
         public List<string> Reads = [];
         public string? Corruption;
         public CancellationTokenSource? Cancel;
+        public TaskCompletionSource? ActionReached, ActionRelease;
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
         {
             var response = await base.SendAsync(request, token);
@@ -1454,7 +1515,11 @@ public class StagedOperationTests(Xunit.Abstractions.ITestOutputHelper output)
             }
             if (path == "/token") Cancel?.Cancel();
             if (path.Contains("/action/"))
-            { Actions++; if (Corruption == "loss") { response.Dispose(); throw new HttpRequestException(); } }
+            {
+                Actions++;
+                if (ActionReached is not null) { ActionReached.TrySetResult(); await ActionRelease!.Task; }
+                if (Corruption == "loss") { response.Dispose(); throw new HttpRequestException(); }
+            }
             if (path.StartsWith("/characters/", StringComparison.Ordinal) && Corruption == "stale") clock.Advance(31);
             if (path == "/openapi.json" && Corruption is "version" or "schema" or "route" or "malformed")
             {

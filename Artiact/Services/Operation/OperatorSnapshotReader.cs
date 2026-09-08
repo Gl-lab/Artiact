@@ -96,7 +96,7 @@ public sealed class OperatorSnapshotReader(ExecutionSettings settings, ApiSettin
             LastConfirmedAction = saved.Journal.LastOrDefault(x => x.Status == "Verified")?.Command,
             saved.PendingCommand, UsedActions = saved.Attempts, MaxActions = limits?.Actions,
             RemainingActions = limits is null ? (int?)null : Math.Max(0, limits.Actions - saved.Attempts),
-            saved.Decisions, saved.NoProgress, MaxSeconds = limits?.DurationSeconds,
+            saved.Decisions, saved.NoProgress, MaxSeconds = limits?.DurationSeconds, MaxDecisions = limits?.Decisions, MaxNoProgress = limits?.NoProgress,
             RemainingSeconds = limits is null ? (double?)null : Math.Max(0, limits.DurationSeconds - Math.Max(0, ((saved.Finished ?? now) - saved.Started).TotalSeconds)),
             VerifiedCooldownSeconds = saved.Seconds,
             TimingComplete = saved.Journal.All(x => x.Status == "Verified" && x.Facts?.WaitSeconds is not null),

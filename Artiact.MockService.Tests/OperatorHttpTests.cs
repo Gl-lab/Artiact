@@ -11,6 +11,38 @@ namespace Artiact.MockService.Tests;
 
 public class OperatorHttpTests
 {
+    private sealed class NoExecution : IOperatorExecution
+    {
+        public Task<Artiact.Services.Strategy.StrategyDecision?> ExecuteAsync(ExecutionSettings settings, CancellationToken token) =>
+            throw new InvalidOperationException("Stop must not start execution.");
+    }
+
+    [Theory]
+    [InlineData(false, "http://localhost", 403)]
+    [InlineData(true, "http://attacker.example", 403)]
+    [InlineData(true, "http://localhost", 200)]
+    public async Task ControlPostsRequireSameOriginAndReceiptHeader(bool token, string origin, int expected)
+    {
+        var builder = WebApplication.CreateBuilder(); builder.WebHost.UseTestServer();
+        builder.Services.AddSingleton(new OperatorSettings { Enabled = true, ControlsEnabled = true });
+        builder.Services.AddSingleton(new ExecutionSettings());
+        builder.Services.AddSingleton(new ApiSettings { BaseUrl = "http://localhost", Character = "hero", Username = "test", Password = "secret-test-value" });
+        builder.Services.AddSingleton(new PortfolioSettings { AutonomousGoals = true });
+        builder.Services.AddSingleton<OperationState>(); builder.Services.AddSingleton<OperatorSnapshotReader>();
+        builder.Services.AddSingleton<IOperatorExecution, NoExecution>(); builder.Services.AddSingleton<OperatorCoordinator>();
+        await using var app = builder.Build();
+        app.Use((context, next) => { context.Connection.RemoteIpAddress = IPAddress.Loopback; return next(context); });
+        app.MapOperator(); await app.StartAsync();
+        using var client = app.GetTestClient();
+        using var response = await client.GetAsync("/operator/controls");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var controls = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        if (token) client.DefaultRequestHeaders.Add("X-Artiact-Control", controls.RootElement.GetProperty("Token").GetString());
+        client.DefaultRequestHeaders.Add("Origin", origin);
+        var stopped = await client.PostAsync("/operator/stop", null);
+        Assert.Equal(expected, (int)stopped.StatusCode);
+    }
+
     [Theory]
     [InlineData(true, "127.0.0.1", "localhost", 200)]
     [InlineData(false, "127.0.0.1", "localhost", 404)]

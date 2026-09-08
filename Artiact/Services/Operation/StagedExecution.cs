@@ -41,7 +41,7 @@ public sealed class StagedExecution(ExecutionSettings settings, ApiSettings api,
     {
         using var store = new FileRunCheckpointStore(settings.RunDirectory, new Uri(api.BaseUrl).GetLeftPart(UriPartial.Authority) + "/" + api.Character);
         var limits = new StrategyLimits(settings.MaxDecisions, settings.MaxNoProgress, settings.MaxActions, settings.MaxSeconds);
-        string identity = System.Text.Json.JsonSerializer.Serialize(new { settings.RunId, api.BaseUrl, api.Character, Policy = policy.Identity, Limits = limits });
+        string identity = RunIdentity(settings, api, policy);
         var saved = store.Load();
         using var stop = CancellationTokenSource.CreateLinkedTokenSource(token, status.StopToken);
         var remaining = TimeSpan.FromSeconds(settings.MaxSeconds) - (DateTimeOffset.UtcNow - (saved?.Started ?? DateTimeOffset.UtcNow));
@@ -74,6 +74,10 @@ public sealed class StagedExecution(ExecutionSettings settings, ApiSettings api,
             }
         }
     }
+
+    public static string RunIdentity(ExecutionSettings settings, ApiSettings api, PortfolioPolicy policy) =>
+        System.Text.Json.JsonSerializer.Serialize(new { settings.RunId, api.BaseUrl, api.Character, Policy = policy.Identity,
+            Limits = new StrategyLimits(settings.MaxDecisions, settings.MaxNoProgress, settings.MaxActions, settings.MaxSeconds) });
 }
 
 public sealed class StagedWorker(IServiceScopeFactory scopes, OperationState state, ILogger<StagedWorker> logger) : BackgroundService

@@ -12,8 +12,13 @@ public static class OperationRegistration
         services.AddSingleton(execution);
         services.AddSingleton(portfolio);
         services.AddSingleton<OperationState>();
-        services.AddSingleton(configuration.GetSection("Operator").Get<OperatorSettings>() ?? new());
+        var panel = configuration.GetSection("Operator").Get<OperatorSettings>() ?? new();
+        if (panel.ControlsEnabled && (!panel.Enabled || !string.Equals(execution.Mode, "Inspect", StringComparison.OrdinalIgnoreCase)))
+            throw new ArgumentException("Operator control requires an enabled panel and Inspect startup mode.");
+        services.AddSingleton(panel);
         services.AddSingleton<OperatorSnapshotReader>();
+        services.AddSingleton<IOperatorExecution, ScopedOperatorExecution>();
+        services.AddSingleton<OperatorCoordinator>();
         services.AddScoped<ApiCompatibility>();
         services.AddScoped<StagedExecution>();
         services.AddHttpClient("Artifacts", client => client.Timeout = TimeSpan.FromSeconds(30))
@@ -24,6 +29,7 @@ public static class OperationRegistration
             execution.Validate(api);
             services.AddHostedService<ArtiactBackgroundService>();
         }
+        else if (panel.ControlsEnabled) services.AddHostedService(services => services.GetRequiredService<OperatorCoordinator>());
         else services.AddHostedService<StagedWorker>();
         return services;
     }
