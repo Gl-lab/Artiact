@@ -5,11 +5,13 @@ namespace Artiact.Services.Strategy;
 
 public sealed record GoalDiscoveryEvidence(string Version, string Skill, int Target, string? Unlock,
     decimal UnlockUtility, decimal ProgressUtility, decimal RecipeUtility, ImmutableArray<string> DependentRecipes,
-    string Assumptions, string ReevaluateWhen);
+    string Assumptions, string ReevaluateWhen,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] int? OriginalTarget = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] string? FallbackReason = null);
 
 public sealed class AutonomousGoalDiscovery(PortfolioPolicy policy, StrategyActionPort port, StrategyLimits limits) : IProgressionStrategy
 {
-    public const string Version = "discovery-v1";
+    public const string Version = "discovery-v2";
     public const int SkillCap = 50;
     private static readonly string[] Skills = ["alchemy", "fishing", "mining", "woodcutting"];
 
@@ -69,32 +71,52 @@ public sealed class AutonomousGoalDiscovery(PortfolioPolicy policy, StrategyActi
             if (active is not null) { evidence = active; target = active.Target; }
             if (observation.Context.Autonomous?.History.Any(x => x.Outcome == "Rejected" && x.Goal.Skill == skill && x.Goal.Target == target) == true)
             { result.Add(Rejected("skill:" + skill, "PreviouslyRejectedMilestone")); continue; }
-            var goal = new SkillMilestone(skill, target, evidence.UnlockUtility + evidence.ProgressUtility);
-            var derived = policy with { Skills = [goal], AutonomousGoals = false };
-            var strategy = new FullPathStrategy(new ResourceAlternatives(goal, derived, port), derived);
-            foreach (var original in strategy.EvaluateAll(observation))
+            var initial = EvaluateTarget(evidence);
+            result.AddRange(initial);
+            var retryRoutes = initial.Where(x => x.Rejection is "EstimatedInventoryInsufficient" or "EstimatedPathExceedsBudget").ToArray();
+            if (active is null && target > level + 1 && retryRoutes.Length > 0 &&
+                !initial.Any(x => x.Score.HasValue && x.Command is not null) &&
+                observation.Context.Autonomous?.History.Any(x => x.Outcome == "Rejected" && x.Goal.Skill == skill && x.Goal.Target == level + 1) != true)
             {
-                var candidate = original with { Discovery = evidence };
-                if (candidate.Path is { } path && candidate.Rejection is null)
+                var intermediate = evidence with { Target = level + 1, Unlock = null, UnlockUtility = 0, ProgressUtility = 0.1m,
+                    DependentRecipes = [], OriginalTarget = target, FallbackReason = retryRoutes[0].Rejection };
+                var ids = retryRoutes.Select(x => x.Id).ToHashSet(StringComparer.Ordinal);
+                result.AddRange(EvaluateTarget(intermediate).Where(x => ids.Contains(x.Id.Replace(":intermediate", "", StringComparison.Ordinal))));
+            }
+
+            ImmutableArray<StrategyCandidate> EvaluateTarget(GoalDiscoveryEvidence goalEvidence)
+            {
+                int target = goalEvidence.Target;
+                var evaluated = ImmutableArray.CreateBuilder<StrategyCandidate>();
+                var goal = new SkillMilestone(skill, target, goalEvidence.UnlockUtility + goalEvidence.ProgressUtility);
+                var derived = policy with { Skills = [goal], AutonomousGoals = false };
+                var strategy = new FullPathStrategy(new ResourceAlternatives(goal, derived, port), derived);
+                foreach (var original in strategy.EvaluateAll(observation))
                 {
-                    decimal work = Math.Ceiling(path.Remaining / Math.Max(0.001m, path.ExpectedProgress));
-                    decimal seconds = work * path.UnitSeconds + path.PreparationSeconds + path.TravelSeconds + path.RecoverySeconds;
-                    decimal multiplier = policy.Measurement?.UnknownMultiplier ?? 2;
-                    string resourceCode = candidate.Id.Split(':')[2];
-                    int trainingLevel = resources.Single(x => x.GetProperty("code").GetString() == resourceCode).GetProperty("level").GetInt32();
-                    long dropUnits = resources.Single(x => x.GetProperty("code").GetString() == resourceCode).GetProperty("drops").EnumerateArray()
-                        .Sum(x => (long)x.GetProperty("max_quantity").GetInt32());
-                    candidate = candidate with { Feasibility = new(state.FreeUnits, work * dropUnits,
-                        Math.Max(0, work * dropUnits - state.FreeUnits), policy.Bank is not null,
-                        work + (path.TravelSeconds > 0 ? 1 : 0), observation.Context.RemainingActions ?? limits.Actions,
-                        seconds * multiplier, observation.Context.RemainingSeconds ?? limits.DurationSeconds) };
-                    string? rejection = target - 1 - trainingLevel >= 10 ? "TrainingCannotReachMilestone" :
-                        policy.Bank is null && work * dropUnits > state.FreeUnits ? "EstimatedInventoryInsufficient" :
-                        work + (path.TravelSeconds > 0 ? 1 : 0) > (observation.Context.RemainingActions ?? limits.Actions) ||
-                        seconds * multiplier > (observation.Context.RemainingSeconds ?? limits.DurationSeconds) ? "EstimatedPathExceedsBudget" : null;
-                    if (rejection is not null) candidate = candidate with { Rejection = rejection, Command = null };
+                    var candidate = original with { Discovery = goalEvidence };
+                    if (candidate.Path is { } path && candidate.Rejection is null)
+                    {
+                        decimal work = Math.Ceiling(path.Remaining / Math.Max(0.001m, path.ExpectedProgress));
+                        decimal seconds = work * path.UnitSeconds + path.PreparationSeconds + path.TravelSeconds + path.RecoverySeconds;
+                        decimal multiplier = policy.Measurement?.UnknownMultiplier ?? 2;
+                        string resourceCode = candidate.Id.Split(':')[2];
+                        int trainingLevel = resources.Single(x => x.GetProperty("code").GetString() == resourceCode).GetProperty("level").GetInt32();
+                        long dropUnits = resources.Single(x => x.GetProperty("code").GetString() == resourceCode).GetProperty("drops").EnumerateArray()
+                            .Sum(x => (long)x.GetProperty("max_quantity").GetInt32());
+                        candidate = candidate with { Feasibility = new(state.FreeUnits, work * dropUnits,
+                            Math.Max(0, work * dropUnits - state.FreeUnits), policy.Bank is not null,
+                            work + (path.TravelSeconds > 0 ? 1 : 0), observation.Context.RemainingActions ?? limits.Actions,
+                            seconds * multiplier, observation.Context.RemainingSeconds ?? limits.DurationSeconds) };
+                        string? rejection = target - 1 - trainingLevel >= 10 ? "TrainingCannotReachMilestone" :
+                            policy.Bank is null && work * dropUnits > state.FreeUnits ? "EstimatedInventoryInsufficient" :
+                            work + (path.TravelSeconds > 0 ? 1 : 0) > (observation.Context.RemainingActions ?? limits.Actions) ||
+                            seconds * multiplier > (observation.Context.RemainingSeconds ?? limits.DurationSeconds) ? "EstimatedPathExceedsBudget" : null;
+                        if (rejection is not null) candidate = candidate with { Rejection = rejection, Command = null };
+                    }
+                    if (goalEvidence.OriginalTarget is not null) candidate = candidate with { Id = candidate.Id + ":intermediate" };
+                    evaluated.Add(candidate);
                 }
-                result.Add(candidate);
+                return evaluated.ToImmutable();
             }
         }
         return result.ToImmutable();

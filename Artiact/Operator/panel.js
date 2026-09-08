@@ -4,6 +4,7 @@ function diagnosticText(c){
     const explanations={EstimatedInventoryInsufficient:'Недостаточно места для оценённого сбора',EstimatedPathExceedsBudget:'Оценённый путь превышает бюджет',NoSupportedResource:'Нет поддерживаемого ресурса',UnsupportedAccess:'Маршрут недоступен',UnsupportedResourceAccess:'Маршрут к ресурсу недоступен',TrainingCannotReachMilestone:'Ресурс не позволяет достичь рубежа',InventoryFull:'Инвентарь заполнен'};
     let value=`${names[c.Skill]??c.Skill??c.Id}${c.Target!=null?' → '+c.Target:''}: ${explanations[c.Rejection]??(c.Rejection?'Причина требует проверки':'Доступный маршрут')} [${c.Rejection??'Selected'}]`;
     const f=c.Feasibility;
+    if(c.OriginalTarget!=null)value+=` · промежуточный рубеж вместо ${c.OriginalTarget}; причина: ${c.FallbackReason}. Дальний рубеж ещё не достигнут.`;
     if(f){value+=` · свободно ${f.FreeUnits}, оценочно нужно ${f.RequiredUnits}, дефицит ${f.DeficitUnits}. Банковская политика ${f.BankConfigured?'задана; выполнимость проверяется отдельно':'не задана'}.`;
         if(c.Rejection==='EstimatedPathExceedsBudget')value+=` Нужно действий: ${f.RequiredActions}, осталось: ${f.RemainingActions}; оценка времени: ${f.RequiredSeconds} сек, осталось: ${f.RemainingSeconds} сек.`;
         if(c.Rejection==='EstimatedInventoryInsufficient')value+=' Освободите место или проверьте разрешённую банковскую политику, затем повторите Inspect. Другие ограничения могут сохраниться.';

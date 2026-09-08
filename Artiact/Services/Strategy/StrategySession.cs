@@ -263,7 +263,7 @@ public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IPro
         _newRun = saved is null;
         if (saved is not null)
         {
-            if (saved.Version != (autonomous ? 2 : 1) || autonomous && saved.Autonomous is not { Valid: true } || !autonomous && saved.Autonomous is not null ||
+            if (saved.Version != (autonomous ? 2 : 1) || autonomous && saved.Autonomous is not { Valid: true, Algorithm: AutonomousGoalDiscovery.Version } || !autonomous && saved.Autonomous is not null ||
                 saved.Identity != identity || saved.Decisions < 0 || saved.Attempts < 0 ||
                 saved.NoProgress < 0 || saved.Seconds < 0 || saved.Started > _started || saved.Consumed is null || saved.Journal.IsDefault ||
                 saved.Attempts != saved.Journal.Length || saved.Attempts > saved.Decisions)

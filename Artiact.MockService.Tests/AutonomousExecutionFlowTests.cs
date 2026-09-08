@@ -55,6 +55,7 @@ public class AutonomousExecutionFlowTests(Xunit.Abstractions.ITestOutputHelper o
         public bool ChangeUnrelatedMap;
         public bool RemoveWoodcuttingRoute;
         public bool AllowBank;
+        public bool AddFutureUnlock;
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
         {
             bool action = request.RequestUri!.AbsolutePath.Contains("/action/", StringComparison.Ordinal);
@@ -65,6 +66,12 @@ public class AutonomousExecutionFlowTests(Xunit.Abstractions.ITestOutputHelper o
                 Posts++; if (request.RequestUri.AbsolutePath.EndsWith("/move", StringComparison.Ordinal)) Moves++;
             }
             var result = await base.SendAsync(request, token);
+            if (AddFutureUnlock && request.RequestUri.AbsolutePath == "/resources")
+            {
+                var body = JsonNode.Parse(await result.Content.ReadAsStringAsync(token))!;
+                body["data"]!.AsArray().Add(JsonNode.Parse("""{"code":"iron_node","name":"Iron","skill":"mining","level":10,"drops":[{"code":"iron","rate":1,"min_quantity":1,"max_quantity":1}]}"""));
+                result.Content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json");
+            }
             if ((ChangeUnrelatedMap || RemoveWoodcuttingRoute) && request.RequestUri.AbsolutePath == "/maps")
             {
                 var body = JsonNode.Parse(await result.Content.ReadAsStringAsync(token))!;
@@ -112,6 +119,44 @@ public class AutonomousExecutionFlowTests(Xunit.Abstractions.ITestOutputHelper o
         public StrategySession Run(StrategyLimits? limits = null, IRunCheckpointStore? store = null) =>
             new StrategySessionFactory(Client, new CombatCatalog(GameHttp), Characters, new Delay()).Create(Policy, limits ?? new(40, 10, 20, 300), store ?? Store, "autonomous-test");
         public void Dispose() { Http.Dispose(); Mock.Dispose(); }
+    }
+
+    [Fact]
+    public async Task PriorDiscoveryCheckpointCannotDispatchUnderNewAlgorithm()
+    {
+        using var h = new Harness(); await h.Reset("discovery-new");
+        await h.Run().TickAsync();
+        var goals = h.Store.Saved!.Autonomous!;
+        h.Store.Saved = h.Store.Saved with { Autonomous = goals with { Algorithm = "discovery-v1", Active = goals.Active! with { Version = "discovery-v1" } } };
+        Assert.True(h.Store.Saved.Autonomous!.Valid);
+        int posts = h.Guard.Posts;
+        var result = await h.Run().TickAsync();
+        Assert.Equal(StrategyStatus.Blocked, result.Status);
+        Assert.Equal("CheckpointUnavailableOrInvalid", result.Reason);
+        Assert.Equal(posts, h.Guard.Posts);
+    }
+
+    [Fact]
+    public async Task IntermediateCompletesAcrossRestartsWithoutReturningBudget()
+    {
+        using var h = new Harness(); await h.Reset("discovery-new");
+        h.Guard.AddFutureUnlock = true; h.Guard.RemoveWoodcuttingRoute = true;
+        var limits = new StrategyLimits(20, 5, 3, 300);
+        var first = await h.Run(limits).TickAsync();
+        Assert.Equal(StrategyStatus.Selected, first.Status);
+        Assert.Equal(10, h.Store.Saved!.Autonomous!.Active!.OriginalTarget);
+        Assert.Equal(2, h.Store.Saved.Autonomous.Active.Target);
+        for (int i = 0; i < 4; i++)
+        {
+            var result = await h.Run(limits).TickAsync();
+            if (result.Status == StrategyStatus.Stopped) break;
+        }
+        Assert.Equal(3, h.Guard.Posts);
+        Assert.Contains(h.Store.Saved!.Autonomous!.History, x => x.Outcome == "Completed" && x.Goal.Target == 2 && x.Goal.OriginalTarget == 10);
+        var reopened = await h.Run(limits).TickAsync();
+        Assert.Equal("AutonomousBudgetExhausted", reopened.Reason);
+        Assert.Equal(3, reopened.Attempts);
+        Assert.Equal(3, h.Guard.Posts);
     }
 
     [Fact]

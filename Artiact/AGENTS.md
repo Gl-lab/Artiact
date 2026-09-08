@@ -8,6 +8,8 @@ R18: ControlsEnabled requires Inspect startup and suppresses the automatic worke
 
 R14 CombatDiscovery preserves explicit combat/gear/production permissions, Recovery allowances and combat:materials charges. Route-opening parents retain their opponent/value through equip. See ../docs/combat-goal-discovery.md; the combat ADR live no-go remains.
 
+R22: discovery-v2 keeps the original target/reason for bounded intermediate milestones. Legacy discovery-v1 remains readable but must not execute under the new algorithm; never auto-migrate pending intent.
+
 R11/R12: autonomous gathering uses Inspect or durable Bounded execution. Preserve version-1 manual identity, version-2 active goal/history, pending baseline context, explicit bank permission, bounded generation and zero recipe utility without a proven need. Stopped is distinct from milestone completion and Blocked. See ../docs/autonomous-goals.md.
 
 R13 Recovery is optional. Preserve explicit Use/Rest/Craft/bank permissions, global recovery:use/materials charges, HP outcome measurement and parent completion before refill. Internal reserve-only production may have no bank; never infer permission to transfer stock. See ../docs/autonomous-recovery.md.

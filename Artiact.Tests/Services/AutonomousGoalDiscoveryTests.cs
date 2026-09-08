@@ -13,6 +13,60 @@ namespace Artiact.Tests.Services;
 public class AutonomousGoalDiscoveryTests
 {
     [Fact]
+    public async Task IntermediateEvidenceSurvivesSerializationAndActiveReevaluation()
+    {
+        var state = World(1, 1, true);
+        var result = await Inspect(state, new(100, 10, 2, 10000));
+        var chosen = Assert.Single(result.Candidates.Where(x => x.Discovery?.OriginalTarget == 10 && x.Command is not null));
+        Assert.Equal("EstimatedPathExceedsBudget", chosen.Discovery!.FallbackReason);
+        var active = JsonSerializer.Deserialize<AutonomousRunState>(JsonSerializer.Serialize(
+            AutonomousRunState.Empty with { Active = chosen.Discovery, ActiveWorld = state.WorldFingerprint }))!;
+        Assert.True(active.Valid);
+        var restored = state.WithContext(state.Context with { Autonomous = active });
+        var next = new AutonomousGoalDiscovery(Policy, new StrategyActionPort(null!, null!), new(100, 10, 2, 10000)).EvaluateAll(restored).ToArray();
+        Assert.Equal(chosen.Id, next.Single(x => x.Command is not null).Id);
+        Assert.All(next, x => Assert.Equal(2, x.Discovery!.Target));
+    }
+
+    [Theory]
+    [InlineData(4, true)]
+    [InlineData(3, false)]
+    public async Task IntermediateUsesSumOfMaximumSimultaneousDrops(int capacity, bool fits)
+    {
+        var state = World(1, 1, true); var character = JsonNode.Parse(state.Character.GetRawText())!;
+        character["inventory_max_items"] = capacity;
+        var resource = JsonNode.Parse(state.Catalogs["resources"][0].GetRawText())!;
+        resource["drops"]!.AsArray().Add(JsonSerializer.SerializeToNode(new { code = "extra", min_quantity = 1, max_quantity = 1, rate = 2 }));
+        state = new(JsonSerializer.SerializeToElement(character), state.Catalogs.SetItem("resources",
+            state.Catalogs["resources"].SetItem(0, JsonSerializer.SerializeToElement(resource))), state.Policy);
+        var result = await Inspect(state, new(100, 10, 100, 10000));
+        var intermediate = Assert.Single(result.Candidates.Where(x => x.Discovery?.OriginalTarget == 10));
+        Assert.Equal(fits, intermediate.Command is not null);
+        Assert.Equal(4, intermediate.Feasibility!.RequiredUnits);
+    }
+
+    [Fact]
+    public async Task AlreadyNearestGoalDoesNotGenerateFallbackDuplicates()
+    {
+        var result = await Inspect(World(), new(10, 1, 1, 1));
+        Assert.DoesNotContain(result.Candidates, x => x.Discovery?.OriginalTarget is not null);
+        Assert.Equal(result.Candidates.Length, result.Candidates.Select(x => x.Id).Distinct().Count());
+    }
+    [Theory]
+    [InlineData(2, true)]
+    [InlineData(1, false)]
+    public async Task UnreachableUnlockFallsBackOnlyToFittingNearestLevel(int capacity, bool fits)
+    {
+        var state = World(1, 1, true); var character = JsonNode.Parse(state.Character.GetRawText())!;
+        character["inventory_max_items"] = capacity;
+        var result = await Inspect(new(JsonSerializer.SerializeToElement(character), state.Catalogs, state.Policy), new(100, 10, 100, 10000));
+        Assert.Contains(result.Candidates, x => x.Discovery?.Target == 10 && x.Rejection == "EstimatedInventoryInsufficient");
+        var intermediate = Assert.Single(result.Candidates.Where(x => x.Discovery?.Skill == "mining" && x.Discovery.Target == 2));
+        Assert.Equal(fits, intermediate.Command is not null);
+        Assert.Equal(0, intermediate.Discovery!.UnlockUtility);
+        Assert.Equal(0.1m, intermediate.Discovery.ProgressUtility);
+    }
+    [Fact]
     public async Task InventoryRefusalCarriesCalculatedQuantities()
     {
         var state = World(); var character = JsonNode.Parse(state.Character.GetRawText())!;
@@ -130,7 +184,7 @@ public class AutonomousGoalDiscoveryTests
         Assert.Equal(expected, result.Candidate);
         var candidate = result.Candidates.Single(x => x.Id == expected);
         Assert.Equal(target, candidate.Discovery!.Target);
-        Assert.Equal("discovery-v1", candidate.Discovery.Version);
+        Assert.Equal("discovery-v2", candidate.Discovery.Version);
         Assert.Equal(0, candidate.Discovery.RecipeUtility);
         Assert.NotNull(candidate.Path);
         Assert.Equal(0, result.Attempts);

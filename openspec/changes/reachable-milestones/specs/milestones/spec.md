@@ -1,0 +1,3 @@
+# Acceptance
+
+Given a level-1 resource, next unlock at level 10 and space for two maximum drops, choose target 2 when target 10 needs more space. Record original target 10 and inventory refusal, award progress 0.1 and unlock zero. At one free unit both refuse. With multiple simultaneous drops, sum maxima. Budget-only original refusal can also fall back if the next level fits; otherwise retain budget refusal. An active intermediate stays at its target until fresh completion or rejection, and saves evidence through restart. Version-1 checkpoints remain observable but cannot execute under discovery-v2 policy.
