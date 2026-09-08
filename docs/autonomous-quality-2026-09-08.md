@@ -40,7 +40,7 @@ Auto/fixed shield ends combat3/0 and weaponcrafting1/1; weapon ends combat3/0, m
 | Boundary | Verified behavior |
 |---|---|
 | Expensive/forbidden preparation | Whole recovery/gear material paths reject at allowance1; disallowed Use/Fight/Craft/Equip and unsupported effects/cycles produce no corresponding command |
-| Changed catalog | Active gathering parent is rejected and suppressed; a supported alternative may proceed within the same counters |
+| Changed catalog | Active gathering parent is reevaluated; unrelated changes retain it, while a removed route rejects and suppresses it; a supported alternative may proceed within the same counters |
 | Catalog change during uncertain POST | Remains UnknownOutcome; no new parent or POST |
 | Lost gather, gear, Fight, recovery Use and combat-parent Use | Reconstruct original pending baseline; reconcile fresh postcondition without replay; no invented cooldown/facts for missing replies |
 | Failed durable selection/completion write | No unjournaled action; retained intent reconciles after accepted action |

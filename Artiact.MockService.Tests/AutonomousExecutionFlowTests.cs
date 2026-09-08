@@ -52,6 +52,8 @@ public class AutonomousExecutionFlowTests(Xunit.Abstractions.ITestOutputHelper o
         public int Posts, Moves;
         public bool LoseNext;
         public bool ChangeCatalog;
+        public bool ChangeUnrelatedMap;
+        public bool RemoveWoodcuttingRoute;
         public bool AllowBank;
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
         {
@@ -63,6 +65,17 @@ public class AutonomousExecutionFlowTests(Xunit.Abstractions.ITestOutputHelper o
                 Posts++; if (request.RequestUri.AbsolutePath.EndsWith("/move", StringComparison.Ordinal)) Moves++;
             }
             var result = await base.SendAsync(request, token);
+            if ((ChangeUnrelatedMap || RemoveWoodcuttingRoute) && request.RequestUri.AbsolutePath == "/maps")
+            {
+                var body = JsonNode.Parse(await result.Content.ReadAsStringAsync(token))!;
+                foreach (var map in body["data"]!.AsArray())
+                {
+                    if (map!["map_id"]!.GetValue<int>() != (RemoveWoodcuttingRoute ? 5 : 7)) continue;
+                    map["skin"] = "forest_portal";
+                    map["interactions"]!["content"] = new JsonObject { ["type"] = "monster", ["code"] = "demon" };
+                }
+                result.Content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json");
+            }
             if (ChangeCatalog && request.RequestUri.AbsolutePath == "/resources")
             {
                 var body = JsonNode.Parse(await result.Content.ReadAsStringAsync(token))!;
@@ -213,11 +226,31 @@ public class AutonomousExecutionFlowTests(Xunit.Abstractions.ITestOutputHelper o
         Assert.Equal(2, h.Guard.Posts); Assert.Single(store.Saved!.Autonomous!.History);
     }
 
-    [Fact]
-    public async Task ChangedCatalogRejectsOldGoalAndSuppressesItsRegeneration()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task UnrelatedCatalogChangeReevaluatesAndContinuesActiveGoalAcrossRestart(bool mapChange)
     {
         using var h = new Harness(); await h.Reset("discovery-new");
-        await h.Run().TickAsync(); h.Guard.ChangeCatalog = true;
+        Assert.Equal(StrategyStatus.Selected, (await h.Run().TickAsync()).Status);
+        var goal = h.Store.Saved!.Autonomous!.Active;
+        var world = h.Store.Saved.Autonomous.ActiveWorld;
+        h.Guard.ChangeCatalog = !mapChange; h.Guard.ChangeUnrelatedMap = mapChange;
+        var result = await h.Run().TickAsync();
+        Assert.Equal(StrategyStatus.Selected, result.Status); Assert.Equal("Gather:woodcutting", result.Command);
+        Assert.Equal(2, result.Attempts); Assert.Equal(2, h.Guard.Posts);
+        var completed = Assert.Single(h.Store.Saved!.Autonomous!.History);
+        Assert.Equal(goal, completed.Goal); Assert.Equal("Completed", completed.Outcome);
+        Assert.Null(h.Store.Saved.Autonomous.Active);
+        Assert.NotEqual(world, h.Store.Saved.Baseline!.Context!.Autonomous!.ActiveWorld);
+        Assert.DoesNotContain(result.Candidates, x => x.Rejection == "PreviouslyRejectedMilestone");
+    }
+
+    [Fact]
+    public async Task RemovedRouteRejectsOldGoalAndSuppressesItsRegeneration()
+    {
+        using var h = new Harness(); await h.Reset("discovery-new");
+        await h.Run().TickAsync(); h.Guard.RemoveWoodcuttingRoute = true;
         var result = await h.Run().TickAsync();
         Assert.Equal(StrategyStatus.Selected, result.Status); Assert.Equal("Move:4", result.Command);
         var rejected = Assert.Single(h.Store.Saved!.Autonomous!.History);

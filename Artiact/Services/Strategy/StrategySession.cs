@@ -135,8 +135,8 @@ public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IPro
             if (_goals is not null)
             {
                 _goals = _goals.CompleteObserved(State);
-                if (_goals.Active is not null && _goals.ActiveWorld != State.WorldFingerprint)
-                    _goals = _goals.Transition("Rejected", State.Fingerprint);
+                // Reevaluate the active milestone against fresh catalogs below. A world change
+                // alone does not prove that its route is infeasible.
                 if (_goals.History.Length >= 128) return Stop(StrategyStatus.Blocked, "AutonomousHistoryExhausted");
                 State = State.WithContext(RunContext());
             }
