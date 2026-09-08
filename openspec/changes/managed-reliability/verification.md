@@ -15,3 +15,9 @@ Review covered fail-closed reads, constructor ownership release, no action repla
 Open: the historical R12/R13/R15 causal relationship remains unproven; R16 is **not fully closed**. No live actions, external API acceptance or filesystem power-loss guarantees were verified. R17–R20 are separate changes; local diagnostics do not authorize gameplay.
 
 Final sequential `dotnet test Artiact.sln --no-restore`: 560 application + 279 mock passed, no failures/skips or build warnings. Published as `47d7f5f`, pushed to origin/master. The user explicitly approved proceeding with local R17/R18 while leaving the historical R16 criterion open.
+
+## User-accepted limitation — 2026-09-08
+
+After an explanation of the intermittent failure and inconclusive replays, the user explicitly said «Да забьем давай». Further historical-cause investigation is removed from the required R16 scope. R16 is accepted with a known unresolved transient; this supersedes the earlier partial-status completion gate without rewriting the historical evidence. No source code, runtime guards, diagnostics or tests changed.
+
+Reviewed base `636a160` plus this documentation-only scope amendment; self-review. Updated proposal/tasks, roadmap, checkpoint guide and known limitations consistently. `dotnet test Artiact.sln --no-restore`:576 application +288 mock passed, no failures/skips. `git diff --check`:passed, routine LF-to-CRLF notices only. No additional live verification or causal claim; existing `.serena/project.yml` changes excluded.
