@@ -20,3 +20,5 @@ Visual QA: CUA inspected actual HTML/CSS/JS served by a temporary loopback-only 
 Review checked reserve-before-dispatch, no refund, atomic state/events, interrupted archive boundary, shared checkpoint lifecycle/ownership, no dispatch from GET, finite interval/expiry, stop/host cancellation, default-off configuration and unchanged API contracts. Guides, architecture diagram and nearest application instructions are updated. Storage/configuration failure stops the worker; durable notification delivery cannot be promised when the store itself fails.
 
 Not verified: live scheduled game actions, external notification delivery, distributed ownership, arbitrary power-loss/filesystem durability, 24/7 operation and the historical R16 transient cause. R16 investigation was explicitly waived by the user; it is not claimed fixed. The earlier single R19 approval is not series consent. No live schedule was enabled and the completed gllab run was not replayed.
+
+Published implementation: 173e07e, pushed to origin/master. The follow-up documentation commit records publication and closes the roadmap checklist; it changes no runtime behavior.

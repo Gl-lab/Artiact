@@ -5,4 +5,4 @@
 - [x] Integrate shared execution, registration, local endpoints and UI notifications.
 - [x] Verify boundary tests, mock integration, UI, solution and separate offline gates.
 - [x] Update guides/diagram/limitations and self-review.
-- [ ] Commit and push.
+- [x] Commit and push: implementation 173e07e published to origin/master.
