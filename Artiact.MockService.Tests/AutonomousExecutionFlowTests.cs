@@ -15,7 +15,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Artiact.MockService.Tests;
 
-public class AutonomousExecutionFlowTests
+public class AutonomousExecutionFlowTests(Xunit.Abstractions.ITestOutputHelper output)
 {
     private sealed class Store : IRunCheckpointStore
     {
@@ -52,12 +52,14 @@ public class AutonomousExecutionFlowTests
         public int Posts, Moves;
         public bool LoseNext;
         public bool ChangeCatalog;
+        public bool AllowBank;
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
         {
             bool action = request.RequestUri!.AbsolutePath.Contains("/action/", StringComparison.Ordinal);
             if (action)
             {
-                Assert.True(request.RequestUri.AbsolutePath.EndsWith("/move", StringComparison.Ordinal) || request.RequestUri.AbsolutePath.EndsWith("/gathering", StringComparison.Ordinal));
+                Assert.True(request.RequestUri.AbsolutePath.EndsWith("/move", StringComparison.Ordinal) || request.RequestUri.AbsolutePath.EndsWith("/gathering", StringComparison.Ordinal) ||
+                    AllowBank && request.RequestUri.AbsolutePath.Contains("/bank/", StringComparison.Ordinal));
                 Posts++; if (request.RequestUri.AbsolutePath.EndsWith("/move", StringComparison.Ordinal)) Moves++;
             }
             var result = await base.SendAsync(request, token);
@@ -83,7 +85,7 @@ public class AutonomousExecutionFlowTests
         public readonly PortfolioPolicy Policy;
         public Harness(bool bank = false)
         {
-            Guard = new(Mock.Server.CreateHandler()); Http = new(Guard) { BaseAddress = new("http://localhost") };
+            Guard = new(Mock.Server.CreateHandler()) { AllowBank = bank }; Http = new(Guard) { BaseAddress = new("http://localhost") };
             var settings = new ApiSettings { BaseUrl = "http://localhost", Character = "researcher", Username = "mock", Password = "mock" };
             GameHttp = new(new ClientFactory(Http), settings);
             Client = new(GameHttp, settings, NullLogger<IGameClient>.Instance, new Cache(), new ActivitySource("AutonomousFlow"));
@@ -117,6 +119,60 @@ public class AutonomousExecutionFlowTests
         Assert.Equal(2, h.Store.Saved.Version);
         Assert.Equal(result, await h.Run(new(40, 10, 6, 300)).TickAsync());
         Assert.Equal(4, h.Guard.Posts);
+    }
+
+    [Theory]
+    [InlineData("discovery-new", 42, 214, 2, 60, 340, 20)]
+    [InlineData("discovery-full", 5, 27, 2, 12, 74, 6)]
+    [InlineData("discovery-no-path", 0, 0, 0, 0, 0, 0)]
+    public async Task QualityMatrixLongCapacityAndNoRouteReplay(string scenario, int actions, int seconds, int moves, int lowestActions, int lowestSeconds, int lowestMoves)
+    {
+        bool bank = scenario == "discovery-full", noPath = scenario == "discovery-no-path", longRun = scenario == "discovery-new";
+        async Task<(int Actions, long Seconds, int Moves, int Switches, bool Achieved, string Character, string Stock)> Execute(string mode)
+        {
+            using var h = new Harness(bank); await h.Reset(scenario);
+            var policy = h.Policy with { Bank = bank ? new(ImmutableDictionary<string, int>.Empty.Add("wood", 0).Add("ore", 0)) : null };
+            var limits = longRun ? new StrategyLimits(150, 80, 80, 2000) : new(80, 40, 16, 1000);
+            var fixedPolicy = policy with { AutonomousGoals = false, Skills = longRun ? [new("woodcutting", 11, 1), new("mining", 11, 1)] : [new("woodcutting", 2, 1)] };
+            var factory = new StrategySessionFactory(h.Client, new CombatCatalog(h.GameHttp), h.Characters, new Delay());
+            var store = new Store();
+            var run = mode == "lowest" ? new StrategySession(new HttpStrategyObserver(h.Client, new CombatCatalog(h.GameHttp), h.Characters, fixedPolicy.Identity, profile: fixedPolicy),
+                [new Lowest(fixedPolicy, new(h.Client, h.Characters))], new Delay(), limits, checkpoints: store, identity: "quality", selection: fixedPolicy.Measurement) :
+                factory.Create(mode == "auto" ? policy : fixedPolicy, limits, store, "quality");
+            StrategyDecision? result = null; bool achieved = false;
+            for (int i = 0; i < 120; i++)
+            {
+                result = await run.TickAsync();
+                var state = run.State!.Character;
+                achieved = state.GetProperty("woodcutting_level").GetInt32() >= (longRun ? 11 : 2) && (!longRun || state.GetProperty("mining_level").GetInt32() >= 11);
+                if (achieved || result.Status != StrategyStatus.Selected) break;
+            }
+            Assert.Equal(!noPath, achieved);
+            if (noPath) Assert.Equal("NoFeasibleCandidate", result!.Reason);
+            var stock = ActionFacts.Stock(run.State!)!;
+            if (!noPath)
+            {
+                Assert.Equal(longRun ? 20 : 3, stock["wood"]);
+                Assert.Equal(longRun ? 20 : mode == "lowest" ? 2 : 0, stock.GetValueOrDefault("ore"));
+                Assert.Equal(0, run.State!.Character.GetProperty("woodcutting_xp").GetInt32());
+            }
+            if (longRun && mode == "auto")
+            {
+                Assert.Equal(20, store.Saved!.Autonomous!.History.Count(x => x.Outcome == "Completed"));
+                var final = await factory.Create(policy, limits, store, "quality").TickAsync();
+                Assert.Equal("NoFeasibleCandidate", final.Reason);
+                Assert.Equal(final, await factory.Create(policy, limits, store, "quality").TickAsync());
+                Assert.Equal(result!.Attempts, h.Guard.Posts);
+            }
+            return (result!.Attempts, result.CooldownSeconds, h.Guard.Moves, RunPerformance.From(store.Saved!).DispatchedCandidateSwitches,
+                achieved, run.State!.Character.GetRawText(), JsonSerializer.Serialize(stock.OrderBy(x => x.Key)));
+        }
+        var auto = await Execute("auto"); var fixedRun = await Execute("fixed"); var lowest = await Execute("lowest");
+        output.WriteLine($"{scenario}: auto={auto.Actions}/{auto.Seconds}/moves{auto.Moves}/switches{auto.Switches}; fixed={fixedRun.Actions}/{fixedRun.Seconds}/moves{fixedRun.Moves}/switches{fixedRun.Switches}; lowest={lowest.Actions}/{lowest.Seconds}/moves{lowest.Moves}/switches{lowest.Switches}");
+        Assert.Equal((actions, (long)seconds, moves), (auto.Actions, auto.Seconds, auto.Moves));
+        Assert.Equal((actions, (long)seconds, moves), (fixedRun.Actions, fixedRun.Seconds, fixedRun.Moves));
+        Assert.Equal((lowestActions, (long)lowestSeconds, lowestMoves), (lowest.Actions, lowest.Seconds, lowest.Moves));
+        Assert.Equal(auto, await Execute("auto")); Assert.Equal(fixedRun, await Execute("fixed")); Assert.Equal(lowest, await Execute("lowest"));
     }
 
     [Fact]
@@ -223,7 +279,7 @@ public class AutonomousExecutionFlowTests
     [InlineData("discovery-locked", 2, 10, true)]
     public async Task PreregisteredHttpComparisonsMeetCeilingsAndReplay(string scenario, int lowestActions, long lowestCooldown, bool lowestAchieves)
     {
-        async Task<(int Actions, long Seconds, int Moves, bool Achieved, string State)> Execute(string strategy)
+        async Task<(int Actions, long Seconds, int Moves, bool Achieved, string State, int Switches)> Execute(string strategy)
         {
             using var h = new Harness(scenario == "discovery-bank"); await h.Reset(scenario);
             int miningTarget = scenario is "discovery-uneven" or "discovery-locked" ? 10 : 2;
@@ -234,16 +290,19 @@ public class AutonomousExecutionFlowTests
                 new StrategySession(observer, [new Lowest(manual, new(h.Client, h.Characters))], new Delay(), new(40, 10, 20, 300), selection: manual.Measurement);
             string usefulSkill = scenario == "discovery-uneven" ? "mining" : "woodcutting";
             int usefulTarget = scenario == "discovery-uneven" ? 10 : 2;
-            StrategyDecision? result = null; bool achieved = false;
+            StrategyDecision? result = null; bool achieved = false; var candidates = new List<string?>();
             for (int i = 0; i < 40; i++)
             {
                 result = await run.TickAsync();
+                if (result.Command is not null) candidates.Add(result.Candidate);
                 achieved = run.State?.Character.GetProperty(usefulSkill + "_level").GetInt32() >= usefulTarget;
                 if (achieved || result.Status is StrategyStatus.Blocked or StrategyStatus.Stopped or StrategyStatus.Completed) break;
                 Assert.Equal(StrategyStatus.Selected, result.Status);
             }
             if (scenario == "discovery-bank") Assert.Equal(10, run.State!.Bank!.Items["ore"]);
-            return (result!.Attempts, result.CooldownSeconds, h.Guard.Moves, achieved, await h.Http.GetStringAsync("/__mock/state/researcher"));
+            int switches = candidates.Zip(candidates.Skip(1)).Count(x => x.First != x.Second);
+            output.WriteLine($"METRIC {scenario}/{strategy}: actions={result!.Attempts}, cooldown={result.CooldownSeconds}, moves={h.Guard.Moves}, switches={switches}, achieved={achieved}");
+            return (result.Attempts, result.CooldownSeconds, h.Guard.Moves, achieved, await h.Http.GetStringAsync("/__mock/state/researcher"), switches);
         }
         var auto = await Execute("auto"); var fixedRun = await Execute("fixed"); var lowest = await Execute("lowest");
         Assert.Equal((2, 10L, 0, true), (auto.Actions, auto.Seconds, auto.Moves, auto.Achieved));

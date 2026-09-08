@@ -1,5 +1,7 @@
 # Mock service instructions
 
+R15 discovery-full/no-path aliases add only capacity2/initial wood1 and conditional resource maps respectively. Preserve three-policy replay, bank aggregate stock and explicit refusal; see ../docs/autonomous-quality-2026-09-08.md.
+
 R14 combat-discovery-shield/weapon alias the R9 scripted transitions with gathering thresholds 1000. Preserve fixed-comparison 12/78 and 20/120 outcomes; see ../docs/combat-goal-discovery.md.
 
 R12 discovery-* scenarios use the existing scripted kernel with 26-XP thresholds and 13-XP gathers, Move/Gather-only action allowlist, capacity 100 and explicit iron-map access rejection. Preserve original scenarios' XP/caps and the comparison oracles in ../openspec/changes/autonomous-goal-execution/comparisons.md.

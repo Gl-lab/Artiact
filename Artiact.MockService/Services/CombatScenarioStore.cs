@@ -11,6 +11,7 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
     private JsonNode? _character;
     private string? _scenario;
     private bool _combatDiscovery;
+    private bool _discoveryFull, _discoveryNoPath;
     private int _seconds;
     private readonly JsonArray _trace = [];
     private JsonArray _bank = [];
@@ -47,6 +48,8 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
                 }
                 catch (System.Text.Json.JsonException) { return null; }
                 _combatDiscovery = scenario is "combat-discovery-shield" or "combat-discovery-weapon";
+                _discoveryFull = scenario == "discovery-full"; _discoveryNoPath = scenario == "discovery-no-path";
+                if (_discoveryFull || _discoveryNoPath) scenario = "discovery-new";
                 scenario = scenario switch { "combat-discovery-shield" => "autonomous-shield", "combat-discovery-weapon" => "autonomous-weapon", _ => scenario };
                 if (scenario is "basic-mining" or "mining-progression") { _scenario = null; return null; }
                 if (scenario is not ("combat-progression" or "combat-equipment" or "combat-crafting" or "strategy-portfolio" or "gathering-bank" or "item-production" or "item-production-bank" or "combat-preparation" or "skill-preparation" or "resource-preparation" or "capacity-production" or "capacity-training" or "consumable-production" or "consumable-bank" or "consumable-training" or "consumable-capacity" or "consumable-full" or "autonomous-shield" or "autonomous-weapon" or "discovery-new" or "discovery-uneven" or "discovery-bank" or "discovery-locked" or "discovery-capped" or "recovery-training")) return null;
@@ -87,7 +90,7 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
                 return Error(404, "unsupported_route");
             if (_character is null) return Error(409, "character_not_initialized");
             string action = path["/my/researcher/action/".Length..];
-            if (IsDiscovery && action is not ("move" or "gathering")) return Error(404, "unsupported_route");
+            if (IsDiscovery && action is not ("move" or "gathering") && !(_discoveryFull && action is "bank/deposit/item" or "bank/withdraw/item")) return Error(404, "unsupported_route");
             var next = _character.DeepClone();
             var nextBank = _bank.DeepClone().AsArray();
             var dataResult = new JsonObject();
@@ -368,6 +371,8 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
             foreach (string skill in new[] { "mining", "woodcutting", "fishing", "alchemy" })
             { state[skill + "_max_xp"] = 26; if (_scenario == "discovery-capped") state[skill + "_level"] = 50; }
         }
+        if (_discoveryFull) { state["inventory_max_items"] = 2; Add(state, "wood", 1); }
+        if (_discoveryNoPath) { state["map_id"] = 1; state["x"] = 0; }
         return state;
     }
     private JsonArray Catalog(string name)
@@ -458,6 +463,8 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
                 data.Add(JsonNode.Parse("""{"code":"water_blade","type":"weapon","level":2,"conditions":[],"effects":[{"code":"attack_water","value":40}],"craft":{"skill":"weaponcrafting","level":2,"quantity":1,"items":[{"code":"feather","quantity":2}]}}"""));
             }
         }
+        if (_discoveryNoPath && name == "maps")
+            foreach (var map in data.Where(x => x!["map_id"]!.GetValue<int>() is 4 or 5)) map!["access"]!["type"] = "conditional";
         return data;
     }
     private static int Used(JsonNode state) => state["inventory"]!.AsArray().Sum(x => x!["quantity"]!.GetValue<int>());

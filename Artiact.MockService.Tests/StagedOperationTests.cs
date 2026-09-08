@@ -14,36 +14,45 @@ using Xunit;
 
 namespace Artiact.MockService.Tests;
 
-public class StagedOperationTests
+public class StagedOperationTests(Xunit.Abstractions.ITestOutputHelper output)
 {
+    private static string SkillSnapshot(System.Text.Json.JsonElement character) => System.Text.Json.JsonSerializer.Serialize(character.EnumerateObject()
+        .Where(x => x.Name is "level" or "xp" || x.Name.EndsWith("_level", StringComparison.Ordinal) ||
+            x.Name.EndsWith("_xp", StringComparison.Ordinal) && !x.Name.EndsWith("_max_xp", StringComparison.Ordinal)).ToDictionary(x => x.Name, x => x.Value));
     [Theory]
     [InlineData("recovery-training", 20, 112)]
     [InlineData("consumable-production", 9, 49)]
     [InlineData("consumable-bank", 3, 13)]
     public async Task RecoveryComparisonsReplayUsefulHpAgainstBothBaselines(string scenario, int actions, long seconds)
     {
-        async Task<(int Actions, long Seconds, int Hp, string Stock)> Execute(string strategy)
+        async Task<(int Actions, long Seconds, int Hp, string Stock, int Moves, int Switches)> Execute(string strategy)
         {
             await using var h = new Harness(new(), miningOnly: true); await h.Reset(scenario);
             var policy = strategy == "auto" ? RecoveryProfile() : FoodPolicy(scenario == "recovery-training");
             var saved = new Checkpoint();
             var limits = new StrategyLimits(NoProgress: 60);
             var run = strategy == "lowest" ? h.LowestSession(policy, limits) : h.Factory.Create(policy, limits, saved, "recovery-compare");
-            StrategyDecision? result = null;
+            StrategyDecision? result = null; int moves = 0; var candidates = new List<string?>();
             for (int i = 0; i < 100; i++)
             {
                 result = await run.TickAsync();
+                if (result.Command is not null) candidates.Add(result.Candidate);
+                if (result.Command?.StartsWith("Move:", StringComparison.Ordinal) == true) moves++;
                 if (run.State!.Character.GetProperty("hp").GetInt32() == 20 || result.Status is StrategyStatus.Blocked or StrategyStatus.Stopped or StrategyStatus.Completed) break;
             }
             var inventory = CharacterObservation.Read(run.State!.Character)!.Inventory;
             Assert.Equal(1, inventory.GetValueOrDefault("protected"));
-            return (result!.Attempts, result.CooldownSeconds, run.State.Character.GetProperty("hp").GetInt32(),
-                System.Text.Json.JsonSerializer.Serialize(inventory.OrderBy(x => x.Key)) + System.Text.Json.JsonSerializer.Serialize(run.State.Bank?.Items.OrderBy(x => x.Key)));
+            int switches = candidates.Zip(candidates.Skip(1)).Count(x => x.First != x.Second);
+            output.WriteLine($"METRIC {scenario}/{strategy}: actions={result!.Attempts}, cooldown={result.CooldownSeconds}, moves={moves}, switches={switches}, hp={run.State.Character.GetProperty("hp")}");
+            output.WriteLine($"SKILLS {scenario}/{strategy}: {SkillSnapshot(run.State.Character)}");
+            return (result.Attempts, result.CooldownSeconds, run.State.Character.GetProperty("hp").GetInt32(),
+                System.Text.Json.JsonSerializer.Serialize(inventory.OrderBy(x => x.Key)) + System.Text.Json.JsonSerializer.Serialize(run.State.Bank?.Items.OrderBy(x => x.Key)), moves, switches);
         }
         var auto = await Execute("auto"); var fixedRun = await Execute("fixed"); var lowest = await Execute("lowest");
         Assert.Equal((actions, seconds, 20), (auto.Actions, auto.Seconds, auto.Hp));
         Assert.Equal((scenario == "consumable-bank" ? 5 : actions, scenario == "consumable-bank" ? 19L : seconds, 20), (fixedRun.Actions, fixedRun.Seconds, fixedRun.Hp));
         Assert.Equal(4, lowest.Hp);
+        Assert.True(auto.Moves <= fixedRun.Moves); Assert.True(auto.Switches <= fixedRun.Switches);
         Assert.Equal(auto, await Execute("auto")); Assert.Equal(fixedRun, await Execute("fixed")); Assert.Equal(lowest, await Execute("lowest"));
     }
     private static PortfolioPolicy RecoveryProfile(bool craft = true, bool rest = false) => new PortfolioSettings
@@ -419,16 +428,17 @@ public class StagedOperationTests
     [InlineData("combat-discovery-weapon", "water_blade", 20, 120)]
     public async Task CombatDiscoveryComparisonReplaysAllThreePolicies(string scenario, string gear, int actions, int seconds)
     {
-        async Task<(int Actions, long Seconds, int Moves, bool Achieved, string State)> Execute(string mode)
+        async Task<(int Actions, long Seconds, int Moves, bool Achieved, string State, int Switches)> Execute(string mode)
         {
             await using var h = new Harness(new()); await h.Reset(scenario);
             var policy = mode == "fixed" ? AutonomousPolicy(gear) : CombatDiscoveryProfile();
             var saved = new Checkpoint(); var limits = new StrategyLimits(NoProgress: 30, Actions: actions);
             var run = mode == "lowest" ? h.LowestSession(policy, limits) : h.Factory.Create(policy, limits, saved, "comparison");
-            StrategyDecision? result = null; int moves = 0; bool achieved = false;
+            StrategyDecision? result = null; int moves = 0; bool achieved = false; var candidates = new List<string?>();
             for (int i = 0; i < 40; i++)
             {
                 result = await run.TickAsync(); if (result.Command?.StartsWith("Move:", StringComparison.Ordinal) == true) moves++;
+                if (result.Command is not null) candidates.Add(result.Candidate);
                 achieved = run.State?.Character.GetProperty("level").GetInt32() == 3;
                 if (achieved || result.Status != StrategyStatus.Selected) break;
             }
@@ -438,7 +448,10 @@ public class StagedOperationTests
                 Assert.Equal(2, stock["feather"]); Assert.Equal(1, stock["protected"]);
                 Assert.Equal(gear, run.State.Character.GetProperty(gear == "ward" ? "shield_slot" : "weapon_slot").GetString());
             }
-            return (result!.Attempts, result.CooldownSeconds, moves, achieved, run.State!.Character.GetRawText());
+            int switches = candidates.Zip(candidates.Skip(1)).Count(x => x.First != x.Second);
+            output.WriteLine($"METRIC {scenario}/{mode}: actions={result!.Attempts}, cooldown={result.CooldownSeconds}, moves={moves}, switches={switches}, combat={run.State!.Character.GetProperty("level")}");
+            output.WriteLine($"SKILLS {scenario}/{mode}: {SkillSnapshot(run.State.Character)}");
+            return (result.Attempts, result.CooldownSeconds, moves, achieved, run.State.Character.GetRawText(), switches);
         }
         var auto = await Execute("auto"); var fixedRun = await Execute("fixed"); var lowest = await Execute("lowest");
         Assert.Equal((actions, (long)seconds, true), (auto.Actions, auto.Seconds, auto.Achieved));
@@ -500,6 +513,33 @@ public class StagedOperationTests
             Assert.NotEqual("Rest", result.Command);
         }
         Assert.True(used);
+    }
+
+    [Fact]
+    public async Task CombatParentLostUseRetainsAllowancesAndDoesNotReplay()
+    {
+        await using var h = new Harness(new()); await h.Reset("combat-discovery-shield");
+        var policy = CombatDiscoveryProfile() with { Recovery = new(AllowUse: true, AllowCraft: true, AllowBankWithdrawal: true) };
+        var saved = new Checkpoint();
+        for (int i = 0; i < 30; i++)
+        {
+            if (saved.Load()?.Latest is { } last && CharacterObservation.Read(last.Character)!.Inventory.GetValueOrDefault("meal") > 0)
+                h.Handler.Corruption = "loss";
+            var result = await h.Factory.Create(policy, new(NoProgress: 60), saved, "unknown-combat-use").TickAsync();
+            if (result.Status == StrategyStatus.UnknownOutcome)
+            {
+                Assert.StartsWith("Use:", saved.Load()!.PendingCommand); int actions = h.Handler.Actions;
+                h.Handler.Corruption = null;
+                var resumed = h.Factory.Create(policy, new(NoProgress: 60), saved, "unknown-combat-use");
+                Assert.Equal(StrategyStatus.Reconciled, (await resumed.TickAsync()).Status);
+                Assert.Equal(actions, h.Handler.Actions); Assert.Equal(20, resumed.State!.Character.GetProperty("hp").GetInt32());
+                Assert.Equal(1, resumed.State.Context.Used["recovery:use"]);
+                Assert.Equal("combat", saved.Load()!.Autonomous!.Active!.Skill);
+                Assert.Null(saved.Load()!.Journal[^1].Facts); return;
+            }
+            Assert.Equal(StrategyStatus.Selected, result.Status);
+        }
+        Assert.Fail("Expected unknown Use outcome");
     }
 
     [Theory]
@@ -1106,7 +1146,7 @@ public class StagedOperationTests
             {
                 await h.Reset(); h.Handler.MiningOnly = true;
                 var result = await h.Runner.RunAsync(CancellationToken.None);
-                Assert.Equal(StrategyStatus.Completed, result!.Status); Assert.Equal(3, h.Handler.Actions);
+                Assert.True(result!.Status == StrategyStatus.Completed, System.Text.Json.JsonSerializer.Serialize(result)); Assert.Equal(3, h.Handler.Actions);
             }
             await using (var h = new Harness(settings, miningOnly: true))
             {

@@ -1,5 +1,7 @@
 # Artiact.MockService
 
+R14 combat-discovery-shield/weapon and R15 discovery-full/no-path are explicitly synthetic aliases; see [quality evidence](autonomous-quality-2026-09-08.md) for their state/cost oracles and replay matrix. They do not broaden the default mining contract.
+
 The additional `combat-progression`, `combat-equipment` and `combat-crafting` scenarios use a scripted kernel before the mining controllers. See [combat progression](combat-progression.md) for their reset/state/trace, fight/rest/equipment/crafting subset and divergences. The mining contracts below remain unchanged.
 
 ## Purpose

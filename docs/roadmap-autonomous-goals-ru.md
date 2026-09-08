@@ -2,7 +2,7 @@
 
 Дата: **8 сентября 2026 года**. Исходная ревизия: `1df9b57f7aa12387f53582fccd6c9e03c1d7c778`.
 
-**Статус: R11–R14 реализованы в локальном offline-объёме; R15 предстоит.** Продолжает [R6–R10](roadmap-next-ru.md). См. [поведение](autonomous-goals.md), [R11](../openspec/changes/autonomous-goal-discovery/verification.md), [проверки R12](../openspec/changes/autonomous-goal-execution/verification.md) и [проверки R13](../openspec/changes/autonomous-recovery/verification.md). См. также [проверки R14](../openspec/changes/combat-goal-discovery/verification.md). Следующий цикл — спецификация R15: качество и эксплуатационная матрица.
+**Статус: R11–R15 реализованы в локальном offline-объёме.** Продолжает [R6–R10](roadmap-next-ru.md). См. [поведение](autonomous-goals.md), [R11](../openspec/changes/autonomous-goal-discovery/verification.md), [проверки R12](../openspec/changes/autonomous-goal-execution/verification.md) и [проверки R13](../openspec/changes/autonomous-recovery/verification.md). См. также [проверки R14](../openspec/changes/combat-goal-discovery/verification.md). R15: [матрица качества](autonomous-quality-2026-09-08.md) и [проверки](../openspec/changes/autonomous-quality/verification.md). Отдельный [live-протокол](autonomous-live-protocol.md) подготовлен, но не исполнялся; плавающий файловый сбой остаётся известным ограничением.
 
 ## 1. Продуктовая цель
 

@@ -52,6 +52,8 @@ R13 adds optional `Portfolio:Recovery` with explicit action permissions and glob
 
 R14 adds optional `Portfolio:CombatDiscovery`; see [combat discovery](combat-goal-discovery.md). This category does not change the combat ADR's live no-go.
 
+R15 [quality evidence](autonomous-quality-2026-09-08.md) links the accumulated regression matrix and exact commands. Detailed comparison test output emits per-policy METRIC/SKILLS records; synthetic cooldown is separate from wall-clock time.
+
 `Artiact/Program.cs` loads configuration from the build output directory in this order:
 
 1. `appsettings.json`;
