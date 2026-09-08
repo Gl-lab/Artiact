@@ -180,7 +180,7 @@ public class AutonomousExecutionFlowTests
         Assert.Equal("woodcutting", h.Store.Saved.Autonomous.Active!.Skill);
     }
 
-    private sealed class Lowest(PortfolioPolicy policy, StrategyActionPort port) : IProgressionStrategy
+    internal sealed class Lowest(PortfolioPolicy policy, StrategyActionPort port) : IProgressionStrategy
     {
         private SkillMilestone? _goal;
         public StrategyCandidate Evaluate(StrategyObservation state) => EvaluateAll(state).First();
@@ -188,7 +188,9 @@ public class AutonomousExecutionFlowTests
         {
             if (_goal is null || state.Character.GetProperty(_goal.Skill + "_level").GetInt32() >= _goal.Target)
             {
-                string skill = new[] { "mining", "woodcutting" }.OrderBy(s => state.Character.GetProperty(s + "_level").GetInt32()).ThenBy(s => s, StringComparer.Ordinal).First();
+                string skill = state.Catalogs["resources"].Select(x => x.GetProperty("skill").GetString()!).Distinct(StringComparer.Ordinal)
+                    .Where(s => state.Character.TryGetProperty(s + "_level", out _))
+                    .OrderBy(s => state.Character.GetProperty(s + "_level").GetInt32()).ThenBy(s => s, StringComparer.Ordinal).First();
                 _goal = new(skill, state.Character.GetProperty(skill + "_level").GetInt32() + 1, 1);
             }
             var derived = policy with { Skills = [_goal] };
@@ -269,7 +271,7 @@ public class AutonomousExecutionFlowTests
                     result = await h.Run(new(40, 10, 2, 300), observed).TickAsync();
                     if (result.Status == StrategyStatus.Stopped) break;
                 }
-                Assert.Equal(reason, result!.Reason); Assert.Equal(actions, result.Attempts);
+                Assert.True(reason == result!.Reason, $"Expected {reason}, actual {result.Reason}; store={observed.Failure}; checkpoint={JsonSerializer.Serialize(store.Load())}; now={DateTimeOffset.UtcNow:O}"); Assert.Equal(actions, result.Attempts);
                 var restored = await h.Run(new(40, 10, 2, 300), observed).TickAsync();
                 Assert.True(reason == restored.Reason, $"Expected {reason}, actual {restored.Reason}; store={observed.Failure}; started={store.Load()?.Started:O}; now={DateTimeOffset.UtcNow:O}; valid={store.Load()?.Autonomous?.Valid}");
                 Assert.Equal(actions, h.Guard.Posts);

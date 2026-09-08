@@ -15,7 +15,8 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
     private JsonArray _bank = [];
     private bool IsAutonomous => _scenario is "autonomous-shield" or "autonomous-weapon";
     private bool IsDiscovery => _scenario is "discovery-new" or "discovery-uneven" or "discovery-bank" or "discovery-locked" or "discovery-capped";
-    private bool IsConsumable => IsAutonomous || _scenario is "consumable-production" or "consumable-bank" or "consumable-training" or "consumable-capacity" or "consumable-full";
+    private bool IsFoodTraining => _scenario is "consumable-training" or "recovery-training";
+    private bool IsConsumable => IsAutonomous || IsFoodTraining || _scenario is "consumable-production" or "consumable-bank" or "consumable-training" or "consumable-capacity" or "consumable-full";
     private bool IsTraining => _scenario is "skill-preparation" or "resource-preparation" or "capacity-training" or "autonomous-weapon";
     private bool IsProduction => _scenario is "item-production" or "item-production-bank" or "capacity-production" || IsTraining || IsConsumable || IsDiscovery;
     private bool IsCombatCrafting => _scenario is "combat-crafting" or "combat-preparation";
@@ -45,7 +46,7 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
                 }
                 catch (System.Text.Json.JsonException) { return null; }
                 if (scenario is "basic-mining" or "mining-progression") { _scenario = null; return null; }
-                if (scenario is not ("combat-progression" or "combat-equipment" or "combat-crafting" or "strategy-portfolio" or "gathering-bank" or "item-production" or "item-production-bank" or "combat-preparation" or "skill-preparation" or "resource-preparation" or "capacity-production" or "capacity-training" or "consumable-production" or "consumable-bank" or "consumable-training" or "consumable-capacity" or "consumable-full" or "autonomous-shield" or "autonomous-weapon" or "discovery-new" or "discovery-uneven" or "discovery-bank" or "discovery-locked" or "discovery-capped")) return null;
+                if (scenario is not ("combat-progression" or "combat-equipment" or "combat-crafting" or "strategy-portfolio" or "gathering-bank" or "item-production" or "item-production-bank" or "combat-preparation" or "skill-preparation" or "resource-preparation" or "capacity-production" or "capacity-training" or "consumable-production" or "consumable-bank" or "consumable-training" or "consumable-capacity" or "consumable-full" or "autonomous-shield" or "autonomous-weapon" or "discovery-new" or "discovery-uneven" or "discovery-bank" or "discovery-locked" or "discovery-capped" or "recovery-training")) return null;
                 _scenario = scenario;
                 _character = null;
                 _seconds = 0;
@@ -147,7 +148,7 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
                         if (IsConsumable && gatherMap is 5 or 8)
                         {
                             skill = "fishing"; output = gatherMap == 8 ? "baitfish" : "fish";
-                            if (_scenario == "consumable-training" && gatherMap == 5 && next["fishing_level"]!.GetValue<int>() < 2)
+                            if (IsFoodTraining && gatherMap == 5 && next["fishing_level"]!.GetValue<int>() < 2)
                                 return Error(422, "skill_too_low");
                         }
                         if (_scenario == "resource-preparation" && gatherMap == 5)
@@ -275,7 +276,7 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
                             }
                             if (IsConsumable && product is "meal" or "snack")
                             {
-                                int required = _scenario == "consumable-training" && product == "meal" ? 2 : 1;
+                                int required = IsFoodTraining && product == "meal" ? 2 : 1;
                                 if (next["map_id"]!.GetValue<int>() != 7 || batch != 1 || next["cooking_level"]!.GetValue<int>() < required || !Add(next, "fish", -1))
                                     return Error(422, "craft_not_available");
                                 Add(next, product, 1);
@@ -421,7 +422,7 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
         {
             data.Add(JsonNode.Parse("""{"code":"meal","level":1,"type":"consumable","conditions":[],"effects":[{"code":"heal","value":8}],"craft":{"skill":"cooking","level":1,"quantity":1,"items":[{"code":"fish","quantity":1}]}}"""));
             data.Add(JsonNode.Parse("""{"code":"snack","level":1,"type":"consumable","conditions":[],"effects":[{"code":"heal","value":4}],"craft":{"skill":"cooking","level":1,"quantity":1,"items":[{"code":"fish","quantity":1}]}}"""));
-            if (_scenario == "consumable-training") data.Single(x => x!["code"]!.GetValue<string>() == "meal")!["craft"]!["level"] = 2;
+            if (IsFoodTraining) data.Single(x => x!["code"]!.GetValue<string>() == "meal")!["craft"]!["level"] = 2;
         }
         if (IsConsumable && name == "maps")
         {
@@ -433,9 +434,10 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
         {
             var fish = data.Single(x => x!["code"]!.GetValue<string>() == "wood_node")!;
             fish["code"] = "fish_node"; fish["skill"] = "fishing";
-            fish["level"] = _scenario == "consumable-training" ? 2 : 1; fish["drops"]![0]!["code"] = "fish";
+            fish["level"] = IsFoodTraining ? 2 : 1; fish["drops"]![0]!["code"] = "fish";
             data.Add(JsonNode.Parse("""{"code":"bait_node","skill":"fishing","level":1,"drops":[{"code":"baitfish","rate":1,"min_quantity":1,"max_quantity":1}]}"""));
         }
+        if (_scenario == "recovery-training" && name == "items") data.Single(x => x!["code"]!.GetValue<string>() == "snack")!["type"] = "resource";
         if (IsAutonomous)
         {
             if (name == "maps") data.Add(JsonNode.Parse("""{"map_id":9,"name":"Guardian","skin":"plain","x":8,"y":0,"layer":"overworld","access":{"type":"standard","conditions":[]},"interactions":{"content":{"type":"monster","code":"guardian"},"transition":null}}"""));

@@ -6,7 +6,8 @@ This directory is the source-grounded guide for developers and AI agents working
 
 | Document | Use it for |
 |---|---|
-| [Autonomous goals](autonomous-goals.md) | R11 opt-in discovery in Inspect, utility explanations and remaining execution boundary |
+| [Autonomous goals](autonomous-goals.md) | R11/R12 discovery, bounded dynamic milestones, budgets and lifecycle |
+| [Autonomous recovery](autonomous-recovery.md) | R13 HP needs, explicit permissions, generated food and bounded preparation |
 | [Full-path selection](full-path-selection.md) | R10 context-aware progress/cost estimates, factual run performance and comparison evidence |
 | [Autonomous combat](autonomous-combat.md) | R9 stages, opponent/weapon/shield selection, preparation and immediate healing |
 | [Architecture](architecture.md) | Components, dependencies, startup, background execution, HTTP and observability |

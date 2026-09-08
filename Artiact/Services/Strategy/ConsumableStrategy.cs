@@ -44,7 +44,7 @@ public sealed class ConsumableStrategy(IProgressionStrategy parent, PortfolioPol
             {
                 if (used >= food.MaxUsed) return Reject("ConsumableUseBudgetExhausted");
                 if (total <= reserve) return Supply(food.TargetStock, false, true);
-                if (owned == 0) return Supply(1, true, false);
+                if (owned == 0) return Supply(food.ParentItem == "recovery" ? Math.Min((int)Math.Ceiling((maxHp - hp) / (decimal)heal), total - reserve) : 1, true, false);
                 int quantity = (int)Math.Min(Math.Min((long)(maxHp - hp + (long)heal - 1) / heal, owned), Math.Min(total - reserve, food.MaxUsed - used));
                 if (quantity <= 0) return Reject("ConsumableReserveUnavailable");
                 var expected = state.Inventory.ToBuilder(); expected[food.Code] -= quantity;
@@ -61,7 +61,8 @@ public sealed class ConsumableStrategy(IProgressionStrategy parent, PortfolioPol
 
             StrategyCandidate Supply(int quantity, bool inventory, bool refilling)
             {
-                var supply = new SkillPrerequisiteStrategy(new(food.Code, quantity, candidate.Value), policy, port, inventory).Evaluate(observation);
+                var supplyPolicy = food.ParentItem == "recovery" && inventory ? policy with { Production = null } : policy;
+                var supply = new SkillPrerequisiteStrategy(new(food.Code, quantity, candidate.Value), supplyPolicy, port, inventory).Evaluate(observation);
                 if (supply.Command is null) return Reject("ConsumableSupply:" + supply.Rejection);
                 var command = supply.Command;
                 ImmutableDictionary<string, int>? charges = null;

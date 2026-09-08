@@ -7,4 +7,4 @@
 - [x] Verify two milestones, restart/loss/storage boundaries, zero-action stops and manual compatibility.
 - [x] Preregister and execute real-client quality comparisons without dropping losses.
 - [x] Extend process recovery acceptance.
-- [ ] Update docs and limitations, self-review, run solution gate, commit and push before R13.
+- [x] Update docs and limitations, self-review, run solution gate, commit and push before R13 (`cb230bd`, origin/master, 2026-09-08).

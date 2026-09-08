@@ -26,7 +26,9 @@ public sealed record ActionFacts(ImmutableDictionary<string, SkillDelta> Skills,
         var inputs = candidate.Command!.Id.StartsWith("Craft:", StringComparison.Ordinal) || candidate.Command.Id.StartsWith("Use:", StringComparison.Ordinal)
             ? (delta ?? ImmutableDictionary<string, long>.Empty).Where(x => x.Value < 0).ToImmutableDictionary(x => x.Key, x => -x.Value, StringComparer.Ordinal)
             : ImmutableDictionary<string, long>.Empty;
-        decimal? useful = candidate.Path?.Goal is { } goal ? goal.Kind == "item" ? delta?.GetValueOrDefault(goal.Code) : skills.GetValueOrDefault(goal.Code)?.Xp : null;
+        decimal? useful = candidate.Path?.Goal is { } goal ? goal.Kind == "hp" ?
+            Number(before.Character, "hp", out long priorHp) && Number(after.Character, "hp", out long nextHp) ? nextHp - priorHp : null :
+            goal.Kind == "item" ? delta?.GetValueOrDefault(goal.Code) : skills.GetValueOrDefault(goal.Code)?.Xp : null;
         return new(skills.ToImmutable(), delta, inputs,
             Number(before.Character, "hp", out long hp) && Number(after.Character, "hp", out long endHp) ? endHp - hp : null,
             useful, observation, dispatch);

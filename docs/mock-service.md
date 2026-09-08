@@ -4,6 +4,8 @@ The additional `combat-progression`, `combat-equipment` and `combat-crafting` sc
 
 ## Purpose
 
+R13 `recovery-training` reuses consumable-training requirements, but marks snack as a training resource so automatic healing must choose meal. Its 20-action/112-second HP recovery and exact stock oracle are documented in [autonomous recovery](autonomous-recovery.md). It changes no original scenario's effects or XP.
+
 R12 adds `discovery-new`, `discovery-bank`, `discovery-uneven`, `discovery-locked` and `discovery-capped` resets. They expose the existing character/catalog/bank reads and only Move/Gather actions, capacity 100, 26-XP thresholds and scripted 13-XP/one-item gathers at five seconds. Mine/wood/iron maps are 4/5/7; locked iron is rejected atomically. The bank case starts with ten ore. These fixtures support the [preregistered autonomous comparisons](../openspec/changes/autonomous-goal-execution/comparisons.md); they do not extend live compatibility.
 
 R8a adds `consumable-production`, `consumable-bank`, `consumable-training`, `consumable-capacity` and `consumable-full`, with atomic immediate heal/use and scripted cooking/fishing. Their exact scope and independent stock/time oracles are in [consumables](consumables.md). No combat utility effects or live XP formula is implemented.

@@ -1,5 +1,7 @@
 # Parent-bound healing consumables
 
+R13 [autonomous recovery](autonomous-recovery.md) supplies an automatically discovered HP parent, chosen food and global allowances through this wrapper. It ends refill at full HP and uses bounded whole-quantity bank delivery. Existing item/combat parent behavior remains unchanged.
+
 R9 additionally accepts `ParentItem=combat` with AutonomousCombat. R10 preserves all feasible combat alternatives through the food wrapper and includes supply in [full-path estimates](full-path-selection.md); unsupported parents retain their rejection instead of turning into food work. The item-parent configuration below remains supported.
 
 R8a adds `Portfolio:Consumable` for one configured parent item goal. Configure `ParentItem`, `Code`, `HpBelowPercent` (1–100), `MinimumStock`, `TargetStock`, `Reserve`, `MaxUsed`, `MaxMaterialUnits`, `AllowRest`, `UseSeconds` and `PreparationSeconds`. Defaults are threshold 50%, minimum 1, target 2, reserve 0, maximum used 10, material units 100, mandatory use path (`AllowRest=false`), estimated use 3 seconds and preparation 30 seconds. The parent must exist in `Portfolio:Items` and differ from the food code. No consumable policy means no added use/supply behavior and preserves the prior policy identity.

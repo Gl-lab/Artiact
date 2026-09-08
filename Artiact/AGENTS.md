@@ -2,6 +2,8 @@
 
 R11/R12: autonomous gathering uses Inspect or durable Bounded execution. Preserve version-1 manual identity, version-2 active goal/history, pending baseline context, explicit bank permission, bounded generation and zero recipe utility without a proven need. Stopped is distinct from milestone completion and Blocked. See ../docs/autonomous-goals.md.
 
+R13 Recovery is optional. Preserve explicit Use/Rest/Craft/bank permissions, global recovery:use/materials charges, HP outcome measurement and parent completion before refill. Internal reserve-only production may have no bank; never infer permission to transfer stock. See ../docs/autonomous-recovery.md.
+
 R10: keep actual action facts separate from conservative resource charges and route estimates. Persist verified facts before wait, retain null for incomplete wait/unknown timing, and never learn XP/cooldown from reconciliation. Full-path context must change with relevant levels/equipment/catalogs. Preserve all feasible parent alternatives through consumable wrappers. See ../docs/full-path-selection.md.
 
 This directory contains the executable ASP.NET Core host and autonomous background worker. Parent instructions in `../AGENTS.md` also apply.

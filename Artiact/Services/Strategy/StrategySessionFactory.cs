@@ -30,9 +30,11 @@ public sealed class StrategySessionFactory(GameClient client, CombatCatalog cata
             }
         if (policy.Measurement?.FullPaths == true) strategies = strategies.Select(x => (IProgressionStrategy)new FullPathStrategy(x, policy)).ToList();
         if (policy.AutonomousGoals) strategies.Add(new AutonomousGoalDiscovery(policy, port, limits ?? new()));
+        if (policy.Recovery is not null) strategies.Add(new RecoveryGoalDiscovery(policy, port));
         return new(new HttpStrategyObserver(client, catalog, characters, policy.Identity, compatibility, policy), strategies, cooldown, limits,
             checkpoints: checkpoints, identity: identity, selection: policy.Measurement,
-            resourceLimits: policy.Consumable is { } food ? new Dictionary<string, int> { ["use:" + food.Code] = food.MaxUsed, ["materials:" + food.Code] = food.MaxMaterialUnits } : null,
+            resourceLimits: policy.Consumable is { } food ? new Dictionary<string, int> { ["use:" + food.Code] = food.MaxUsed, ["materials:" + food.Code] = food.MaxMaterialUnits } :
+                policy.Recovery is { } recovery ? new Dictionary<string, int> { ["recovery:use"] = recovery.MaxUsed, ["recovery:materials"] = recovery.MaxMaterialUnits } : null,
             inspectOnly: policy.AutonomousGoals && checkpoints is null, autonomous: policy.AutonomousGoals);
     }
 }

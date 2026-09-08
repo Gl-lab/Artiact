@@ -77,7 +77,8 @@ public sealed class FileRunCheckpointStore : IRunCheckpointStore, IDisposable
         bool autonomous = saved.Version == 2 && saved.Autonomous is { Valid: true } &&
             terminal is { Status: StrategyStatus.Stopped, Reason: "AutonomousBudgetExhausted" or "NoUsefulSupportedGoals" } && saved.Initial is not null &&
             saved.PendingCandidate is null && saved.Latest is not null && CharacterObservation.Read(saved.Latest.Character) is not null &&
-            saved.Autonomous.History.Where(x => x.Outcome == "Completed").All(x => saved.Latest.Character.TryGetProperty(x.Goal.Skill + "_level", out var level) && level.TryGetInt32(out int value) && value >= x.Goal.Target) &&
+            saved.Autonomous.History.Where(x => x.Outcome == "Completed").All(x => x.Goal.Skill == "recovery" ? x.ObservedHp >= x.Goal.Target :
+                saved.Latest.Character.TryGetProperty(x.Goal.Skill + "_level", out var level) && level.TryGetInt32(out int value) && value >= x.Goal.Target) &&
             (terminal.Reason != "NoUsefulSupportedGoals" || saved.Autonomous.Active is null && ObservedCaps(saved.Latest) &&
                 terminal.Candidates.Length == 4 && terminal.Candidates.All(x => x.Rejection == "SupportedSkillCapReached"));
         if (!string.Equals(IdentityDigest(saved.Identity), expectedIdentityDigest, StringComparison.Ordinal) ||

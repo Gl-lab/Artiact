@@ -40,6 +40,23 @@ public sealed class ApiCompatibility(IGameHttpClient http, ExecutionSettings set
                 if (paths.GetProperty("/my/{name}/action/" + action).GetProperty("post").ValueKind != JsonValueKind.Object) return false;
             var schemas = root.GetProperty("components").GetProperty("schemas");
             if (profile?.AutonomousGoals == true && paths.GetProperty("/items").GetProperty("get").ValueKind != JsonValueKind.Object) return false;
+            if (profile?.Recovery is { } recovery)
+            {
+                if (!Type(schemas, "CharacterSchema", "hp", "integer") || !Type(schemas, "CharacterSchema", "max_hp", "integer")) return false;
+                if (recovery.AllowRest && paths.GetProperty("/my/{name}/action/rest").GetProperty("post").ValueKind != JsonValueKind.Object) return false;
+                if (recovery.AllowUse && (paths.GetProperty("/my/{name}/action/use").GetProperty("post").GetProperty("requestBody").GetProperty("content")
+                    .GetProperty("application/json").GetProperty("schema").GetProperty("$ref").GetString() != "#/components/schemas/SimpleItemSchema" ||
+                    !Reference(schemas, "UseItemSchema", "item") || !Reference(schemas, "UseItemSchema", "character") || !Reference(schemas, "UseItemSchema", "cooldown"))) return false;
+                if (recovery.AllowCraft)
+                {
+                    if (paths.GetProperty("/my/{name}/action/crafting").GetProperty("post").ValueKind != JsonValueKind.Object) return false;
+                    foreach (string skill in new[] { "cooking", "fishing" })
+                        foreach (string field in new[] { "level", "xp", "max_xp" })
+                            if (!Type(schemas, "CharacterSchema", skill + "_" + field, "integer")) return false;
+                }
+                if (recovery.AllowBankWithdrawal && paths.GetProperty("/my/{name}/action/bank/withdraw/item").GetProperty("post")
+                    .GetProperty("requestBody").GetProperty("content").GetProperty("application/json").GetProperty("schema").GetProperty("type").GetString() != "array") return false;
+            }
             if (profile?.Preparation is not null)
                 foreach (string skill in new[] { "mining", "weaponcrafting", "cooking", "fishing" })
                     foreach (string field in new[] { "level", "xp", "max_xp" })

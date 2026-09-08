@@ -13,7 +13,8 @@ public sealed record PortfolioPolicy(ImmutableArray<SkillMilestone> Skills, int 
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] ProductionPolicy? Production = null,
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] ConsumablePolicy? Consumable = null,
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] AutonomousCombatPolicy? AutonomousCombat = null,
-    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)] bool AutonomousGoals = false)
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)] bool AutonomousGoals = false,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] RecoveryPolicy? Recovery = null)
 {
     [System.Text.Json.Serialization.JsonIgnore]
     public bool CombatEnabled => CombatTarget > 0;
@@ -23,6 +24,10 @@ public sealed record PortfolioPolicy(ImmutableArray<SkillMilestone> Skills, int 
     public string Identity => JsonSerializer.Serialize(this with { Items = Items.IsDefault ? [] : Items, Monsters = Monsters.IsDefault ? [] : Monsters });
     public void Validate()
     {
+        if (Recovery is { } recovery && (!AutonomousGoals || recovery.HpBelowPercent is < 1 or > 100 || recovery.MaxUsed is < 1 or > 10000 ||
+            recovery.MaxMaterialUnits is < 1 or > 10000 || recovery.AllowBankWithdrawal && Bank is null ||
+            recovery.Reserved?.Any(x => string.IsNullOrWhiteSpace(x.Key) || x.Value < 0 || x.Value > 10000) == true))
+            throw new ArgumentException("Invalid autonomous recovery policy.");
         if (AutonomousGoals && (!Skills.IsEmpty || !Items.IsDefaultOrEmpty || CombatEnabled || Monster.Length != 0 || Equipment.Length != 0 ||
             Preparation is not null || Production is not null || Consumable is not null || AutonomousCombat is not null || PrepareEquipment || !Monsters.IsDefaultOrEmpty))
             throw new ArgumentException("Autonomous discovery cannot be mixed with manual goals or preparation.");
@@ -68,3 +73,8 @@ public sealed record ConsumablePolicy(string ParentItem, string Code, int HpBelo
     bool AllowRest = false, decimal UseSeconds = 3, decimal PreparationSeconds = 30);
 public sealed record CombatStage(int Target, ImmutableArray<string> Monsters);
 public sealed record AutonomousCombatPolicy(ImmutableArray<CombatStage> Stages, ImmutableArray<string> Equipment);
+public sealed record RecoveryPolicy(int HpBelowPercent = 50, bool AllowUse = false, bool AllowCraft = false, bool AllowRest = false,
+    bool AllowBankWithdrawal = false, int MaxUsed = 10, int MaxMaterialUnits = 100, ImmutableDictionary<string, int>? Reserved = null)
+{
+    public string Version => "recovery-v1";
+}

@@ -16,6 +16,186 @@ namespace Artiact.MockService.Tests;
 
 public class StagedOperationTests
 {
+    [Theory]
+    [InlineData("recovery-training", 20, 112)]
+    [InlineData("consumable-production", 9, 49)]
+    [InlineData("consumable-bank", 3, 13)]
+    public async Task RecoveryComparisonsReplayUsefulHpAgainstBothBaselines(string scenario, int actions, long seconds)
+    {
+        async Task<(int Actions, long Seconds, int Hp, string Stock)> Execute(string strategy)
+        {
+            await using var h = new Harness(new(), miningOnly: true); await h.Reset(scenario);
+            var policy = strategy == "auto" ? RecoveryProfile() : FoodPolicy(scenario == "recovery-training");
+            var saved = new Checkpoint();
+            var limits = new StrategyLimits(NoProgress: 60);
+            var run = strategy == "lowest" ? h.LowestSession(policy, limits) : h.Factory.Create(policy, limits, saved, "recovery-compare");
+            StrategyDecision? result = null;
+            for (int i = 0; i < 100; i++)
+            {
+                result = await run.TickAsync();
+                if (run.State!.Character.GetProperty("hp").GetInt32() == 20 || result.Status is StrategyStatus.Blocked or StrategyStatus.Stopped or StrategyStatus.Completed) break;
+            }
+            var inventory = CharacterObservation.Read(run.State!.Character)!.Inventory;
+            Assert.Equal(1, inventory.GetValueOrDefault("protected"));
+            return (result!.Attempts, result.CooldownSeconds, run.State.Character.GetProperty("hp").GetInt32(),
+                System.Text.Json.JsonSerializer.Serialize(inventory.OrderBy(x => x.Key)) + System.Text.Json.JsonSerializer.Serialize(run.State.Bank?.Items.OrderBy(x => x.Key)));
+        }
+        var auto = await Execute("auto"); var fixedRun = await Execute("fixed"); var lowest = await Execute("lowest");
+        Assert.Equal((actions, seconds, 20), (auto.Actions, auto.Seconds, auto.Hp));
+        Assert.Equal((scenario == "consumable-bank" ? 5 : actions, scenario == "consumable-bank" ? 19L : seconds, 20), (fixedRun.Actions, fixedRun.Seconds, fixedRun.Hp));
+        Assert.Equal(4, lowest.Hp);
+        Assert.Equal(auto, await Execute("auto")); Assert.Equal(fixedRun, await Execute("fixed")); Assert.Equal(lowest, await Execute("lowest"));
+    }
+    private static PortfolioPolicy RecoveryProfile(bool craft = true, bool rest = false) => new PortfolioSettings
+    {
+        AutonomousGoals = true,
+        BankRetain = FoodPolicy().Bank!.Retain.ToDictionary(x => x.Key, x => x.Value),
+        Recovery = new(AllowUse: true, AllowCraft: craft, AllowRest: rest, AllowBankWithdrawal: true)
+    }.Policy();
+
+    [Fact]
+    public async Task RecoveryNeedTrainsBothSkillsProducesFoodAndStopsSupplyAtFullHp()
+    {
+        await using var h = new Harness(new(), miningOnly: true); await h.Reset("recovery-training");
+        var policy = RecoveryProfile(); var saved = new Checkpoint(); var commands = new List<string?>();
+        StrategySession? run = null; StrategyDecision? decision = null;
+        for (int i = 0; i < 60; i++)
+        {
+            run = h.Factory.Create(policy, new(NoProgress: 60), saved, "recovery-training");
+            decision = await run.TickAsync(); commands.Add(decision.Command);
+            Assert.True(decision.Status == StrategyStatus.Selected, decision.Reason + ":" + string.Join(',', decision.Candidates.Select(x => x.Rejection)));
+            if (run.State!.Character.GetProperty("hp").GetInt32() == 20) break;
+        }
+        Assert.Equal(20, run!.State!.Character.GetProperty("hp").GetInt32());
+        Assert.Equal(3, run.State.Character.GetProperty("cooking_level").GetInt32());
+        Assert.Equal(4, run.State.Character.GetProperty("fishing_level").GetInt32());
+        var inventory = CharacterObservation.Read(run.State.Character)!.Inventory;
+        Assert.Equal(1, inventory.GetValueOrDefault("protected")); Assert.Equal(2, inventory.GetValueOrDefault("baitfish"));
+        Assert.Equal(2, inventory.GetValueOrDefault("snack")); Assert.Equal(0, inventory.GetValueOrDefault("meal"));
+        Assert.Equal(20, decision!.Attempts); Assert.Equal(112, decision.CooldownSeconds);
+        Assert.Equal(2, run.State.Context.Used["recovery:use"]); Assert.Equal(4, run.State.Context.Used["recovery:materials"]);
+        Assert.DoesNotContain("Fight", commands); Assert.DoesNotContain(commands, x => x?.StartsWith("Craft:tool", StringComparison.Ordinal) == true);
+        var next = await h.Factory.Create(policy, new(NoProgress: 60), saved, "recovery-training").InspectAsync();
+        Assert.DoesNotContain(next.Candidates, x => x.Category == "recovery");
+    }
+
+    [Theory]
+    [InlineData("consumable-bank", false, 3, 13)]
+    [InlineData("consumable-production", true, 9, 49)]
+    [InlineData("consumable-capacity", true, 9, 49)]
+    public async Task RecoveryUsesBankOrOneFiniteProductionChainWithoutRefill(string scenario, bool craft, int actions, int seconds)
+    {
+        await using var h = new Harness(new(), miningOnly: true); await h.Reset(scenario);
+        var policy = RecoveryProfile(craft); var saved = new Checkpoint(); var commands = new List<string?>();
+        StrategySession? run = null; StrategyDecision? result = null;
+        for (int i = 0; i < 30; i++)
+        {
+            run = h.Factory.Create(policy, new(NoProgress: 60), saved, "recovery"); result = await run.TickAsync(); commands.Add(result.Command);
+            Assert.True(result.Status == StrategyStatus.Selected, result.Reason + ":" + string.Join(',', result.Candidates.Select(x => x.Rejection)));
+            if (run.State!.Character.GetProperty("hp").GetInt32() == 20) break;
+        }
+        Assert.Equal(20, run!.State!.Character.GetProperty("hp").GetInt32());
+        Assert.Equal(actions, result!.Attempts); Assert.Equal(seconds, result.CooldownSeconds);
+        Assert.Equal(0, result.NoProgress);
+        Assert.Equal(2, run.State.Context.Used["recovery:use"]);
+        Assert.Equal(craft ? 2 : 0, run.State.Context.Used.GetValueOrDefault("recovery:materials"));
+        var inventory = CharacterObservation.Read(run.State.Character)!.Inventory;
+        Assert.Equal(0, inventory.GetValueOrDefault("meal")); Assert.Equal(0, inventory.GetValueOrDefault("snack"));
+        Assert.Equal(1, inventory.GetValueOrDefault("protected"));
+        Assert.Equal(craft ? 0 : 2, run.State.Bank!.Items.GetValueOrDefault("meal"));
+        Assert.DoesNotContain("Fight", commands); Assert.DoesNotContain(commands, x => x?.StartsWith("Craft:snack", StringComparison.Ordinal) == true);
+        var inspected = await h.Factory.Create(policy).InspectAsync(); Assert.DoesNotContain(inspected.Candidates, x => x.Category == "recovery");
+    }
+
+    [Fact]
+    public async Task RecoveryLostUseReconcilesHpAndChargesWithoutAnotherPost()
+    {
+        await using var h = new Harness(new(), miningOnly: true); await h.Reset("consumable-bank");
+        var policy = RecoveryProfile(false); var saved = new Checkpoint();
+        await h.Factory.Create(policy, checkpoints: saved, identity: "lost-recovery").TickAsync();
+        await h.Factory.Create(policy, checkpoints: saved, identity: "lost-recovery").TickAsync();
+        h.Handler.Corruption = "loss";
+        Assert.Equal(StrategyStatus.UnknownOutcome, (await h.Factory.Create(policy, checkpoints: saved, identity: "lost-recovery").TickAsync()).Status);
+        h.Handler.Corruption = null;
+        var run = h.Factory.Create(policy, checkpoints: saved, identity: "lost-recovery");
+        Assert.Equal(StrategyStatus.Reconciled, (await run.TickAsync()).Status);
+        Assert.Equal(3, h.Handler.Actions); Assert.Equal(20, run.State!.Character.GetProperty("hp").GetInt32());
+        Assert.Equal(2, run.State.Context.Used["recovery:use"]);
+    }
+
+    [Fact]
+    public async Task RecoveryCancellationStopsSupplyAndDoesNotRefundAlreadyChargedWork()
+    {
+        await using var h = new Harness(new(), miningOnly: true); await h.Reset("consumable-production");
+        var policy = RecoveryProfile(); var saved = new Checkpoint();
+        for (int i = 0; i < 4; i++) await h.Factory.Create(policy, checkpoints: saved, identity: "cancel-recovery").TickAsync();
+        using var cancellation = new CancellationTokenSource(); cancellation.Cancel();
+        Assert.Equal(StrategyStatus.Cancelled, (await h.Factory.Create(policy, checkpoints: saved, identity: "cancel-recovery").TickAsync(cancellation.Token)).Status);
+        Assert.Equal(StrategyStatus.Cancelled, (await h.Factory.Create(policy, checkpoints: saved, identity: "cancel-recovery").TickAsync()).Status);
+        Assert.Equal(4, h.Handler.Actions);
+    }
+
+    [Fact]
+    public async Task RecoveryProductionNeedsNoImplicitBankPermission()
+    {
+        await using var h = new Harness(new(), miningOnly: true); await h.Reset("consumable-production");
+        var policy = new PortfolioSettings { AutonomousGoals = true, Recovery = new(AllowUse: true, AllowCraft: true) }.Policy();
+        var saved = new Checkpoint(); StrategySession? run = null;
+        for (int i = 0; i < 9; i++)
+        {
+            run = h.Factory.Create(policy, new(NoProgress: 60), saved, "recovery-no-bank");
+            Assert.Equal(StrategyStatus.Selected, (await run.TickAsync()).Status);
+        }
+        Assert.Equal(20, run!.State!.Character.GetProperty("hp").GetInt32()); Assert.Null(run.State.Bank);
+        Assert.DoesNotContain(h.Handler.Reads, x => x.StartsWith("/my/bank", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task RecoveryRestMeasuresHpWithoutManufacturingOrSpendingFood()
+    {
+        await using var h = new Harness(new(), miningOnly: true); await h.Reset("consumable-production");
+        var policy = RecoveryProfile(false, true); var saved = new Checkpoint();
+        var run = h.Factory.Create(policy, checkpoints: saved, identity: "recovery-rest");
+        Assert.Equal("Rest", (await run.TickAsync()).Command);
+        Assert.Equal(20, run.State!.Character.GetProperty("hp").GetInt32());
+        Assert.Empty(run.State.Context.Used);
+        var entry = Assert.Single(saved.Load()!.Journal);
+        Assert.Equal(16, entry.Facts!.HpDelta); Assert.Equal(16, entry.Facts.UsefulProgress);
+        Assert.Equal(20, Assert.Single(saved.Load()!.Autonomous!.History).ObservedHp);
+    }
+
+    [Fact]
+    public async Task RecoveryMaterialAllowanceRejectsWholePathBeforeStartingSupply()
+    {
+        await using var h = new Harness(new(), miningOnly: true); await h.Reset("consumable-production");
+        var policy = RecoveryProfile() with { Recovery = RecoveryProfile().Recovery! with { MaxMaterialUnits = 1 } };
+        var result = await h.Factory.Create(policy).InspectAsync();
+        Assert.Contains(result.Candidates, x => x.Rejection == "RecoveryMaterialBudgetExhausted" && x.Command is null);
+        Assert.Equal(0, h.Handler.Actions);
+    }
+
+    [Theory]
+    [InlineData(false, StrategyStatus.Selected)]
+    [InlineData(true, StrategyStatus.Blocked)]
+    public async Task RecoveryUseSchemaIsRequiredOnlyWhenUseIsEnabled(bool recovery, StrategyStatus status)
+    {
+        await using var h = new Harness(new(), miningOnly: true); await h.Reset("consumable-bank"); h.Handler.Corruption = "food-use-schema";
+        var policy = recovery ? RecoveryProfile(false) : new PortfolioSettings { AutonomousGoals = true }.Policy();
+        Assert.Equal(status, (await h.Factory.Create(policy).InspectAsync()).Status); Assert.Equal(0, h.Handler.Actions);
+    }
+
+    [Fact]
+    public async Task RecoveryInvalidUseResultDoesNotCompleteParentOrReplay()
+    {
+        await using var h = new Harness(new(), miningOnly: true); await h.Reset("consumable-bank");
+        var policy = RecoveryProfile(false); var saved = new Checkpoint();
+        for (int i = 0; i < 2; i++) await h.Factory.Create(policy, checkpoints: saved, identity: "invalid-recovery").TickAsync();
+        h.Handler.Corruption = "food-result";
+        Assert.Equal("InvalidPostcondition", (await h.Factory.Create(policy, checkpoints: saved, identity: "invalid-recovery").TickAsync()).Reason);
+        Assert.Empty(saved.Load()!.Autonomous!.History);
+        Assert.Equal("InvalidPostcondition", (await h.Factory.Create(policy, checkpoints: saved, identity: "invalid-recovery").TickAsync()).Reason);
+        Assert.Equal(3, h.Handler.Actions);
+    }
     [Fact]
     public async Task FullPathRejectsAnUnreachableLaterWorkshopBeforeGathering()
     {
@@ -873,6 +1053,15 @@ public class StagedOperationTests
         public readonly OperationState State;
         public readonly StagedExecution Runner;
         public readonly StrategySessionFactory Factory;
+        private readonly GameClient _client;
+        private readonly CombatCatalog _catalog;
+        private readonly CharacterService _characters = new();
+        public StrategySession LowestSession(PortfolioPolicy policy, StrategyLimits limits)
+        {
+            var gathering = policy with { Consumable = null, Items = [], Skills = [new("mining", 2, 1), new("fishing", 2, 1)], Measurement = new(FullPaths: true) };
+            return new(new HttpStrategyObserver(_client, _catalog, _characters, gathering.Identity, profile: gathering),
+                [new AutonomousExecutionFlowTests.Lowest(gathering, new(_client, _characters))], new NoDelay(), limits, selection: gathering.Measurement);
+        }
         public Harness(ExecutionSettings execution, string origin = "http://localhost", bool miningOnly = false)
         {
             State = new(Clock); Handler = new(_factory.Server.CreateHandler(), Clock);
@@ -880,7 +1069,8 @@ public class StagedOperationTests
             var api = new ApiSettings { BaseUrl = "http://localhost", Character = "researcher", Username = "mock", Password = "mock" };
             var http = new GameHttpClient(new ClientFactory(_transport), api, Clock, (_, _) => Task.CompletedTask);
             var client = new GameClient(http, api, NullLogger<IGameClient>.Instance, new EmptyCache(), new ActivitySource("Staged"));
-            var factory = new StrategySessionFactory(client, new CombatCatalog(http), new CharacterService(), new NoDelay(), new ApiCompatibility(http, execution, State, Clock));
+            _client = client; _catalog = new CombatCatalog(http);
+            var factory = new StrategySessionFactory(client, _catalog, _characters, new NoDelay(), new ApiCompatibility(http, execution, State, Clock));
             Factory = factory;
             api.BaseUrl = origin;
             Runner = new(execution, api, miningOnly ? new() { Skills = [new("mining", 2, 30)] } : new() { Skills = [new("mining", 2, 30), new("woodcutting", 2, 20)], CombatTarget = 2, Monster = "dummy", Equipment = "quick_blade" }, factory, State);

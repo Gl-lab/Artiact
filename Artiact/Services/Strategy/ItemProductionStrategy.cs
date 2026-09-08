@@ -22,7 +22,7 @@ public sealed class ItemProductionStrategy(ItemMilestone goal, PortfolioPolicy p
             StrategyCandidate Pressure()
             {
                 var blocked = Result("InventoryPressure");
-                return policy.Production is null ? blocked : BankPrerequisite.Evaluate(observation, blocked,
+                return policy.Production is null || policy.Bank is null ? blocked : BankPrerequisite.Evaluate(observation, blocked,
                     ProductionStock.Retain(observation, policy, plan), port, policy.MoveSeconds);
             }
             if (policy.Production is not null && plan.Steps.Where(x => x.Kind == "Craft").Any(x =>
@@ -47,7 +47,7 @@ public sealed class ItemProductionStrategy(ItemMilestone goal, PortfolioPolicy p
                 var resource = resources.OrderBy(x => x.GetProperty("code").GetString(), StringComparer.Ordinal).First();
                 string skill = resource.GetProperty("skill").GetString()!;
                 var filtered = new StrategyObservation(observation.Character, observation.Catalogs.SetItem("resources", resources), observation.Policy, observation.Bank);
-                var gatherPolicy = policy.Production is null ? policy : policy with { Bank = ProductionStock.Retain(observation, policy, plan) };
+                var gatherPolicy = policy.Production is null || policy.Bank is null ? policy : policy with { Bank = ProductionStock.Retain(observation, policy, plan) };
                 var candidate = new GatheringStrategy(new(skill, checked(observation.Character.GetProperty(skill + "_level").GetInt32() + 1), goal.Value), gatherPolicy, port).Evaluate(filtered);
                 // Re-evaluate dispatch against the complete world fingerprint; filtered catalogs are planning-only.
                 if (candidate.Command is null) return Result(candidate.Rejection);
