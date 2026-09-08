@@ -158,6 +158,12 @@ R7–R10 extend this explicit path. Item prerequisites use bounded skill prepara
 ```mermaid
 flowchart LR
     Observe[Fresh observation] --> Strategies[Bounded goal and prerequisite candidates]
+    Orders[Versioned order book] --> Observe
+    Observe --> Needs[Optional needs and HP parents]
+    Needs --> Chain[Supported full chain and finite slice]
+    Chain --> Priority[Parent priority and full estimated cost]
+    Priority --> Preflight
+    Needs --> NoNeeds[NoActiveSupportedNeeds stop]
     Strategies --> Paths[Optional full-path estimates]
     Paths --> Select[Context measurements and hysteresis]
     Select --> Preflight[Fresh preflight]
@@ -170,3 +176,7 @@ flowchart LR
     Unknown --> Reconcile[Read-only reconciliation]
     Verify --> Result[Result and performance report]
 ```
+
+## R25: цели от потребностей
+
+См. [Needs mode](needs-driven-goals.md): отдельные сохраняемые заказы, полный поддерживаемый путь, конечные срезы, исход NoActiveSupportedNeeds и ограничения. R20 этот режим не исполняет; live-приёмка новых цепочек не выполнена.

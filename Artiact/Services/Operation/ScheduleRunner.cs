@@ -26,7 +26,7 @@ public sealed class ScheduleSettings
             !string.Equals(execution.Mode, "Inspect", StringComparison.OrdinalIgnoreCase) || string.IsNullOrWhiteSpace(execution.RunDirectory))
             throw new ArgumentException("Invalid finite schedule.");
         var policy = portfolio.Policy();
-        if (!policy.AutonomousGoals || !policy.Skills.IsDefaultOrEmpty || !policy.Items.IsDefaultOrEmpty ||
+        if (policy.Needs is not null || !policy.AutonomousGoals || !policy.Skills.IsDefaultOrEmpty || !policy.Items.IsDefaultOrEmpty ||
             portfolio.Recovery is not null || portfolio.CombatDiscovery is not null || portfolio.AutonomousCombat is not null ||
             portfolio.BankRetain is not null || portfolio.Consumable is not null || portfolio.Preparation is not null ||
             policy.CombatEnabled || !string.IsNullOrEmpty(portfolio.Equipment) || portfolio.MonsterAlternatives.Length != 0)

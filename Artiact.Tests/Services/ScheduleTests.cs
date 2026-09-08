@@ -187,6 +187,16 @@ public class ScheduleTests
         Assert.Throws<ArgumentException>(() => f.Settings.Validate(execution, api, f.Portfolio));
     }
 
+    [Fact]
+    public async Task NeedsModeIsRejectedBeforeSeriesExecutes()
+    {
+        using var f = new Fixture(); f.Portfolio.AutonomousGoals = false;
+        f.Portfolio.Needs = new(f.DirectoryPath);
+        var runner = f.Runner(); await runner.TickAsync();
+        Assert.Equal(0, f.Port.Executions);
+        Assert.Equal("InterventionRequired", runner.Snapshot().Status);
+    }
+
     private sealed class Clock : TimeProvider
     {
         public DateTimeOffset Now = DateTimeOffset.UtcNow;

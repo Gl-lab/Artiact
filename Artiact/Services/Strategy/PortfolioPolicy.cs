@@ -15,7 +15,8 @@ public sealed record PortfolioPolicy(ImmutableArray<SkillMilestone> Skills, int 
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] AutonomousCombatPolicy? AutonomousCombat = null,
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)] bool AutonomousGoals = false,
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] RecoveryPolicy? Recovery = null,
-    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] CombatDiscoveryPolicy? CombatDiscovery = null)
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] CombatDiscoveryPolicy? CombatDiscovery = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] NeedsPolicy? Needs = null)
 {
     [System.Text.Json.Serialization.JsonIgnore]
     public bool CombatEnabled => CombatTarget > 0;
@@ -27,6 +28,10 @@ public sealed record PortfolioPolicy(ImmutableArray<SkillMilestone> Skills, int 
     public string Identity => JsonSerializer.Serialize(this with { Items = Items.IsDefault ? [] : Items, Monsters = Monsters.IsDefault ? [] : Monsters });
     public void Validate()
     {
+        if (Needs is { } needs && (!AutonomousGoals || string.IsNullOrWhiteSpace(needs.Directory) || !Path.IsPathFullyQualified(needs.Directory) ||
+            CombatDiscovery is not null || needs.AllowBankWithdrawal && Bank is null ||
+            needs.Reserved?.Any(x => string.IsNullOrWhiteSpace(x.Key) || x.Value is < 0 or > 10000) == true))
+            throw new ArgumentException("Invalid needs policy.");
         if (CombatDiscovery is { } combat && (!AutonomousGoals || combat.MaxMaterialUnits is < 1 or > 10000 || combat.AllowBankWithdrawal && Bank is null ||
             combat.Reserved?.Any(x => string.IsNullOrWhiteSpace(x.Key) || x.Value < 0 || x.Value > 10000) == true))
             throw new ArgumentException("Invalid combat discovery policy.");

@@ -38,6 +38,7 @@ public sealed class ExecutionSettings
 public sealed class PortfolioSettings
 {
     public bool AutonomousGoals { get; set; }
+    public NeedsPolicy? Needs { get; set; }
     public RecoveryPolicy? Recovery { get; set; }
     public CombatDiscoveryPolicy? CombatDiscovery { get; set; }
     public AutonomousCombatPolicy? AutonomousCombat { get; set; }
@@ -66,11 +67,12 @@ public sealed class PortfolioSettings
     public decimal EquipmentSeconds { get; set; } = 3;
     public PortfolioPolicy Policy()
     {
+        if (Needs is not null && AutonomousGoals) throw new ArgumentException("Choose needs or general development explicitly.");
         var result = new PortfolioPolicy(Skills.ToImmutableArray(), CombatTarget, Monster, Equipment, CombatValue,
             EquipmentValue, MoveSeconds, GatherSeconds, FightSeconds, RestSeconds, EquipmentSeconds,
             BankRetain is null ? null : new(BankRetain.ToImmutableDictionary(StringComparer.Ordinal)), Items.ToImmutableArray(), PrepareEquipment,
-            MeasuredSelection || FullPathSelection || AutonomousGoals ? new(UnknownMultiplier, SwitchRatio, FullPathSelection || AutonomousGoals) : null, MonsterAlternatives.ToImmutableArray(), Preparation,
-            CapacityAwareProduction ? new(ProductionReserves.ToImmutableDictionary(StringComparer.Ordinal)) : null, Consumable, AutonomousCombat, AutonomousGoals, Recovery, CombatDiscovery);
+            MeasuredSelection || FullPathSelection || AutonomousGoals || Needs is not null ? new(UnknownMultiplier, SwitchRatio, FullPathSelection || AutonomousGoals || Needs is not null) : null, MonsterAlternatives.ToImmutableArray(), Preparation,
+            CapacityAwareProduction ? new(ProductionReserves.ToImmutableDictionary(StringComparer.Ordinal)) : null, Consumable, AutonomousCombat, AutonomousGoals || Needs is not null, Recovery, CombatDiscovery, Needs);
         result.Validate(); return result;
     }
 }

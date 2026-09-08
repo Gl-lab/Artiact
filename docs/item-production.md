@@ -13,3 +13,7 @@ The pure plan reserves one shared ledger across sorted nested recipe ingredients
 Only one command executes per tick. Required bank stock is withdrawn in exact bounded quantities through the official array transaction contract; this does not authorize arbitrary bulk withdrawals. Craft responses validate output items/cooldown and exact stock, preserving unrelated character fields. Both commands use the R2 journal and read-only restart reconciliation. The policy's deposit allowlist should retain ingredients needed by production to avoid unproductive capacity shuttling; shared budgets stop such loops.
 
 Synthetic `item-production`: gather two ore, make one bar, then one tool. Six actions and 32 virtual seconds leave only tool=1 and protected=1. `item-production-bank` begins with two bank ore and uses five actions/25 seconds; bank ends empty with the same inventory. Neither fixture claims live craft XP/cooldown mechanics. Tests also cover shared/batched ingredients and lost craft/withdrawal replies across restart. [Evidence](../openspec/changes/item-production/execution-evidence.md).
+
+## R25: цели от потребностей
+
+См. [Needs mode](needs-driven-goals.md): отдельные сохраняемые заказы, полный поддерживаемый путь, конечные срезы, исход NoActiveSupportedNeeds и ограничения. R20 этот режим не исполняет; live-приёмка новых цепочек не выполнена.

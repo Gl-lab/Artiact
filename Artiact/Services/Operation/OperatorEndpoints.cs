@@ -45,6 +45,13 @@ public static class OperatorEndpoints
         if (schedule?.Enabled == true)
             group.MapPost("/schedule/stop", (ScheduleRunner runner) => { runner.RequestStop(); return Results.Accepted(); });
         if (!options.ControlsEnabled) return;
+        group.MapGet("/orders", (OperatorCoordinator coordinator) =>
+        {
+            try { return Results.Json(System.Text.Json.JsonSerializer.SerializeToElement(coordinator.Orders())); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException or InvalidOperationException)
+            { return Results.Conflict(new { Reason = "OrdersUnavailable" }); }
+        });
+        group.MapPost("/orders", async (OrderRequest request, OperatorCoordinator coordinator) => Control(await coordinator.ChangeOrderAsync(request.Order, request.ExpectedRevision)));
         group.MapPost("/inspect", async (OperatorRunRequest request, OperatorCoordinator coordinator) => Control(await coordinator.InspectAsync(request)));
         group.MapPost("/start", async (StartRequest request, OperatorCoordinator coordinator) => Control(await coordinator.StartRunAsync(request.Receipt)));
         group.MapPost("/stop", async (OperatorCoordinator coordinator) => Control(await coordinator.RequestStopAsync()));
@@ -53,6 +60,7 @@ public static class OperatorEndpoints
 
     public sealed record StartRequest(string Receipt);
     public sealed record ArchiveRequest(string IdentityDigest);
+    public sealed record OrderRequest(Artiact.Services.Strategy.NeedOrder Order, int ExpectedRevision);
     private static IResult Control(OperatorControlResult result) => Results.Json(System.Text.Json.JsonSerializer.SerializeToElement(new
     {
         result.Accepted, result.Reason, result.Receipt, Decision = OperatorDecisionProjection.Decision(result.Decision)

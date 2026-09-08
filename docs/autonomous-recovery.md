@@ -17,3 +17,7 @@ The [preregistered protocol and comparisons](../openspec/changes/autonomous-reco
 - `consumable-bank`: withdraw two of four meals and use them; 3 actions/13 seconds, two bank meals retained, no material charge.
 
 Tests cover full HP, thresholds, stock floors/shared ingredients, forbidden use, unknown effects, cycles, material bounds, no-bank operation, optional rest, cancelled parents and lost/invalid use replies. Existing gathering quality/recovery tests remain mandatory. [Official rest/use rules](https://docs.artifactsmmo.com/concepts/resting_and_using_items/) were inspected on 2026-09-08; local synthetic tests do not prove live compatibility. R14 reuses recovery for [combat prerequisites](combat-goal-discovery.md).
+
+## R25: цели от потребностей
+
+См. [Needs mode](needs-driven-goals.md): отдельные сохраняемые заказы, полный поддерживаемый путь, конечные срезы, исход NoActiveSupportedNeeds и ограничения. R20 этот режим не исполняет; live-приёмка новых цепочек не выполнена.

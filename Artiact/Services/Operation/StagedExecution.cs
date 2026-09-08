@@ -28,7 +28,7 @@ public sealed class StagedExecution(ExecutionSettings settings, ApiSettings api,
             _result = mode == ExecutionMode.Inspect ? await run.InspectAsync(token) : await run.TickAsync(token);
             if (mode == ExecutionMode.OneShot && _result.Status == StrategyStatus.UnknownOutcome && !token.IsCancellationRequested)
                 _result = await run.TickAsync(token);
-            bool success = _result.Status is StrategyStatus.Selected or StrategyStatus.Completed or StrategyStatus.Reconciled;
+            bool success = _result.Status is StrategyStatus.Selected or StrategyStatus.Completed or StrategyStatus.Reconciled || _result.Reason == "NoActiveSupportedNeeds";
             status.Finish(mode + ":" + _result.Status + ":" + _result.Reason, success);
             return _result;
         }
@@ -51,7 +51,7 @@ public sealed class StagedExecution(ExecutionSettings settings, ApiSettings api,
         {
             var result = await run.TickAsync(stop.Token);
             status.Progress(settings.RunId, result);
-            status.Finish("Bounded:" + result.Status + ":" + result.Reason, result.Status is StrategyStatus.Selected or StrategyStatus.Completed or StrategyStatus.Reconciled);
+            status.Finish("Bounded:" + result.Status + ":" + result.Reason, result.Status is StrategyStatus.Selected or StrategyStatus.Completed or StrategyStatus.Reconciled || result.Reason == "NoActiveSupportedNeeds");
             if (result.Status is StrategyStatus.Completed or StrategyStatus.Blocked or StrategyStatus.Cancelled or StrategyStatus.Stopped) return result;
             if (result.Status == StrategyStatus.UnknownOutcome)
             {

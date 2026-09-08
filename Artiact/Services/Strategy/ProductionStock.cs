@@ -14,12 +14,13 @@ public sealed record ProductionStock(ImmutableDictionary<string, int> Inventory,
         return ItemProductionPlan.Build(goal.Code, quantity, available.Inventory, bank,
             observation.Catalogs["items"], observation.Catalogs["resources"],
             policy.PrepareEquipment ? observation.Catalogs["monsters"].Where(x => x.GetProperty("code").GetString() == policy.Monster).ToArray() : null,
-            policy.Production is not null);
+            policy.Production is not null, policy.Needs is not null ? 16 : 30);
     }
     public static ProductionStock Available(StrategyObservation observation, ItemMilestone goal, PortfolioPolicy policy)
     {
         var inventory = CharacterObservation.Read(observation.Character)!.Inventory.ToBuilder();
         var bank = (observation.Bank?.Items ?? ImmutableDictionary<string, int>.Empty).ToBuilder();
+        if (policy.Needs is { AllowBankWithdrawal: false }) bank.Clear();
         if (policy.Production is null) return new(inventory.ToImmutable(), bank.ToImmutable());
         var reserves = policy.Production.Reserved.ToBuilder();
         foreach (var other in policy.Items.IsDefault ? [] : policy.Items)

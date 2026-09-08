@@ -11,6 +11,35 @@ namespace Artiact.MockService.Tests;
 
 public class OperatorHttpTests
 {
+    [Fact]
+    public async Task OrdersUseControlGuardAndReturnRevisionConflictsWithoutExecution()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "artiact-orders-http-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var builder = WebApplication.CreateBuilder(); builder.WebHost.UseTestServer();
+            builder.Services.AddSingleton(new OperatorSettings { Enabled = true, ControlsEnabled = true });
+            builder.Services.AddSingleton(new ExecutionSettings());
+            builder.Services.AddSingleton(new ApiSettings { BaseUrl = "http://localhost", Character = "hero", Username = "mock", Password = "secret-test-value" });
+            builder.Services.AddSingleton(new PortfolioSettings { Needs = new(directory) });
+            builder.Services.AddSingleton<OperationState>(); builder.Services.AddSingleton<OperatorSnapshotReader>();
+            builder.Services.AddSingleton<IOperatorExecution, NoExecution>(); builder.Services.AddSingleton<OperatorCoordinator>();
+            await using var app = builder.Build(); app.MapOperator(); await app.StartAsync(); using var client = app.GetTestClient();
+            Assert.Contains("Orders", await client.GetStringAsync("/operator/orders")); Assert.False(Directory.Exists(directory));
+            string request = """{"Order":{"Id":"one","Code":"tool","Quantity":1,"Revision":1,"Status":"Active"},"ExpectedRevision":0}""";
+            Task<HttpResponseMessage> Put() => client.PostAsync("/operator/orders", new StringContent(request, System.Text.Encoding.UTF8, "application/json"));
+            Assert.Equal(HttpStatusCode.Forbidden, (await Put()).StatusCode);
+            using var controls = System.Text.Json.JsonDocument.Parse(await client.GetStringAsync("/operator/controls"));
+            Assert.DoesNotContain(directory, controls.RootElement.GetRawText()); Assert.DoesNotContain("secret-test-value", controls.RootElement.GetRawText());
+            client.DefaultRequestHeaders.Add("X-Artiact-Control", controls.RootElement.GetProperty("Token").GetString());
+            Assert.Equal(HttpStatusCode.OK, (await Put()).StatusCode);
+            Assert.Equal(HttpStatusCode.Conflict, (await Put()).StatusCode);
+            client.DefaultRequestHeaders.Add("Origin", "http://attacker.example");
+            Assert.Equal(HttpStatusCode.Forbidden, (await Put()).StatusCode);
+        }
+        finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
+    }
+
     private sealed class NoExecution : IOperatorExecution
     {
         public Task<Artiact.Services.Strategy.StrategyDecision?> ExecuteAsync(ExecutionSettings settings, CancellationToken token) =>

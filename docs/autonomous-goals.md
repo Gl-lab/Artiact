@@ -19,3 +19,7 @@ Autonomous checkpoints use version 2 with discovery-v2; manual checkpoints remai
 Use the existing [run-result and run-archive commands](bounded-operation.md) to inspect and explicitly archive a verified normal stop. Version-2 archive requires valid initial/latest state, consistent counters and entirely Verified/Reconciled consumed journal, with no pending/unknown outcome. Zero-action cap exhaustion can archive. An archived RunId cannot be reused by changing policy or limits; a fresh run requires a new RunId. Arbitrary Blocked/Cancelled runs remain outside archive eligibility.
 
 The [HTTP comparison protocol and results](../openspec/changes/autonomous-goal-execution/comparisons.md) extend the original R11 matrix. Autonomous and fixed portfolio reach each expected useful result with two commands and ten confirmed cooldown seconds. Against the lowest-skill rule, new/bank cases save four commands and 24 seconds, uneven saves 18 commands and 94 seconds, and inaccessible is a tie. Synthetic fixtures and process-recovery tests do not prove live compatibility. R13 adds optional [HP recovery discovery](autonomous-recovery.md); R14 adds [combat discovery](combat-goal-discovery.md).
+
+## R25: цели от потребностей
+
+См. [Needs mode](needs-driven-goals.md): отдельные сохраняемые заказы, полный поддерживаемый путь, конечные срезы, исход NoActiveSupportedNeeds и ограничения. R20 этот режим не исполняет; live-приёмка новых цепочек не выполнена.

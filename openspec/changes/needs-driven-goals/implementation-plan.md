@@ -1,0 +1,7 @@
+# R25 implementation after R24
+
+Reviewed R22 `9384ec2`, R23 `7eadfe3`, R24 `df5d7bf`. General-development intermediate evidence is not a need. Bank feasibility now has a bounded stock simulation and explicit identity; needs chains must retain its permissions and exact runtime transfers. R24's live Selected rows authorize no new execution.
+
+Implementation slices: (1) versioned order book and explicit needs policy, no-needs lifecycle and schedule exclusion; (2) causal item/HP chain planning with bounded full-chain proof and slices; (3) operator controls/evidence, restart/archival and comprehensive acceptance. Keep all slices buildable with tests. Storage uses a configured dedicated orders directory and canonical observed character name; the operator configuration must use a separate directory per API origin. Books survive run archival.
+
+For chain estimation, use a pure bounded interpreter of supported planned atomic commands over copied observations. Never call Dispatch while estimating. Full-chain simulation must terminate in parent satisfaction and reject unsupported commands/conditions/routes. Validate simulated postconditions; XP/cooldown are labelled estimates and fresh runtime observations replan. Record each command cost and parent Productive semantics, allowing an intermediate stock/skill result only after a verified simulation prefix and full-chain proof. The actual executor receives only its current fresh command.

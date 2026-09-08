@@ -8,6 +8,16 @@ namespace Artiact.Tests.Services;
 public class OperatorSnapshotTests
 {
     [Fact]
+    public void BoundedProjectionRetainsFeasibleParentBeyondFirst128Refusals()
+    {
+        var rejected = Enumerable.Range(0, 128).Select(i => new StrategyCandidate("denied:" + i, "need", 1, 1, 0, 0, "UnsupportedNeedChain", false, null));
+        var selected = new StrategyCandidate("order:selected", "item", 1, 1, 0, 0, null, false, null);
+        var projected = JsonSerializer.SerializeToElement(OperatorDecisionProjection.Candidates(rejected.Append(selected).ToImmutableArray()));
+        Assert.Equal(128, projected.GetArrayLength());
+        Assert.Equal("order:selected", projected[0].GetProperty("Id").GetString());
+    }
+
+    [Fact]
     public void TerminalDiagnosticsSurviveStorageAndExcludePlanningPayloads()
     {
         WithDirectory(directory =>

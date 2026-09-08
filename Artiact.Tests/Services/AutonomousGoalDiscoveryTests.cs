@@ -12,6 +12,23 @@ namespace Artiact.Tests.Services;
 
 public class AutonomousGoalDiscoveryTests
 {
+    private sealed class NoNeeds : IProgressionStrategy
+    {
+        public bool Available;
+        public StrategyCandidate Evaluate(StrategyObservation observation) => Available
+            ? new("order:one", "need", 1, 1, 0, 0, null, false, new("Gather:mining", observation.Fingerprint, true, _ => true, _ => throw new InvalidOperationException()))
+            : new("needs", "need", 1, 1, 0, 0, "NoActiveSupportedNeeds", true, null);
+    }
+    [Fact]
+    public async Task EmptyNeedsInspectDoesNotLatchTerminalBeforeLaterNeed()
+    {
+        var source = new NoNeeds();
+        var run = new StrategySession(new Observer(World()), [source], new NoDelay(), autonomous: true);
+        var first = await run.InspectAsync();
+        Assert.Equal(StrategyStatus.Stopped, first.Status); Assert.Equal("NoActiveSupportedNeeds", first.Reason);
+        source.Available = true;
+        Assert.Equal(StrategyStatus.Selected, (await run.InspectAsync()).Status);
+    }
     [Fact]
     public async Task AnonymizedInventoryPressureRemainsExplainableWhenNearestLevelAlsoCannotFit()
     {

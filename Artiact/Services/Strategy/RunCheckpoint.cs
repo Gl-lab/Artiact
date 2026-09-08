@@ -6,10 +6,11 @@ namespace Artiact.Services.Strategy;
 public sealed record SavedObservation(JsonElement Character,
     ImmutableDictionary<string, ImmutableArray<JsonElement>> Catalogs, string Policy, Artiact.Contracts.Models.Api.BankSnapshot? Bank = null,
     StrategyRunContext? Context = null,
-    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] DateTimeOffset? ObservedAt = null)
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] DateTimeOffset? ObservedAt = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] NeedOrderBook? Orders = null)
 {
-    public StrategyObservation Restore() => new(Character, Catalogs, Policy, Bank, Context);
-    public static SavedObservation From(StrategyObservation state, DateTimeOffset? observedAt = null) => new(state.Character, state.Catalogs, state.Policy, state.Bank, state.Context, observedAt);
+    public StrategyObservation Restore() => new(Character, Catalogs, Policy, Bank, Context, Orders);
+    public static SavedObservation From(StrategyObservation state, DateTimeOffset? observedAt = null) => new(state.Character, state.Catalogs, state.Policy, state.Bank, state.Context, observedAt, state.Orders);
 }
 public sealed record RunCheckpoint(int Version, string Identity, DateTimeOffset Started,
     int Decisions, int Attempts, int NoProgress, long Seconds, string[] Consumed,
@@ -103,7 +104,10 @@ public sealed class FileRunCheckpointStore : IRunCheckpointStore, IDisposable
         bool noGoal = terminal is { Status: StrategyStatus.Blocked, Reason: "NoFeasibleCandidate", Failure: null } &&
             (saved.Version == 1 && saved.Autonomous is null || saved.Version == 2 && saved.Autonomous is { Valid: true }) &&
             saved.PendingCandidate is null;
-        if (!(manual || autonomous || noGoal) || saved.PendingCommand is not null || terminal is null ||
+        bool noNeeds = saved.Version == 2 && saved.Autonomous is { Valid: true, Active: null } &&
+            terminal is { Status: StrategyStatus.Stopped, Reason: "NoActiveSupportedNeeds", Failure: null } &&
+            saved.PendingCandidate is null && saved.Initial is not null && saved.Latest?.Orders is { Valid: true } && ObservedNoNeeds(saved);
+        if (!(manual || autonomous || noGoal || noNeeds) || saved.PendingCommand is not null || terminal is null ||
             saved.Decisions <= 0 || saved.Attempts < 0 || saved.Attempts > saved.Decisions || saved.NoProgress < 0 || saved.Seconds < 0 ||
             saved.Journal.IsDefault || saved.Journal.Length != saved.Attempts || saved.Consumed is null ||
             saved.Consumed.Length != saved.Attempts || saved.Consumed.Distinct(StringComparer.Ordinal).Count() != saved.Attempts ||
@@ -114,6 +118,21 @@ public sealed class FileRunCheckpointStore : IRunCheckpointStore, IDisposable
             saved.Journal.Any(x => !saved.Consumed.Contains(x.SourceFingerprint + ":" + x.Command, StringComparer.Ordinal)))
             return false;
         return true;
+    }
+
+    private static bool ObservedNoNeeds(RunCheckpoint saved)
+    {
+        try
+        {
+            using var identity = JsonDocument.Parse(saved.Identity);
+            var policy = JsonSerializer.Deserialize<PortfolioPolicy>(identity.RootElement.GetProperty("Policy").GetString()!);
+            if (policy?.Needs is not { } needs || saved.Latest is null) return false;
+            var state = saved.Latest.Restore();
+            if (state.Orders!.Orders.Any(x => x.Status == "Active" && !NeedsGoalDiscovery.Satisfied(state, x, needs))) return false;
+            return policy.Recovery is null || (long)state.Character.GetProperty("hp").GetInt32() * 100 >=
+                (long)state.Character.GetProperty("max_hp").GetInt32() * policy.Recovery.HpBelowPercent;
+        }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException or KeyNotFoundException or ArgumentException) { return false; }
     }
 
     private static bool ObservedCaps(SavedObservation saved)

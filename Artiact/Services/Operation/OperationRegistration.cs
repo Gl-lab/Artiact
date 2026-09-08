@@ -6,7 +6,7 @@ public static class OperationRegistration
     {
         var execution = configuration.GetSection("Execution").Get<ExecutionSettings>() ?? new();
         var portfolio = configuration.GetSection("Portfolio").Get<PortfolioSettings>() ?? new();
-        if (portfolio.AutonomousGoals && !string.Equals(execution.Mode, nameof(ExecutionMode.Inspect), StringComparison.OrdinalIgnoreCase) &&
+        if ((portfolio.AutonomousGoals || portfolio.Needs is not null) && !string.Equals(execution.Mode, nameof(ExecutionMode.Inspect), StringComparison.OrdinalIgnoreCase) &&
             !string.Equals(execution.Mode, nameof(ExecutionMode.Bounded), StringComparison.OrdinalIgnoreCase))
             throw new ArgumentException("AutonomousGoalsRequireInspectOrBounded");
         services.AddSingleton(execution);

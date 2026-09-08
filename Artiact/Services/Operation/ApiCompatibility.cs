@@ -62,7 +62,13 @@ public sealed class ApiCompatibility(IGameHttpClient http, ExecutionSettings set
                 if (recovery.AllowBankWithdrawal && paths.GetProperty("/my/{name}/action/bank/withdraw/item").GetProperty("post")
                     .GetProperty("requestBody").GetProperty("content").GetProperty("application/json").GetProperty("schema").GetProperty("type").GetString() != "array") return false;
             }
-            if (profile?.Preparation is not null)
+            if (profile?.Needs is { } needs)
+            {
+                if (needs.AllowCraft && paths.GetProperty("/my/{name}/action/crafting").GetProperty("post").ValueKind != JsonValueKind.Object) return false;
+                if (needs.AllowBankWithdrawal && paths.GetProperty("/my/{name}/action/bank/withdraw/item").GetProperty("post")
+                    .GetProperty("requestBody").GetProperty("content").GetProperty("application/json").GetProperty("schema").GetProperty("type").GetString() != "array") return false;
+            }
+            if (profile?.Preparation is not null || profile?.Needs?.AllowCraft == true)
                 foreach (string skill in new[] { "mining", "weaponcrafting", "cooking", "fishing" })
                     foreach (string field in new[] { "level", "xp", "max_xp" })
                         if (!Type(schemas, "CharacterSchema", skill + "_" + field, "integer")) return false;

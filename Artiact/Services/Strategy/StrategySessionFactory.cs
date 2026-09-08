@@ -29,8 +29,9 @@ public sealed class StrategySessionFactory(GameClient client, CombatCatalog cata
                 strategies.Add(policy.Consumable?.ParentItem == goal.Code ? new ConsumableStrategy(strategy, policy, port) : strategy);
             }
         if (policy.Measurement?.FullPaths == true) strategies = strategies.Select(x => (IProgressionStrategy)new FullPathStrategy(x, policy)).ToList();
-        if (policy.AutonomousGoals) strategies.Add(new AutonomousGoalDiscovery(policy, port, limits ?? new()));
-        if (policy.Recovery is not null) strategies.Add(new RecoveryGoalDiscovery(policy, port));
+        if (policy.Needs is not null) strategies.Add(new NeedsGoalDiscovery(policy, port));
+        else if (policy.AutonomousGoals) strategies.Add(new AutonomousGoalDiscovery(policy, port, limits ?? new()));
+        if (policy.Recovery is not null && policy.Needs is null) strategies.Add(new RecoveryGoalDiscovery(policy, port));
         if (policy.CombatDiscovery is not null) strategies.Add(new CombatGoalDiscovery(policy, port));
         var resources = new Dictionary<string, int>();
         if (policy.Consumable is { } food) { resources["use:" + food.Code] = food.MaxUsed; resources["materials:" + food.Code] = food.MaxMaterialUnits; }
@@ -39,7 +40,14 @@ public sealed class StrategySessionFactory(GameClient client, CombatCatalog cata
         return new(new HttpStrategyObserver(client, catalog, characters, policy.Identity, compatibility, policy), strategies, cooldown, limits,
             checkpoints: checkpoints, identity: identity, selection: policy.Measurement,
             resourceLimits: resources.Count == 0 ? null : resources,
-            inspectOnly: policy.AutonomousGoals && checkpoints is null, autonomous: policy.AutonomousGoals);
+            inspectOnly: policy.AutonomousGoals && checkpoints is null, autonomous: policy.AutonomousGoals,
+            reconcileNeeds: policy.Needs is null ? null : state =>
+            {
+                var store = new NeedOrderStore(policy.Needs.Directory, state.Name);
+                foreach (var order in state.Orders!.Orders.Where(x => x.Status == "Active" && NeedsGoalDiscovery.Satisfied(state, x, policy.Needs)))
+                    store.Put(order with { Status = "Completed", Revision = checked(order.Revision + 1) }, order.Revision);
+                return state.WithOrders(store.Read());
+            });
     }
 }
 
@@ -62,6 +70,7 @@ public sealed class HttpStrategyObserver(GameClient client, CombatCatalog catalo
         token.ThrowIfCancellationRequested();
         var bank = profile?.Bank is null ? null : await client.GetBank();
         var result = new StrategyObservation(client.LastCharacterPayload!.Value, catalogs.ToImmutable(), policy, bank);
+        if (profile?.Needs is { } needs) result = result.WithOrders(new NeedOrderStore(needs.Directory, result.Name).Read());
         if (compatibility is not null) compatibility.Observed(started!.Value, result.Fingerprint);
         return result;
     }

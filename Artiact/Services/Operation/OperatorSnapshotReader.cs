@@ -95,6 +95,7 @@ public sealed class OperatorSnapshotReader(ExecutionSettings settings, ApiSettin
             Candidates = OperatorDecisionProjection.Candidates(saved.Terminal?.Candidates ?? []),
             Origin = saved.Autonomous is null ? "Configured" : "Autonomous",
             Explanation = goal,
+            Need = saved.Autonomous?.Need,
             LastConfirmedAction = saved.Journal.LastOrDefault(x => x.Status == "Verified")?.Command,
             saved.PendingCommand, UsedActions = saved.Attempts, MaxActions = limits?.Actions,
             RemainingActions = limits is null ? (int?)null : Math.Max(0, limits.Actions - saved.Attempts),

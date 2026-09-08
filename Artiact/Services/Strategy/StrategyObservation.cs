@@ -8,7 +8,10 @@ namespace Artiact.Services.Strategy;
 public sealed record StrategyRunContext(ImmutableDictionary<string, int> Used, ImmutableDictionary<string, bool> Refilling,
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] AutonomousRunState? Autonomous = null,
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] int? RemainingActions = null,
-    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] decimal? RemainingSeconds = null)
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] decimal? RemainingSeconds = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] int? RemainingDecisions = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] int? NoProgress = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] int? MaxNoProgress = null)
 {
     public static StrategyRunContext Empty { get; } = new(ImmutableDictionary<string, int>.Empty, ImmutableDictionary<string, bool>.Empty);
 }
@@ -16,6 +19,7 @@ public sealed record StrategyRunContext(ImmutableDictionary<string, int> Used, I
 public sealed class StrategyObservation
 {
     public StrategyRunContext Context { get; }
+    public NeedOrderBook? Orders { get; }
     public JsonElement Character { get; }
     public ImmutableDictionary<string, ImmutableArray<JsonElement>> Catalogs { get; }
     public string Policy { get; }
@@ -25,19 +29,22 @@ public sealed class StrategyObservation
     public string Name => Character.GetProperty("name").GetString()!;
 
     public StrategyObservation(JsonElement character, IReadOnlyDictionary<string, ImmutableArray<JsonElement>> catalogs, string policy,
-        Artiact.Contracts.Models.Api.BankSnapshot? bank = null, StrategyRunContext? context = null)
+        Artiact.Contracts.Models.Api.BankSnapshot? bank = null, StrategyRunContext? context = null, NeedOrderBook? orders = null)
     {
         Character = character.Clone();
         Catalogs = catalogs.ToImmutableDictionary(x => x.Key, x => x.Value.Select(v => v.Clone()).ToImmutableArray(), StringComparer.Ordinal);
         Policy = policy;
         Bank = bank;
         Context = context ?? StrategyRunContext.Empty;
+        Orders = orders;
         WorldFingerprint = Hash(JsonSerializer.SerializeToElement(new { catalogs = Catalogs, policy }));
-        Fingerprint = Hash(JsonSerializer.SerializeToElement(new { character = Character, bank = Bank, world = WorldFingerprint }));
+        Fingerprint = orders is null ? Hash(JsonSerializer.SerializeToElement(new { character = Character, bank = Bank, world = WorldFingerprint })) :
+            Hash(JsonSerializer.SerializeToElement(new { character = Character, bank = Bank, world = WorldFingerprint, orders }));
     }
 
-    public StrategyObservation WithCharacter(JsonElement character) => new(character, Catalogs, Policy, Bank, Context);
-    public StrategyObservation WithContext(StrategyRunContext context) => new(Character, Catalogs, Policy, Bank, context);
+    public StrategyObservation WithCharacter(JsonElement character) => new(character, Catalogs, Policy, Bank, Context, Orders);
+    public StrategyObservation WithContext(StrategyRunContext context) => new(Character, Catalogs, Policy, Bank, context, Orders);
+    public StrategyObservation WithOrders(NeedOrderBook orders) => new(Character, Catalogs, Policy, Bank, Context, orders);
     public bool SameWorld(StrategyObservation other) => Name == other.Name && WorldFingerprint == other.WorldFingerprint;
     public static string Hash(JsonElement value)
     {

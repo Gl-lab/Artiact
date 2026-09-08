@@ -94,3 +94,7 @@ R15 also observed a transient Blocked result in the older BoundedMining completi
 R11/R12 autonomous gathering supports Inspect and durable Bounded runs. Four categories and cap 50 are a versioned subset, not global optimality. Future XP thresholds, route capacity and bank trips remain estimates. Recipe dependencies carry no utility without a proven need. R13 adds an explicit HP recovery need with bounded food alternatives and permissions; it does not assign general economic/gear value to recipes. NoUsefulSupportedGoals currently requires all four observed skill caps and no remaining recovery need; unavailable paths remain Blocked. Rejected milestones stay suppressed for the run, and history is capped at 128 transitions. R14 adds bounded combat discovery (including its cap for NoUsefulSupportedGoals), single replacements and explicit permissions; R15 provides [bounded offline quality evidence](autonomous-quality-2026-09-08.md); see [autonomous goals](autonomous-goals.md).
 
 The operator panel supports server IP/hostname access without login for a trusted network. Access is bounded by deployment network reachability, not per-user authorization; see [operator server access](operator-panel.md#server-access). The legacy `/operation/stop` retains its loopback guard.
+
+## R25: цели от потребностей
+
+См. [Needs mode](needs-driven-goals.md): отдельные сохраняемые заказы, полный поддерживаемый путь, конечные срезы, исход NoActiveSupportedNeeds и ограничения. R20 этот режим не исполняет; live-приёмка новых цепочек не выполнена.

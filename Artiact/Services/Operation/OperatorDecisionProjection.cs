@@ -6,10 +6,10 @@ namespace Artiact.Services.Operation;
 public static class OperatorDecisionProjection
 {
     public static object[] Candidates(ImmutableArray<StrategyCandidate> candidates) => candidates.IsDefaultOrEmpty ? [] :
-        candidates.Take(128).Select(x => (object)new
+        candidates.OrderByDescending(x => x.Score.HasValue).ThenByDescending(x => x.Need?.Priority ?? 0).ThenByDescending(x => x.Score).Take(128).Select(x => (object)new
         {
             x.Id, x.Rejection, Skill = x.Discovery?.Skill, Target = x.Discovery?.Target,
-            OriginalTarget = x.Discovery?.OriginalTarget, FallbackReason = x.Discovery?.FallbackReason, x.Feasibility
+            OriginalTarget = x.Discovery?.OriginalTarget, FallbackReason = x.Discovery?.FallbackReason, x.Feasibility, x.Need
         }).ToArray();
 
     public static object? Decision(StrategyDecision? decision) => decision is null ? null : new

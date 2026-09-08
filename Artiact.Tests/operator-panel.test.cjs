@@ -27,7 +27,7 @@ test('Historical result without diagnostic evidence explicitly shows missing det
     assert.match(p.element('run-diagnostics').children[0].textContent,/отсутствуют/);
 });
 
-function panel(inspect={Accepted:true,Reason:'InspectReady',Receipt:'fresh'},snapshot={Executor:'Idle',Storage:'NoRun',Freshness:'Unavailable',Enabled:false},start={Accepted:true,Reason:'StartAccepted'}){
+function panel(inspect={Accepted:true,Reason:'InspectReady',Receipt:'fresh'},snapshot={Executor:'Idle',Storage:'NoRun',Freshness:'Unavailable',Enabled:false},start={Accepted:true,Reason:'StartAccepted'},profile={},orders=[]){
     const elements=new Map(), calls=[];
     const element=id=>{
         if(!elements.has(id)) elements.set(id,{value:'5',hidden:true,disabled:false,children:[],dataset:{},
@@ -40,7 +40,8 @@ function panel(inspect={Accepted:true,Reason:'InspectReady',Receipt:'fresh'},sna
         crypto:{randomUUID:()=> 'new-id'},setTimeout:()=>0,clearTimeout(){},console,
         fetch:async(url,options)=>{
             calls.push({url,body:options?.body&&JSON.parse(options.body)});
-            const value=url.endsWith('/controls')?{Enabled:true,Token:'token',Profile:{Limits:{RunId:'test',MaxActions:5,MaxSeconds:60,MaxDecisions:5,MaxNoProgress:3}}}:
+            const value=url.endsWith('/controls')?{Enabled:true,Token:'token',Profile:{Limits:{RunId:'test',MaxActions:5,MaxSeconds:60,MaxDecisions:5,MaxNoProgress:3},...profile}}:
+                url.endsWith('/orders')?{Version:1,Orders:orders}:
                 url.endsWith('/inspect')?await (typeof inspect==='function'?inspect():inspect):
                 url.endsWith('/start')?start:snapshot;
             return {ok:true,json:async()=>value};
@@ -48,6 +49,26 @@ function panel(inspect={Accepted:true,Reason:'InspectReady',Receipt:'fresh'},sna
     vm.runInContext(readFileSync('Artiact/Operator/panel.js','utf8'),context);
     return {element,calls,refresh:()=>vm.runInContext('poll()',context),settle:()=>new Promise(resolve=>setImmediate(resolve))};
 }
+test('Needs diagnosis separates full parent, slice and configured no-progress limit',async()=>{
+    const p=panel({Accepted:false,Reason:'NoFeasibleCandidate',Decision:{Candidates:[{Id:'order:one',Rejection:'EstimatedNoProgressInsufficient',Need:{Cause:'Заказ → ингредиент → mining 2',Code:'tool',Quantity:1,Deficit:1,FullActions:9,FullSeconds:90,SliceActions:2,SliceSeconds:20,SliceResult:'mining:2',RequiredNoProgress:4,ConfiguredNoProgress:3,Priority:1,Plan:['Move:4','mining:2','Craft:tool:1']}}]}});
+    await p.settle();await p.element('inspect').click();await p.settle();
+    const text=p.element('inspect-diagnostics').children[0].textContent;
+    assert.match(text,/Весь результат: 1 tool, оценка 9 действий/);assert.match(text,/Текущий срез: 2 действий/);
+    assert.match(text,/Предел без прогресса: 3; требуется: 4/);assert.match(text,/Craft:tool:1/);
+});
+test('Empty needs explains normal stop and never starts',async()=>{
+    const p=panel({Accepted:false,Reason:'NoActiveSupportedNeeds'});await p.settle();await p.element('start').click();await p.settle();
+    assert.match(p.element('control-result').textContent,/Нет актуальных поддерживаемых потребностей/);
+    assert.equal(p.calls.some(x=>x.url.endsWith('/start')),false);
+});
+test('Order cancellation submits the observed revision without starting gameplay',async()=>{
+    const p=panel(undefined,undefined,undefined,{Needs:{AllowCraft:false}},[{Id:'one',Code:'tool',Quantity:1,Priority:1,Revision:3,Status:'Active'}]);
+    await p.settle();assert.equal(p.element('orders-section').hidden,false);
+    await p.element('orders-list').children[0].children[0].onclick();await p.settle();
+    const change=p.calls.find(x=>x.url.endsWith('/orders')&&x.body);
+    assert.equal(change.body.ExpectedRevision,3);assert.equal(change.body.Order.Revision,4);assert.equal(change.body.Order.Status,'Cancelled');
+    assert.equal(p.calls.some(x=>/\/(inspect|start)$/.test(x.url)),false);
+});
 test('Start obtains a fresh receipt and starts without a separate preview',async()=>{
     const p=panel();await p.settle();
     await p.element('start').click();await p.settle();

@@ -50,3 +50,5 @@ R2: explicit Bounded execution now persists its journal and budgets and holds a 
 R8a journal entries carry conservative resource charges and refill phase; preserve these before dispatch and during pending-candidate reconstruction. Supply must not reset parent no-progress indefinitely. See ../docs/consumables.md for the supported immediate-heal subset.
 
 R9 autonomous mode uses EquipmentProjection for static weapon/shield changes; standalone fire-only replacement remains separate. Preserve exact inventory/stat checks and active-slot rejection; see ../docs/autonomous-combat.md.
+
+R25: Needs mode keeps absolute revisioned orders outside run history. Observe current orders, reconcile pending before switching parents, prove a bounded supported full chain before a budget slice, preserve Productive/no-progress semantics. NoActiveSupportedNeeds is a normal durable stop; Inspect never latches it. Keep Needs and Recovery permissions separate; R20 rejects Needs. See ../docs/needs-driven-goals.md.

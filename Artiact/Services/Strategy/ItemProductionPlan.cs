@@ -9,7 +9,7 @@ public sealed record ItemProductionPlan(ImmutableArray<ProductionStep> Steps, st
 {
     public static ItemProductionPlan Build(string code, int quantity, IReadOnlyDictionary<string, int> inventory,
         IReadOnlyDictionary<string, int> bank, IReadOnlyList<JsonElement> items, IReadOnlyList<JsonElement> resources,
-        IReadOnlyList<JsonElement>? monsters = null, bool capacityAware = false)
+        IReadOnlyList<JsonElement>? monsters = null, bool capacityAware = false, int maxDepth = 30)
     {
         var steps = ImmutableArray.CreateBuilder<ProductionStep>();
         try
@@ -21,7 +21,7 @@ public sealed record ItemProductionPlan(ImmutableArray<ProductionStep> Steps, st
             var visiting = new HashSet<string>(StringComparer.Ordinal);
             void Need(string item, int count)
             {
-                if (count <= 0 || steps.Count >= 100 || visiting.Count >= 30) throw new InvalidOperationException("PlanBoundExceeded");
+                if (count <= 0 || steps.Count >= 100 || visiting.Count >= maxDepth) throw new InvalidOperationException("PlanBoundExceeded");
                 int owned = Math.Min(count, stock.GetValueOrDefault(item));
                 stock[item] = stock.GetValueOrDefault(item) - owned; count -= owned;
                 if (count == 0) return;

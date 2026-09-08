@@ -33,3 +33,7 @@ The existing [live protocol](autonomous-live-protocol.md) remains a separate gat
 Verification is recorded in the [R17 change](../openspec/changes/operator-observation/verification.md). Browser preview uses synthetic facts; it is not live acceptance. Do not start the main application as a compilation test.
 
 R20 adds [finite series and local notifications](bounded-schedule.md). Its observation-only panel exposes series budgets, status, events and a guarded Stop button; manual run controls are mutually exclusive with scheduling. No live schedule is enabled by implementation or the earlier R19 approval.
+
+## R25: цели от потребностей
+
+См. [Needs mode](needs-driven-goals.md): отдельные сохраняемые заказы, полный поддерживаемый путь, конечные срезы, исход NoActiveSupportedNeeds и ограничения. R20 этот режим не исполняет; live-приёмка новых цепочек не выполнена.

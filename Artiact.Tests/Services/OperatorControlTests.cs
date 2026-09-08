@@ -8,6 +8,27 @@ public class OperatorControlTests : IDisposable
     private readonly List<string> _directories = [];
 
     [Fact]
+    public async Task OrdersAreRevisionCheckedAndCannotGrantPermissionsOrReuseReceipt()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "artiact-orders-control-" + Guid.NewGuid().ToString("N")); _directories.Add(directory);
+        var execution = new Execution();
+        var coordinator = new OperatorCoordinator(new() { RunDirectory = directory, AllowActions = true },
+            new() { BaseUrl = "http://localhost", Character = "hero", Username = "mock", Password = "mock" },
+            new() { Needs = new(directory) }, new(), execution);
+        Assert.Empty(coordinator.Orders().Orders); Assert.False(Directory.Exists(directory));
+        var receipt = await coordinator.InspectAsync(Request);
+        Assert.True((await coordinator.ChangeOrderAsync(new("order", "tool", 1), 0)).Accepted);
+        Assert.False((await coordinator.StartRunAsync(receipt.Receipt!)).Accepted);
+        Assert.False((await coordinator.ChangeOrderAsync(new("order", "tool", 1), 0)).Accepted);
+        Assert.True((await coordinator.ChangeOrderAsync(new("order", "tool", 1, Revision: 2, Status: "Cancelled"), 1)).Accepted);
+        Assert.False((await coordinator.ChangeOrderAsync(new("order", "tool", 1, Revision: 3), 2)).Accepted);
+        var profile = coordinator.Profile();
+        Assert.False(profile.GetProperty("Permissions").GetProperty("Craft").GetBoolean());
+        Assert.False(profile.GetProperty("Needs").TryGetProperty("Directory", out _));
+        Assert.Equal(0, execution.Starts);
+    }
+
+    [Fact]
     public async Task SixDecisionProtocolDoesNotRequireIncreasingLiveBudget()
     {
         var execution = new Execution(); var coordinator = Create(execution);

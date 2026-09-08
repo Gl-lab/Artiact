@@ -105,16 +105,37 @@ public sealed class OperatorCoordinator(ExecutionSettings settings, ApiSettings 
     public JsonElement Profile() => JsonSerializer.SerializeToElement(new
     {
         api.Character, portfolio.AutonomousGoals,
+        Needs = portfolio.Needs is { } needs ? new { needs.Version, needs.AllowCraft, needs.AllowBankWithdrawal, needs.Reserved } : null,
         settings.AllowActions, settings.LiveActionsApproved,
         Limits = new OperatorRunRequest(settings.RunId, settings.MaxActions, settings.MaxSeconds, settings.MaxDecisions, settings.MaxNoProgress),
         Permissions = new { Move = true, Gather = true, Bank = portfolio.BankRetain is not null,
-            Craft = portfolio.Items.Length > 0 || portfolio.Recovery?.AllowCraft == true || portfolio.Consumable is not null,
+            Craft = portfolio.Items.Length > 0 || portfolio.Recovery?.AllowCraft == true || portfolio.Needs?.AllowCraft == true || portfolio.Consumable is not null,
             Use = portfolio.Recovery?.AllowUse == true || portfolio.Consumable is not null,
             Rest = portfolio.Recovery?.AllowRest == true || portfolio.Consumable?.AllowRest == true },
         Retain = portfolio.BankRetain, Recovery = portfolio.Recovery,
         Skills = portfolio.Skills, Items = portfolio.Items,
         Consumable = portfolio.Consumable, ProductionReserves = portfolio.ProductionReserves
     });
+
+    public NeedOrderBook Orders() => OrdersStore().Read();
+
+    public async Task<OperatorControlResult> ChangeOrderAsync(NeedOrder order, int expectedRevision)
+    {
+        await _gate.WaitAsync();
+        try
+        {
+            // Completion is written only from a fresh observation by the executor.
+            if (order is null || order.Status is not ("Active" or "Cancelled")) return new(false, "OrderChangeRefused");
+            OrdersStore().Put(order, expectedRevision);
+            _tickets.Clear();
+            return new(true, "OrderSaved");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or ArgumentException or InvalidOperationException)
+        { return new(false, "OrderChangeRefused"); }
+        finally { _gate.Release(); }
+    }
+
+    private NeedOrderStore OrdersStore() => new(portfolio.Needs?.Directory ?? throw new InvalidOperationException("Needs disabled."), api.Character);
 
     private ExecutionSettings Prepare(OperatorRunRequest request, string mode)
     {

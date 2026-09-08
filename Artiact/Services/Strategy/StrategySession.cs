@@ -14,7 +14,8 @@ public sealed record StrategyCandidate(string Id, string Category, decimal Value
     decimal TravelSeconds, decimal RecoverySeconds, string? Rejection, bool Complete, [property: JsonIgnore] AtomicCommand? Command,
     string EstimateSource = "Configured", int Samples = 0, SkillPrerequisite? Prerequisite = null, CombatRoute? CombatRoute = null, PathEstimate? Path = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] GoalDiscoveryEvidence? Discovery = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] FeasibilityEvidence? Feasibility = null)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] FeasibilityEvidence? Feasibility = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] NeedEvidence? Need = null)
 {
     public decimal? TotalSeconds => ActionSeconds is >= 0.001m and <= 1_000_000 &&
         TravelSeconds is >= 0 and <= 1_000_000 && RecoverySeconds is >= 0 and <= 1_000_000
@@ -40,7 +41,8 @@ public sealed record RunFailure(string Operation, string ExceptionType, int Erro
 public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IProgressionStrategy> strategies,
     IMiningCooldownDelay cooldown, StrategyLimits? limits = null, TimeProvider? time = null,
     IRunCheckpointStore? checkpoints = null, string identity = "", MeasurementPolicy? selection = null,
-    IReadOnlyDictionary<string, int>? resourceLimits = null, bool inspectOnly = false, bool autonomous = false)
+    IReadOnlyDictionary<string, int>? resourceLimits = null, bool inspectOnly = false, bool autonomous = false,
+    Func<StrategyObservation, StrategyObservation>? reconcileNeeds = null)
 {
     private readonly IProgressionStrategy[] _strategies = strategies.ToArray();
     private readonly StrategyLimits _limits = limits ?? new();
@@ -143,6 +145,11 @@ public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IPro
                 if (_goals.History.Length >= 128) return Stop(StrategyStatus.Blocked, "AutonomousHistoryExhausted");
                 State = State.WithContext(RunContext());
             }
+            if (!inspect && reconcileNeeds is not null)
+            {
+                State = reconcileNeeds(State);
+                _latest = SavedObservation.From(State, _time.GetUtcNow());
+            }
             _candidates = _strategies.SelectMany(x => x.EvaluateAll(State)).Select(Measured).OrderBy(x => x.Id, StringComparer.Ordinal).ToImmutableArray();
             if (autonomous && !_candidates.Any(x => x.Score.HasValue && x.Command is not null) &&
                 _candidates.Any(x => x.Rejection == "EstimatedPathExceedsBudget"))
@@ -161,17 +168,25 @@ public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IPro
         catch (Exception) { return Stop(StrategyStatus.Blocked, "InvalidObservationOrPolicy"); }
         if (autonomous && _candidates.Length is 4 or 5 && _candidates.All(x => x.Rejection == "SupportedSkillCapReached"))
             return Stop(StrategyStatus.Stopped, "NoUsefulSupportedGoals");
+        if (autonomous && _candidates.Length == 1 && _candidates[0] is { Category: "need", Rejection: "NoActiveSupportedNeeds", Complete: true })
+            return inspect ? Decision(StrategyStatus.Stopped, "NoActiveSupportedNeeds") : Stop(StrategyStatus.Stopped, "NoActiveSupportedNeeds");
         if (_candidates.All(x => x.Complete)) return Stop(StrategyStatus.Completed, "TargetsReached");
         var selected = _candidates.Where(x => x.Score.HasValue && x.Command is not null)
-            .OrderByDescending(x => x.Score).ThenBy(x => x.Id, StringComparer.Ordinal).FirstOrDefault();
+            .OrderByDescending(x => x.Need?.Priority ?? 0).ThenByDescending(x => x.Score).ThenBy(x => x.Id, StringComparer.Ordinal).FirstOrDefault();
         if (selected is null) return Stop(StrategyStatus.Blocked, "NoFeasibleCandidate");
-        if (selection is not null && _candidates.SingleOrDefault(x => x.Id == _incumbent && x.Score.HasValue && x.Command is not null) is { } incumbent &&
+        if (selection is not null && selected.Need is null && _candidates.SingleOrDefault(x => x.Id == _incumbent && x.Score.HasValue && x.Command is not null) is { } incumbent &&
             selected.Score <= incumbent.Score * selection.SwitchRatio) selected = incumbent;
         var command = selected.Command!;
         if (inspect) return Decision(StrategyStatus.Selected, "InspectOnly", selected.Id, command.Id);
         if (_goals is not null && selected.Discovery is not null)
         {
             _goals = _goals with { Active = selected.Discovery, ActiveWorld = State.WorldFingerprint };
+            State = State.WithContext(RunContext());
+            Save();
+        }
+        if (_goals is not null && selected.Need is not null)
+        {
+            _goals = _goals with { Need = selected.Need };
             State = State.WithContext(RunContext());
             Save();
         }
@@ -327,11 +342,12 @@ public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IPro
         }
         return new(used.ToImmutable(), refilling.ToImmutable(), _goals,
             autonomous ? Math.Max(0, _limits.Actions - _attempts) : null,
-            autonomous ? Math.Max(0, _limits.DurationSeconds - (_loaded ? (decimal)(_time.GetUtcNow() - _started).TotalSeconds : 0)) : null);
+            autonomous ? Math.Max(0, _limits.DurationSeconds - (_loaded ? (decimal)(_time.GetUtcNow() - _started).TotalSeconds : 0)) : null,
+            Math.Max(0, _limits.Decisions - _decisions), _noProgress, _limits.NoProgress);
     }
     private StrategyCandidate Measured(StrategyCandidate candidate)
     {
-        if (selection is null || candidate.Command is null) return candidate;
+        if (selection is null || candidate.Command is null || candidate.Need is not null) return candidate;
         if (selection.FullPaths)
         {
             if (candidate.Path is not { } path || path.Remaining <= 0 || path.ExpectedProgress <= 0 || path.UnitSeconds <= 0)

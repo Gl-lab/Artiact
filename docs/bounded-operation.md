@@ -34,3 +34,7 @@ After archival, explicitly configure a new `Execution:RunId` and the next goal/b
 `GET /operation` exposes run ID, goal, last command, decision budgets and intervention flag. `POST /operation/stop` requests cooperative cancellation and schedules no game action. Host shutdown also cancels. These operational routes follow the host's existing network exposure; deploy behind appropriate local access controls. Cancellation preserves returned action state; an in-flight HTTP POST may finish before stopping. Cooldown is awaited rather than actively polled.
 
 Socket-free evidence: [R2 execution evidence](../openspec/changes/durable-bounded-run/execution-evidence.md). [Live session acceptance](../openspec/changes/bounded-live-gathering/execution-evidence.md) verified two real gathers, reconstructed sessions and persistent cancellation for gllab. The separate `RealApiBounded` category requires `ARTIACT_BOUNDED_ROLLOUT=gllab:mining2:max4`; its fixed ignored checkpoint prevents automatic reruns. This was not process-kill recovery or proof of reaching mining 2. Container persistence and telemetry are verified separately.
+
+## R25: цели от потребностей
+
+См. [Needs mode](needs-driven-goals.md): отдельные сохраняемые заказы, полный поддерживаемый путь, конечные срезы, исход NoActiveSupportedNeeds и ограничения. R20 этот режим не исполняет; live-приёмка новых цепочек не выполнена.

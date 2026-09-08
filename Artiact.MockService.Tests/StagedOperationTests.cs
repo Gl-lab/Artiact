@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Collections.Immutable;
 using System.Text;
 using System.Text.Json.Nodes;
+using System.Text.Json;
 using Artiact;
 using Artiact.Client;
 using Artiact.Contracts.Client;
@@ -1279,6 +1280,322 @@ public class StagedOperationTests(Xunit.Abstractions.ITestOutputHelper output)
             new StagedExecution(settings, api, portfolio, harness.Factory, harness.State).RunAsync(token);
     }
 
+    [Theory]
+    [InlineData("item-production")]
+    [InlineData("skill-preparation")]
+    [InlineData("resource-preparation")]
+    public async Task NeedsOrderBuildsSupportedChainAndStopsWithoutGeneralDevelopment(string scenario)
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "artiact-needs-flow-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            await using var h = new Harness(new()); await h.Reset(scenario);
+            var orders = new NeedOrderStore(directory, "researcher"); orders.Put(new("tool-order", "tool", 1), 0);
+            var portfolio = new PortfolioSettings { Needs = new(directory, AllowCraft: true) };
+            var settings = new ExecutionSettings { Mode = "Bounded", AllowActions = true, RunDirectory = directory, RunId = "needs", MaxActions = 100, MaxDecisions = 120, MaxNoProgress = 40, MaxSeconds = 5000 };
+            var api = new ApiSettings { BaseUrl = "http://localhost", Character = "researcher", Username = "mock", Password = "mock" };
+            using var store = new FileRunCheckpointStore(directory, "http://localhost/researcher");
+            string identity = StagedExecution.RunIdentity(settings, api, portfolio.Policy());
+            var limits = new StrategyLimits(120, 40, 100, 5000);
+            var inspected = await h.Factory.Create(portfolio.Policy(), limits).InspectAsync();
+            Assert.True(inspected.Status == StrategyStatus.Selected, JsonSerializer.Serialize(inspected));
+            Assert.Equal(0, h.Handler.Actions);
+            Assert.Contains(inspected.Candidates, x => x.Need?.Id == "tool-order");
+            StrategyDecision? result = null;
+            for (int i = 0; i < 100; i++)
+            {
+                result = await h.Factory.Create(portfolio.Policy(), limits, store, identity).TickAsync();
+                if (result.Status != StrategyStatus.Selected) break;
+            }
+            Assert.Equal("NoActiveSupportedNeeds", result!.Reason);
+            Assert.Equal("Completed", Assert.Single(orders.Read().Orders).Status);
+            int actions = h.Handler.Actions;
+            Assert.Equal(JsonSerializer.Serialize(result), JsonSerializer.Serialize(await h.Factory.Create(portfolio.Policy(), limits, store, identity).TickAsync()));
+            Assert.Equal(actions, h.Handler.Actions);
+            Assert.True(FileRunCheckpointStore.CanArchive(store.Load()!));
+            var completed = store.Load()!;
+            Assert.False(FileRunCheckpointStore.CanArchive(completed with { PendingCommand = "Gather:mining" }));
+            Assert.False(FileRunCheckpointStore.CanArchive(completed with { Journal = [] }));
+            store.ArchiveCompleted(FileRunCheckpointStore.IdentityDigest(identity));
+            Assert.Equal("Completed", Assert.Single(orders.Read().Orders).Status);
+        }
+        finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task NeedsCancellationAfterSentCommandReconcilesBeforeStopping(bool lostReply)
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "artiact-needs-cancel-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            await using var h = new Harness(new()); await h.Reset("skill-preparation");
+            var orders = new NeedOrderStore(directory, "researcher"); orders.Put(new("order", "tool", 1), 0);
+            var policy = new PortfolioSettings { Needs = new(directory, AllowCraft: true) }.Policy();
+            var saved = new Checkpoint(); var limits = new StrategyLimits(120, 40, 100, 5000);
+            if (lostReply) h.Handler.Corruption = "loss";
+            var first = await h.Factory.Create(policy, limits, saved, "cancel").TickAsync();
+            Assert.Equal(lostReply ? StrategyStatus.UnknownOutcome : StrategyStatus.Selected, first.Status);
+            orders.Put(new("order", "tool", 1, Revision: 2, Status: "Cancelled"), 1);
+            int actions = h.Handler.Actions;
+            var next = await h.Factory.Create(policy, limits, saved, "cancel").TickAsync();
+            if (lostReply)
+            {
+                Assert.Equal(StrategyStatus.Reconciled, next.Status);
+                next = await h.Factory.Create(policy, limits, saved, "cancel").TickAsync();
+            }
+            Assert.Equal("NoActiveSupportedNeeds", next.Reason);
+            Assert.Equal(actions, h.Handler.Actions);
+            Assert.Equal(first.Attempts, next.Attempts);
+            Assert.Equal("Cancelled", Assert.Single(orders.Read().Orders).Status);
+        }
+        finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
+    }
+
+    [Fact]
+    public async Task NeedsEmptyInspectThenOrderAndForbiddenFullChainNeverStartsPartialPreparation()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "artiact-needs-inspect-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            await using var h = new Harness(new()); await h.Reset("skill-preparation");
+            var policy = new PortfolioSettings { Needs = new(directory) }.Policy();
+            var run = h.Factory.Create(policy);
+            Assert.Equal("NoActiveSupportedNeeds", (await run.InspectAsync()).Reason);
+            Assert.False(Directory.Exists(directory));
+            new NeedOrderStore(directory, "researcher").Put(new("order", "tool", 1), 0);
+            var denied = await run.InspectAsync();
+            Assert.Equal(StrategyStatus.Blocked, denied.Status);
+            Assert.All(denied.Candidates, x => Assert.Null(x.Command));
+            Assert.Equal(0, h.Handler.Actions);
+            var allowed = await h.Factory.Create(policy with { Needs = new(directory, AllowCraft: true) }, new(120, 40, 100, 5000)).InspectAsync();
+            Assert.Equal(StrategyStatus.Selected, allowed.Status);
+        }
+        finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
+    }
+
+    [Theory]
+    [InlineData(1, false)]
+    [InlineData(2, true)]
+    [InlineData(40, true)]
+    public async Task NeedsNoProgressBoundaryAgreesWithActualTicksAndRestart(int maximum, bool feasible)
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "artiact-needs-bound-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            await using var h = new Harness(new()); await h.Reset("item-production");
+            new NeedOrderStore(directory, "researcher").Put(new("order", "tool", 1), 0);
+            var policy = new PortfolioSettings { Needs = new(directory, AllowCraft: true) }.Policy();
+            var limits = new StrategyLimits(120, maximum, 100, 5000); var saved = new Checkpoint();
+            var inspected = await h.Factory.Create(policy, limits).InspectAsync();
+            Assert.Equal(feasible ? StrategyStatus.Selected : StrategyStatus.Blocked, inspected.Status);
+            if (!feasible) Assert.Contains(inspected.Candidates, x => x.Rejection == "EstimatedNoProgressInsufficient");
+            StrategyDecision? result = null;
+            for (int i = 0; i < 100; i++)
+            {
+                result = await h.Factory.Create(policy, limits, saved, "boundary").TickAsync();
+                if (result.Status != StrategyStatus.Selected) break;
+            }
+            Assert.Equal(feasible ? "NoActiveSupportedNeeds" : "NoFeasibleCandidate", result!.Reason);
+            Assert.Equal(feasible ? 6 : 0, h.Handler.Actions);
+        }
+        finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
+    }
+
+    [Theory]
+    [InlineData("consumable-bank", false, true)]
+    [InlineData("consumable-bank", false, false)]
+    [InlineData("consumable-production", true, false)]
+    [InlineData("recovery-training", true, false)]
+    public async Task NeedsHpComparesAllowedAlternativesAndStopsAtSatisfiedParent(string scenario, bool craft, bool rest)
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "artiact-needs-hp-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            await using var h = new Harness(new()); await h.Reset(scenario);
+            var policy = RecoveryProfile(craft, rest) with { Needs = new(directory) };
+            var limits = new StrategyLimits(120, 60, 100, 5000); var saved = new Checkpoint();
+            var inspect = await h.Factory.Create(policy, limits).InspectAsync();
+            Assert.True(inspect.Status == StrategyStatus.Selected, JsonSerializer.Serialize(inspect));
+            Assert.All(inspect.Candidates.Where(x => x.Command is not null), x => Assert.Equal("ObservedHp", x.Need?.Source));
+            StrategyDecision? result = null; StrategySession? run = null;
+            for (int i = 0; i < 100; i++)
+            {
+                run = h.Factory.Create(policy, limits, saved, "hp-parent"); result = await run.TickAsync();
+                if (result.Status != StrategyStatus.Selected) break;
+            }
+            Assert.True(result!.Reason == "NoActiveSupportedNeeds", JsonSerializer.Serialize(result));
+            Assert.Equal(20, run!.State!.Character.GetProperty("hp").GetInt32());
+            Assert.Equal(1, CharacterObservation.Read(run.State.Character)!.Inventory["protected"]);
+            Assert.Equal(0, result.NoProgress);
+        }
+        finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
+    }
+
+    [Theory]
+    [InlineData("cycle")]
+    [InlineData("unsupported-skill")]
+    [InlineData("capacity")]
+    [InlineData("random-yield")]
+    [InlineData("missing-resource")]
+    public async Task NeedsFullChainRefusalsCannotBeBypassedByTinySlice(string corruption)
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "artiact-needs-invalid-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            await using var h = new Harness(new()); await h.Reset("item-production");
+            new NeedOrderStore(directory, "researcher").Put(new("order", "tool", 1), 0);
+            var policy = new PortfolioSettings { Needs = new(directory, AllowCraft: true) }.Policy();
+            var candidates = await h.InspectNeeds(policy, state =>
+            {
+                var raw = JsonNode.Parse(state.Character.GetRawText())!;
+                if (corruption == "capacity") raw["inventory_max_items"] = 1;
+                var items = state.Catalogs["items"].Select(x => JsonNode.Parse(x.GetRawText())!).ToArray();
+                var tool = items.Single(x => x["code"]!.GetValue<string>() == "tool");
+                if (corruption == "cycle") tool["craft"]!["items"] = JsonNode.Parse("""[{"code":"tool","quantity":1}]""");
+                if (corruption == "unsupported-skill") tool["craft"]!["skill"] = "alchemy";
+                var resources = state.Catalogs["resources"].Select(x => JsonNode.Parse(x.GetRawText())!).ToArray();
+                if (corruption == "random-yield") foreach (var resource in resources) resource["drops"]![0]!["rate"] = 2;
+                return new StrategyObservation(JsonSerializer.SerializeToElement(raw), state.Catalogs
+                    .SetItem("items", items.Select(x => JsonSerializer.SerializeToElement(x)).ToImmutableArray())
+                    .SetItem("resources", corruption == "missing-resource" ? [] : resources.Select(x => JsonSerializer.SerializeToElement(x)).ToImmutableArray()),
+                    state.Policy, state.Bank, state.Context with { RemainingActions = 2, RemainingSeconds = 5000, RemainingDecisions = 120, MaxNoProgress = 40 }, state.Orders);
+            });
+            Assert.All(candidates, x => { Assert.Null(x.Command); Assert.NotNull(x.Rejection); });
+            Assert.Equal(0, h.Handler.Actions);
+        }
+        finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
+    }
+
+    [Fact]
+    public async Task NeedsFreshSatisfiedHpStopsExistingPreparationWithoutMoreActions()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "artiact-needs-external-hp-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            await using var h = new Harness(new()); await h.Reset("recovery-training");
+            var policy = RecoveryProfile() with { Needs = new(directory) }; var saved = new Checkpoint();
+            var limits = new StrategyLimits(120, 60, 100, 5000);
+            Assert.Equal(StrategyStatus.Selected, (await h.Factory.Create(policy, limits, saved, "external-hp").TickAsync()).Status);
+            int actions = h.Handler.Actions; h.Handler.ObservedFullHp = true;
+            var end = await h.Factory.Create(policy, limits, saved, "external-hp").TickAsync();
+            Assert.Equal("NoActiveSupportedNeeds", end.Reason); Assert.Equal(actions, h.Handler.Actions);
+        }
+        finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
+    }
+
+    [Theory]
+    [InlineData(0, true)]
+    [InlineData(1, false)]
+    public async Task NeedsExistingRootCountsOnlyAboveProtectedFloor(int floor, bool satisfied)
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "artiact-needs-root-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            await using var h = new Harness(new()); await h.Reset("item-production");
+            new NeedOrderStore(directory, "researcher").Put(new("root", "tool", 1), 0);
+            var policy = new PortfolioSettings { Needs = new(directory, AllowCraft: true, Reserved: ImmutableDictionary<string, int>.Empty.Add("tool", floor)) }.Policy();
+            var candidates = await h.InspectNeeds(policy, state =>
+            {
+                var raw = JsonNode.Parse(state.Character.GetRawText())!;
+                raw["inventory"]!.AsArray().Add(JsonNode.Parse("""{"slot":2,"code":"tool","quantity":1}"""));
+                return state.WithCharacter(JsonSerializer.SerializeToElement(raw));
+            });
+            Assert.Equal(satisfied, candidates.Any(x => x.Rejection == "NoActiveSupportedNeeds"));
+            Assert.Equal(0, h.Handler.Actions);
+        }
+        finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task NeedsBankPermissionControlsAlternativesAndPreservesProtectedStock(bool withdrawal)
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "artiact-needs-bank-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            await using var h = new Harness(new()); await h.Reset("item-production-bank");
+            new NeedOrderStore(directory, "researcher").Put(new("order", "tool", 1), 0);
+            var policy = new PortfolioSettings { Needs = new(directory, AllowCraft: true, AllowBankWithdrawal: withdrawal,
+                Reserved: ImmutableDictionary<string, int>.Empty.Add("protected", 1)), BankRetain = new() { ["ore"] = 0 } }.Policy();
+            var limits = new StrategyLimits(120, 40, 100, 5000); var saved = new Checkpoint();
+            var inspect = await h.Factory.Create(policy, limits).InspectAsync();
+            Assert.Equal(withdrawal ? 2 : 1, inspect.Candidates.Length);
+            Assert.All(inspect.Candidates, x => Assert.Equal(1, x.Value));
+            StrategyDecision? result = null; StrategySession? run = null; var commands = new List<string?>();
+            for (int i = 0; i < 100; i++)
+            {
+                run = h.Factory.Create(policy, limits, saved, "bank-order"); result = await run.TickAsync(); commands.Add(result.Command);
+                if (result.Status != StrategyStatus.Selected) break;
+            }
+            Assert.Equal("NoActiveSupportedNeeds", result!.Reason);
+            Assert.Equal(1, CharacterObservation.Read(run!.State!.Character)!.Inventory["protected"]);
+            if (!withdrawal)
+            {
+                Assert.DoesNotContain(commands, x => x?.StartsWith("Withdraw:", StringComparison.Ordinal) == true);
+                Assert.Equal(2, run.State.Bank!.Items["ore"]);
+            }
+            Assert.Equal(1, CharacterObservation.Read(run.State.Character)!.Inventory["tool"]);
+        }
+        finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
+    }
+
+    [Theory]
+    [InlineData("craft")]
+    [InlineData("withdraw")]
+    [InlineData("skill")]
+    public async Task NeedsCompatibilityRejectsMissingRequiredContract(string removed)
+    {
+        await using var factory = new MockServiceFactory(); using var client = factory.CreateClient();
+        using var reset = await client.PostAsync("/__mock/reset", new StringContent("""{"scenario":"item-production"}""", Encoding.UTF8, "application/json"));
+        reset.EnsureSuccessStatusCode();
+        var schema = JsonNode.Parse(await client.GetStringAsync("/openapi.json"))!;
+        var policy = new PortfolioSettings { Needs = new(Path.GetTempPath(), AllowCraft: true, AllowBankWithdrawal: true), BankRetain = new() { ["ore"] = 0 } }.Policy();
+        Assert.True(ApiCompatibility.Compatible(JsonSerializer.SerializeToElement(schema), "8.2.3", policy));
+        if (removed == "skill") schema["components"]!["schemas"]!["CharacterSchema"]!["properties"]!.AsObject().Remove("weaponcrafting_xp");
+        else schema["paths"]!.AsObject().Remove(removed == "craft" ? "/my/{name}/action/crafting" : "/my/{name}/action/bank/withdraw/item");
+        Assert.False(ApiCompatibility.Compatible(JsonSerializer.SerializeToElement(schema), "8.2.3", policy));
+    }
+
+    [Fact]
+    public async Task NeedsBudgetSlicePreservesAbsoluteOrderForNextRun()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "artiact-needs-slice-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            await using var h = new Harness(new()); await h.Reset("item-production");
+            var orders = new NeedOrderStore(directory, "researcher"); orders.Put(new("order", "tool", 1), 0);
+            var portfolio = new PortfolioSettings { Needs = new(directory, AllowCraft: true) };
+            var api = new ApiSettings { BaseUrl = "http://localhost", Character = "researcher", Username = "mock", Password = "mock" };
+            var settings = new ExecutionSettings { RunId = "slice", MaxActions = 2, MaxDecisions = 120, MaxNoProgress = 40, MaxSeconds = 5000 };
+            using var store = new FileRunCheckpointStore(directory, "http://localhost/researcher");
+            string identity = StagedExecution.RunIdentity(settings, api, portfolio.Policy());
+            var limits = new StrategyLimits(120, 40, 2, 5000);
+            var inspected = await h.Factory.Create(portfolio.Policy(), limits).InspectAsync();
+            var evidence = Assert.Single(inspected.Candidates).Need!;
+            Assert.True(evidence.FullActions > evidence.SliceActions);
+            Assert.NotEqual("ParentSatisfied", evidence.SliceResult);
+            await h.Factory.Create(portfolio.Policy(), limits, store, identity).TickAsync();
+            await h.Factory.Create(portfolio.Policy(), limits, store, identity).TickAsync();
+            var end = await h.Factory.Create(portfolio.Policy(), limits, store, identity).TickAsync();
+            Assert.Equal("AutonomousBudgetExhausted", end.Reason);
+            Assert.Equal("Active", Assert.Single(orders.Read().Orders).Status);
+            store.ArchiveCompleted(FileRunCheckpointStore.IdentityDigest(identity));
+            var next = new Checkpoint(); StrategyDecision? result = null;
+            for (int i = 0; i < 100; i++)
+            {
+                result = await h.Factory.Create(portfolio.Policy(), new(120, 40, 100, 5000), next, "next-slice").TickAsync();
+                if (result.Status != StrategyStatus.Selected) break;
+            }
+            Assert.Equal("NoActiveSupportedNeeds", result!.Reason);
+            Assert.Equal(6, h.Handler.Actions);
+            Assert.Equal("Completed", Assert.Single(orders.Read().Orders).Status);
+        }
+        finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
+    }
+
     [Fact]
     public async Task ScheduleArchivesTwoBoundedRunsAndRestartCannotRefundSeriesBudget()
     {
@@ -1381,6 +1698,11 @@ public class StagedOperationTests(Xunit.Abstractions.ITestOutputHelper output)
             return new(new HttpStrategyObserver(_client, _catalog, _characters, gathering.Identity, profile: gathering),
                 [new AutonomousExecutionFlowTests.Lowest(gathering, new(_client, _characters))], new NoDelay(), limits, selection: gathering.Measurement);
         }
+        public async Task<StrategyCandidate[]> InspectNeeds(PortfolioPolicy policy, Func<StrategyObservation, StrategyObservation> transform)
+        {
+            var state = await new HttpStrategyObserver(_client, _catalog, _characters, policy.Identity, profile: policy).ObserveAsync(CancellationToken.None);
+            return new NeedsGoalDiscovery(policy, new(_client, _characters)).EvaluateAll(transform(state)).ToArray();
+        }
         public Harness(ExecutionSettings execution, string origin = "http://localhost", bool miningOnly = false)
         {
             State = new(Clock); Handler = new(_factory.Server.CreateHandler(), Clock);
@@ -1405,6 +1727,7 @@ public class StagedOperationTests(Xunit.Abstractions.ITestOutputHelper output)
     {
         public int Actions;
         public bool MiningOnly;
+        public bool ObservedFullHp;
         public List<string> Reads = [];
         public string? Corruption;
         public CancellationTokenSource? Cancel;
@@ -1413,6 +1736,12 @@ public class StagedOperationTests(Xunit.Abstractions.ITestOutputHelper output)
         {
             var response = await base.SendAsync(request, token);
             string path = request.RequestUri!.AbsolutePath;
+            if (ObservedFullHp && path.StartsWith("/characters/", StringComparison.Ordinal))
+            {
+                var body = JsonNode.Parse(await response.Content.ReadAsStringAsync(token))!;
+                body["data"]!["hp"] = body["data"]!["max_hp"]!.GetValue<int>();
+                response.Content = new StringContent(body.ToJsonString());
+            }
             if (path == "/maps" && Corruption == "future-workshop")
             {
                 var node = JsonNode.Parse(await response.Content.ReadAsStringAsync(token))!;
