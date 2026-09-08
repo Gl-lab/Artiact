@@ -4,4 +4,4 @@
 - [x] Test local matrix isolation and implement guarded assessment.
 - [x] Acquire fresh read-only evidence and choose justified proposed ceilings.
 - [x] Update protocol, run offline/solution gates and self-review.
-- [ ] Commit and push the reviewable slice.
+- [x] Commit and push the reviewable slice (`78319aa`, origin/master).
