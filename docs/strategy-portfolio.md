@@ -1,5 +1,7 @@
 # Explicit strategy portfolio
 
+Manual profiles supply explicit goals and values, including in R10 full-path mode. R11 adds [automatic gathering discovery in Inspect](autonomous-goals.md). Milestone renewal and autonomous execution remain pending in the [R11–R15 roadmap](roadmap-autonomous-goals-ru.md).
+
 R5 optionally ranks [alternative resources/opponents/items using measured cooldowns](measured-selection.md), persisted sample metadata and an incumbent switching threshold. Fixed ranking remains the default; unknown prerequisite costs remain explicit assumptions.
 
 R1 supports a profession-only profile: provide `Portfolio:Skills` and omit CombatTarget/Monster/Equipment (defaults 0/empty/empty). Negative targets and orphan combat settings are rejected. With combat enabled, Equipment may be omitted. The factory registers only configured categories; profession-only observations load maps/resources, without items/monsters. Gathering validates common identity/location/inventory plus the selected skill, independently of combat stats. Unsupported combat stats still reject combat candidates. Response checks preserve unrelated raw character fields.
@@ -23,3 +25,6 @@ Expected commands: Unequip, Equip, Move(4), Gather, Gather, Move(5), Gather, Gat
 `StrategySessionTests` covers coordinator boundaries; `StrategyPortfolioFlowTests` uses real clients over TestServer, including lost replies, cancellation and corrupted responses for equipment, gathering and combat. Existing mining/combat/craft suites remain regression gates. Live rollout remains unverified; see ADR 0001 and [staged operation](staged-operation.md).
 
 R2: explicit Bounded execution now persists its journal and budgets and holds a local character lease; see [bounded operation](bounded-operation.md). Earlier in-memory restart limitations still apply to standalone Inspect/OneShot/Legacy sessions.
+# Automatic goal source
+
+R11 adds opt-in [autonomous Inspect discovery](autonomous-goals.md). Manual goals remain required for action execution until R12.

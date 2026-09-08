@@ -6,6 +6,8 @@ public static class OperationRegistration
     {
         var execution = configuration.GetSection("Execution").Get<ExecutionSettings>() ?? new();
         var portfolio = configuration.GetSection("Portfolio").Get<PortfolioSettings>() ?? new();
+        if (portfolio.AutonomousGoals && !string.Equals(execution.Mode, nameof(ExecutionMode.Inspect), StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException("AutonomousGoalsRequireInspect");
         services.AddSingleton(execution);
         services.AddSingleton(portfolio);
         services.AddSingleton<OperationState>();

@@ -77,3 +77,6 @@ The mining-progression mock uses synthetic six-XP awards and ten-XP thresholds. 
 R2: explicit Bounded execution now persists its journal and budgets and holds a local character lease; see [bounded operation](bounded-operation.md). Earlier in-memory restart limitations still apply to standalone Inspect/OneShot/Legacy sessions.
 
 R9 local [autonomous combat](autonomous-combat.md) supports bounded stage/gear alternatives and R7/R8/R8a preparation. Only weapon/shield static effects qualify; other slots, combined loadout search, active effects and defeat recovery remain unsupported. Cooking/fishing preparation is now supported by R8a; broader profession coverage is still limited. No live combat acceptance.
+# Autonomous discovery boundary
+
+R11 autonomous goals are Inspect-only. Four gathering categories and cap 50 are a versioned supported subset, not global optimality. Future XP thresholds, route capacity and bank trips remain estimates. Recipe dependencies carry no utility without a proven need. Durable goal transitions, autonomous healing and combat discovery, and execution quality comparisons are pending R12–R15; see [autonomous goals](autonomous-goals.md).

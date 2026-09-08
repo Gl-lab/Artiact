@@ -6,6 +6,7 @@ This directory is the source-grounded guide for developers and AI agents working
 
 | Document | Use it for |
 |---|---|
+| [Autonomous goals](autonomous-goals.md) | R11 opt-in discovery in Inspect, utility explanations and remaining execution boundary |
 | [Full-path selection](full-path-selection.md) | R10 context-aware progress/cost estimates, factual run performance and comparison evidence |
 | [Autonomous combat](autonomous-combat.md) | R9 stages, opponent/weapon/shield selection, preparation and immediate healing |
 | [Architecture](architecture.md) | Components, dependencies, startup, background execution, HTTP and observability |
@@ -28,7 +29,8 @@ This directory is the source-grounded guide for developers and AI agents working
 | [Consumables](consumables.md) | Parent-bound healing, stock refill, cooking/fishing prerequisites and durable allowances |
 | [Measured selection](measured-selection.md) | Alternative candidates, observed cooldown estimates and switching threshold |
 | [Roadmap delivery](roadmap-progress.md) | Completed core epics, publication evidence and remaining live rollout boundary |
-| [Новый роадмап на русском](roadmap-next-ru.md) | Проект R6–R10, включая R8a «Расходники и их производство»: актуальная готовность, приоритеты и критерии приёмки |
+| [Автоматический выбор целей — новый роадмап](roadmap-autonomous-goals-ru.md) | Проект R11–R15: генерация целей и их полезности без ручных Skill/Target/Value, динамические рубежи и приёмка |
+| [Роадмап R6–R10 на русском](roadmap-next-ru.md) | Завершённый локальный объём R6–R10, включая R8a «Расходники и их производство»; история и критерии приёмки |
 | [Предыдущий роадмап на русском](roadmap-ru.md) | История завершённых R1–R5 и ограниченной эксплуатационной приёмки |
 | [Strategy portfolio](strategy-portfolio.md) | Explicit competing goals, atomic commands and reconciliation |
 | [Deterministic combat progression](combat-progression.md) | Explicit bounded sessions, equipment, recovery and synthetic HTTP acceptance |

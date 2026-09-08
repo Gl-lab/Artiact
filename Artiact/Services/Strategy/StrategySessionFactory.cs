@@ -29,9 +29,11 @@ public sealed class StrategySessionFactory(GameClient client, CombatCatalog cata
                 strategies.Add(policy.Consumable?.ParentItem == goal.Code ? new ConsumableStrategy(strategy, policy, port) : strategy);
             }
         if (policy.Measurement?.FullPaths == true) strategies = strategies.Select(x => (IProgressionStrategy)new FullPathStrategy(x, policy)).ToList();
+        if (policy.AutonomousGoals) strategies.Add(new AutonomousGoalDiscovery(policy, port, limits ?? new()));
         return new(new HttpStrategyObserver(client, catalog, characters, policy.Identity, compatibility, policy), strategies, cooldown, limits,
             checkpoints: checkpoints, identity: identity, selection: policy.Measurement,
-            resourceLimits: policy.Consumable is { } food ? new Dictionary<string, int> { ["use:" + food.Code] = food.MaxUsed, ["materials:" + food.Code] = food.MaxMaterialUnits } : null);
+            resourceLimits: policy.Consumable is { } food ? new Dictionary<string, int> { ["use:" + food.Code] = food.MaxUsed, ["materials:" + food.Code] = food.MaxMaterialUnits } : null,
+            inspectOnly: policy.AutonomousGoals);
     }
 }
 
@@ -48,7 +50,7 @@ public sealed class HttpStrategyObserver(GameClient client, CombatCatalog catalo
         var catalogs = ImmutableDictionary.CreateBuilder<string, ImmutableArray<System.Text.Json.JsonElement>>(StringComparer.Ordinal);
         foreach (string name in profile is { CombatEnabled: false } ? new[] { "maps", "resources" } : new[] { "maps", "resources", "items", "monsters" })
             catalogs[name] = (await catalog.ReadPagesAsync(name, token)).ToImmutableArray();
-        if (profile is not null && !profile.Items.IsDefaultOrEmpty && !catalogs.ContainsKey("items"))
+        if (profile is not null && (profile.AutonomousGoals || !profile.Items.IsDefaultOrEmpty) && !catalogs.ContainsKey("items"))
             catalogs["items"] = (await catalog.ReadPagesAsync("items", token)).ToImmutableArray();
         characters.SaveCharacter(await client.GetCharacter());
         token.ThrowIfCancellationRequested();

@@ -1,5 +1,7 @@
 # Main application instructions
 
+R11: autonomous gathering discovery is Inspect-only. Preserve stable manual policy serialization, explicit bank permission, bounded resource generation and zero recipe utility without a proven need. See ../docs/autonomous-goals.md.
+
 R10: keep actual action facts separate from conservative resource charges and route estimates. Persist verified facts before wait, retain null for incomplete wait/unknown timing, and never learn XP/cooldown from reconciliation. Full-path context must change with relevant levels/equipment/catalogs. Preserve all feasible parent alternatives through consumable wrappers. See ../docs/full-path-selection.md.
 
 This directory contains the executable ASP.NET Core host and autonomous background worker. Parent instructions in `../AGENTS.md` also apply.

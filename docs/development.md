@@ -46,6 +46,8 @@ Every deterministic fixture contains replay checks. Run this separate command wh
 
 ## Configuration
 
+For R11 goal discovery, set `Portfolio:AutonomousGoals=true` with `Execution:Mode=Inspect` and an empty manual portfolio. This mode uses MaxActions/MaxSeconds as planning bounds and does not dispatch actions. See [autonomous goals](autonomous-goals.md) for supported categories, explanations and remaining execution work.
+
 `Artiact/Program.cs` loads configuration from the build output directory in this order:
 
 1. `appsettings.json`;

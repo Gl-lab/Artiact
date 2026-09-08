@@ -19,9 +19,11 @@ public sealed class StagedExecution(ExecutionSettings settings, ApiSettings api,
             PortfolioPolicy policy;
             try { mode = settings.Validate(api); policy = portfolio.Policy(); }
             catch (ArgumentException) { status.Set("ConfigurationRequiredOrInvalid"); return null; }
+            if (policy.AutonomousGoals && mode != ExecutionMode.Inspect)
+            { status.Set("AutonomousGoalsRequireInspect"); return null; }
             if (mode == ExecutionMode.Legacy) { status.Set("LegacyCompatibilityMode"); return null; }
             if (mode == ExecutionMode.Bounded) return _result = await RunBoundedAsync(policy, token);
-            var run = factory.Create(policy);
+            var run = factory.Create(policy, policy.AutonomousGoals ? new(settings.MaxDecisions, settings.MaxNoProgress, settings.MaxActions, settings.MaxSeconds) : null);
             _result = mode == ExecutionMode.Inspect ? await run.InspectAsync(token) : await run.TickAsync(token);
             if (mode == ExecutionMode.OneShot && _result.Status == StrategyStatus.UnknownOutcome && !token.IsCancellationRequested)
                 _result = await run.TickAsync(token);

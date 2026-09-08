@@ -15,6 +15,42 @@ namespace Artiact.MockService.Tests;
 
 public class StrategyPortfolioFlowTests
 {
+    [Fact]
+    public async Task AutonomousInspectLoadsItemsWithoutManualGoalsAndCannotDispatch()
+    {
+        await using var factory = new MockServiceFactory();
+        using var guard = new InspectGuard(factory.Server.CreateHandler());
+        using var transport = new HttpClient(guard) { BaseAddress = new("http://localhost") };
+        var settings = new ApiSettings { BaseUrl = "http://localhost", Character = "researcher", Username = "mock", Password = "mock" };
+        var http = new GameHttpClient(new ClientFactory(transport), settings);
+        using var reset = await transport.PostAsync("/__mock/reset", new StringContent("{\"scenario\":\"strategy-portfolio\"}", Encoding.UTF8, "application/json"));
+        reset.EnsureSuccessStatusCode();
+        var client = new GameClient(http, settings, NullLogger<IGameClient>.Instance, new EmptyCache(), new ActivitySource("Discovery"));
+        var policy = new Artiact.Services.Operation.PortfolioSettings { AutonomousGoals = true }.Policy();
+        var run = new StrategySessionFactory(client, new CombatCatalog(http), new CharacterService(), new NoDelay()).Create(policy);
+        var result = await run.InspectAsync();
+        Assert.Equal(StrategyStatus.Selected, result.Status);
+        Assert.NotNull(result.Candidates.Single(x => x.Id == result.Candidate).Discovery);
+        Assert.Contains(guard.Reads, x => x.StartsWith("/items", StringComparison.Ordinal));
+        Assert.DoesNotContain(guard.Reads, x => x.StartsWith("/monsters", StringComparison.Ordinal));
+        Assert.Equal(0, result.Attempts);
+        Assert.Equal("AutonomousGoalsRequireInspect", (await run.TickAsync()).Reason);
+        Assert.Equal(0, guard.ActionAttempts);
+    }
+
+    private sealed class InspectGuard(HttpMessageHandler inner) : DelegatingHandler(inner)
+    {
+        public List<string> Reads { get; } = [];
+        public int ActionAttempts;
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
+        {
+            if (request.RequestUri!.AbsolutePath.Contains("/action/", StringComparison.Ordinal))
+            { ActionAttempts++; throw new InvalidOperationException("Inspect attempted a game action"); }
+            if (request.Method == HttpMethod.Get) Reads.Add(request.RequestUri.AbsolutePath);
+            return base.SendAsync(request, token);
+        }
+    }
+
     internal static PortfolioPolicy Policy => new([new("mining", 2, 30), new("woodcutting", 2, 20)], 2, "dummy", "quick_blade");
     [Fact]
     public async Task PortfolioCompletesTwelveAtomicActionsAndReplays()

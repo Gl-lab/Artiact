@@ -12,7 +12,8 @@ public sealed record AtomicCommand(string Id, string SourceFingerprint, bool Pro
     ImmutableDictionary<string, int>? Charges = null, string? RefillCode = null, bool? Refilling = null);
 public sealed record StrategyCandidate(string Id, string Category, decimal Value, decimal ActionSeconds,
     decimal TravelSeconds, decimal RecoverySeconds, string? Rejection, bool Complete, [property: JsonIgnore] AtomicCommand? Command,
-    string EstimateSource = "Configured", int Samples = 0, SkillPrerequisite? Prerequisite = null, CombatRoute? CombatRoute = null, PathEstimate? Path = null)
+    string EstimateSource = "Configured", int Samples = 0, SkillPrerequisite? Prerequisite = null, CombatRoute? CombatRoute = null, PathEstimate? Path = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] GoalDiscoveryEvidence? Discovery = null)
 {
     public decimal? TotalSeconds => ActionSeconds is >= 0.001m and <= 1_000_000 &&
         TravelSeconds is >= 0 and <= 1_000_000 && RecoverySeconds is >= 0 and <= 1_000_000
@@ -34,7 +35,7 @@ public sealed record StrategyDecision(StrategyStatus Status, string Reason, stri
 public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IProgressionStrategy> strategies,
     IMiningCooldownDelay cooldown, StrategyLimits? limits = null, TimeProvider? time = null,
     IRunCheckpointStore? checkpoints = null, string identity = "", MeasurementPolicy? selection = null,
-    IReadOnlyDictionary<string, int>? resourceLimits = null)
+    IReadOnlyDictionary<string, int>? resourceLimits = null, bool inspectOnly = false)
 {
     private readonly IProgressionStrategy[] _strategies = strategies.ToArray();
     private readonly StrategyLimits _limits = limits ?? new();
@@ -61,6 +62,7 @@ public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IPro
     public StrategyObservation? State { get; private set; }
     public async Task<StrategyDecision> TickAsync(CancellationToken token = default)
     {
+        if (inspectOnly) return Decision(StrategyStatus.Blocked, "AutonomousGoalsRequireInspect");
         await _gate.WaitAsync(CancellationToken.None);
         try
         {

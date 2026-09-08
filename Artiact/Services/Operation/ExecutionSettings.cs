@@ -37,6 +37,7 @@ public sealed class ExecutionSettings
 
 public sealed class PortfolioSettings
 {
+    public bool AutonomousGoals { get; set; }
     public AutonomousCombatPolicy? AutonomousCombat { get; set; }
     public SkillPreparationPolicy? Preparation { get; set; }
     public ConsumablePolicy? Consumable { get; set; }
@@ -66,8 +67,8 @@ public sealed class PortfolioSettings
         var result = new PortfolioPolicy(Skills.ToImmutableArray(), CombatTarget, Monster, Equipment, CombatValue,
             EquipmentValue, MoveSeconds, GatherSeconds, FightSeconds, RestSeconds, EquipmentSeconds,
             BankRetain is null ? null : new(BankRetain.ToImmutableDictionary(StringComparer.Ordinal)), Items.ToImmutableArray(), PrepareEquipment,
-            MeasuredSelection || FullPathSelection ? new(UnknownMultiplier, SwitchRatio, FullPathSelection) : null, MonsterAlternatives.ToImmutableArray(), Preparation,
-            CapacityAwareProduction ? new(ProductionReserves.ToImmutableDictionary(StringComparer.Ordinal)) : null, Consumable, AutonomousCombat);
+            MeasuredSelection || FullPathSelection || AutonomousGoals ? new(UnknownMultiplier, SwitchRatio, FullPathSelection || AutonomousGoals) : null, MonsterAlternatives.ToImmutableArray(), Preparation,
+            CapacityAwareProduction ? new(ProductionReserves.ToImmutableDictionary(StringComparer.Ordinal)) : null, Consumable, AutonomousCombat, AutonomousGoals);
         result.Validate(); return result;
     }
 }

@@ -12,7 +12,8 @@ public sealed record PortfolioPolicy(ImmutableArray<SkillMilestone> Skills, int 
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] SkillPreparationPolicy? Preparation = null,
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] ProductionPolicy? Production = null,
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] ConsumablePolicy? Consumable = null,
-    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] AutonomousCombatPolicy? AutonomousCombat = null)
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] AutonomousCombatPolicy? AutonomousCombat = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)] bool AutonomousGoals = false)
 {
     [System.Text.Json.Serialization.JsonIgnore]
     public bool CombatEnabled => CombatTarget > 0;
@@ -20,6 +21,9 @@ public sealed record PortfolioPolicy(ImmutableArray<SkillMilestone> Skills, int 
     public string Identity => JsonSerializer.Serialize(this with { Items = Items.IsDefault ? [] : Items, Monsters = Monsters.IsDefault ? [] : Monsters });
     public void Validate()
     {
+        if (AutonomousGoals && (!Skills.IsEmpty || !Items.IsDefaultOrEmpty || CombatEnabled || Monster.Length != 0 || Equipment.Length != 0 ||
+            Preparation is not null || Production is not null || Consumable is not null || AutonomousCombat is not null || PrepareEquipment || !Monsters.IsDefaultOrEmpty))
+            throw new ArgumentException("Autonomous discovery cannot be mixed with manual goals or preparation.");
         if (Measurement?.FullPaths == true && (!string.IsNullOrEmpty(Equipment) || Skills.Length > 8 || !Items.IsDefault && Items.Length > 32))
             throw new ArgumentException("Full-path selection supports bounded skill/item goals and autonomous equipment preparation.");
         if (AutonomousCombat is { } auto && (!CombatEnabled || PrepareEquipment || Equipment.Length != 0 || !Monsters.IsDefaultOrEmpty ||
@@ -45,7 +49,7 @@ public sealed record PortfolioPolicy(ImmutableArray<SkillMilestone> Skills, int 
             throw new ArgumentException("Invalid bank policy.");
         if (!Items.IsDefault && (Items.Any(x => string.IsNullOrWhiteSpace(x.Code) || x.Quantity is <= 0 or > 10000 || x.Value is <= 0 or > 1_000_000) ||
             Items.Select(x => x.Code).Distinct(StringComparer.Ordinal).Count() != Items.Length)) throw new ArgumentException("Invalid item goals.");
-        if (Skills.IsDefault || Skills.IsEmpty && Items.IsDefaultOrEmpty && !CombatEnabled || Skills.Any(x => x.Target <= 0 || x.Value is <= 0 or > 1_000_000 ||
+        if (Skills.IsDefault || Skills.IsEmpty && Items.IsDefaultOrEmpty && !CombatEnabled && !AutonomousGoals || Skills.Any(x => x.Target <= 0 || x.Value is <= 0 or > 1_000_000 ||
                 string.IsNullOrWhiteSpace(x.Skill) || !x.Skill.All(c => c is >= 'a' and <= 'z')) ||
             Skills.Select(x => x.Skill).Distinct(StringComparer.Ordinal).Count() != Skills.Length || CombatTarget < 0 ||
             (CombatEnabled ? string.IsNullOrWhiteSpace(Monster) : !string.IsNullOrEmpty(Monster) || !string.IsNullOrEmpty(Equipment)) ||

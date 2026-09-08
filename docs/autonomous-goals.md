@@ -1,0 +1,11 @@
+# Autonomous goal discovery (R11)
+
+`Portfolio:AutonomousGoals=true` enables gathering goal discovery in `Execution:Mode=Inspect`. Leave manual Skills, Items, CombatTarget, Monster, Equipment and preparation/consumable parents empty. Manual profiles remain the default. The new profile automatically uses full-path estimates; UnknownMultiplier and SwitchRatio retain their existing meanings. MaxActions and MaxSeconds bound proposed routes even in Inspect.
+
+The observer reads maps, resources, items and the character. Bank is read only with explicit BankRetain policy. Noncombat discovery does not require HP, weapon or combat stats. No action is dispatched; action modes and direct factory Tick calls reject with AutonomousGoalsRequireInspect. Durable dynamic execution is pending R12.
+
+Discovery v1 considers mining, woodcutting, fishing and alchemy, at most 32 ordinal resources per category. It proposes the closest supported resource unlock that improves the XP base or extends the nonzero-XP training window. Such a milestone receives normalized utility 1. A next-level fallback receives 0.1. The documented skill cap is 50. Missing skill fields, unsupported access, invalid catalogs, exhausted capacity and over-budget estimates remain explicit rejections.
+
+Each candidate's Discovery explains version, target, unlocked resource, utility components, dependent recipes and reevaluation trigger. Recipe references earn zero utility until a supported need is proven; this mode does not manufacture value for every material or wearable. FullPathStrategy supplies Path, including remaining work, travel and uncertainty; StrategySession ranks the resulting utility/cost and resolves ties by ordinal ID. The observed XP threshold is reused for future levels as an estimate. Capacity estimates use maximum drop units; authorized bank trips use the existing approximate cost model.
+
+Inspect does not claim that a blocked or capped character is completely developed. It does not yet select independent healing or combat goals. The [preregistered comparison matrix](../openspec/changes/autonomous-goal-discovery/comparisons.md) checks decisions at R11; execution comparisons and their mandatory useful-result win remain an R12 gate.

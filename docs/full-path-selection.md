@@ -1,5 +1,7 @@
 # Full-path selection (R10)
 
+[Autonomous goal discovery](autonomous-goals.md) can now supply gathering milestones and their utility in Inspect without a manual portfolio. It uses the same full-path estimator.
+
 Set `Portfolio:FullPathSelection=true` to enable context-aware full-path scoring. This also enables measured resource alternatives. `UnknownMultiplier` and `SwitchRatio` retain their R5 defaults (2 and 1.1). Existing `MeasuredSelection=true` without FullPathSelection retains the R5 algorithm and serialized policy identity; fixed selection remains the default. Manual Equipment goals are excluded in this mode: use R9 autonomous gear preparation. At most eight skill goals, 32 item goals, and the first 32 ordinal resource codes per skill are considered; R9 retains its stage/opponent/gear bounds.
 
 Each feasible candidate exposes `Path`: parent metric, remaining work, expected progress per work action, productive command, unit time, preparation/travel/recovery, recipe input quantities, assumptions and measurement context. Full recipe plans are bounded to 100 steps and 10,000 requested units. Every step needs a supported reachable resource/workshop/bank; unsupported or unbounded loot estimates reject that route. Large otherwise executable goals can exceed this estimation bound. Runtime safety, skills, inventory, reserve and budget checks still decide each actual action.
