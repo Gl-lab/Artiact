@@ -41,11 +41,18 @@ public sealed class FileRunCheckpointStore : IRunCheckpointStore, IDisposable
         _history = Path.Combine(directory, "history", key);
         // This release manages one character per store directory. Do not silently bypass
         // an earlier case-sensitive checkpoint when adopting a canonical ownership key.
-        if (Directory.EnumerateFiles(directory, "*.json").Any(path => !string.Equals(path, _path, StringComparison.OrdinalIgnoreCase)))
-        { _lease.Dispose(); throw new IOException("Existing checkpoint requires operator migration."); }
+        try
+        {
+            if (Directory.EnumerateFiles(directory, "*.json").Any(path => !string.Equals(path, _path, StringComparison.OrdinalIgnoreCase)))
+                throw new IOException("Existing checkpoint requires operator migration.");
+        }
+        catch { _lease.Dispose(); throw; }
     }
-    public RunCheckpoint? Load() => File.Exists(_path)
-        ? JsonSerializer.Deserialize<RunCheckpoint>(File.ReadAllBytes(_path)) ?? throw new IOException("Invalid checkpoint.") : null;
+    public RunCheckpoint? Load()
+    {
+        try { return JsonSerializer.Deserialize<RunCheckpoint>(File.ReadAllBytes(_path)) ?? throw new IOException("Invalid checkpoint."); }
+        catch (FileNotFoundException) { return null; }
+    }
     public void Save(RunCheckpoint checkpoint)
     {
         if (File.Exists(Path.Combine(_history, IdentityDigest(checkpoint.Identity) + ".json")) ||

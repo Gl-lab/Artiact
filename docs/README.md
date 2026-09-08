@@ -6,6 +6,7 @@ This directory is the source-grounded guide for developers and AI agents working
 
 | Document | Use it for |
 |---|---|
+| [Checkpoint diagnostics](checkpoint-diagnostics.md) | R16 sanitized failure phases, fail-closed file loading and unresolved historical transient |
 | [Autonomous goals](autonomous-goals.md) | R11/R12 discovery, bounded dynamic milestones, budgets and lifecycle |
 | [Autonomous recovery](autonomous-recovery.md) | R13 HP needs, explicit permissions, generated food and bounded preparation |
 | [Combat goal discovery](combat-goal-discovery.md) | R14 next levels, catalog-derived opponents/gear and recovery prerequisites |
@@ -33,6 +34,7 @@ This directory is the source-grounded guide for developers and AI agents working
 | [Consumables](consumables.md) | Parent-bound healing, stock refill, cooking/fishing prerequisites and durable allowances |
 | [Measured selection](measured-selection.md) | Alternative candidates, observed cooldown estimates and switching threshold |
 | [Roadmap delivery](roadmap-progress.md) | Completed core epics, publication evidence and remaining live rollout boundary |
+| [Управляемая автономность — следующий роадмап](roadmap-managed-autonomy-ru.md) | Согласованный план R16–R20: надёжность, панель, управление, реальная приёмка и регулярная работа |
 | [Автоматический выбор целей — новый роадмап](roadmap-autonomous-goals-ru.md) | Проект R11–R15: генерация целей и их полезности без ручных Skill/Target/Value, динамические рубежи и приёмка |
 | [Роадмап R6–R10 на русском](roadmap-next-ru.md) | Завершённый локальный объём R6–R10, включая R8a «Расходники и их производство»; история и критерии приёмки |
 | [Предыдущий роадмап на русском](roadmap-ru.md) | История завершённых R1–R5 и ограниченной эксплуатационной приёмки |

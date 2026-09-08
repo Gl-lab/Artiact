@@ -79,6 +79,8 @@ R2: explicit Bounded execution now persists its journal and budgets and holds a 
 R9 local [autonomous combat](autonomous-combat.md) supports bounded stage/gear alternatives and R7/R8/R8a preparation. Only weapon/shield static effects qualify; other slots, combined loadout search, active effects and defeat recovery remain unsupported. Cooking/fishing preparation is now supported by R8a; broader profession coverage is still limited. No live combat acceptance.
 # Autonomous discovery boundary
 
+R16 now distinguishes storage and unexpected execution failures and rejects a directory at the checkpoint path. These reproduced defects do not establish the cause of the historical intermittent failures below; see [checkpoint diagnostics](checkpoint-diagnostics.md).
+
 An intermittent R12/R13 file-checkpoint reopen test returned `CheckpointUnavailableOrInvalid` in two full runs. Twenty isolated replays and five additional full mock replays passed; cause remains unproven. Expanded test diagnostics are retained. See [R13 evidence](../openspec/changes/autonomous-recovery/verification.md); do not treat passing retries as a diagnosed fix.
 
 R15 also observed a transient Blocked result in the older BoundedMining completion test. One diagnostic full run plus four more passed; temporary exception instrumentation captured only expected injected faults and was removed. The relation to the earlier failures is unproven. See [R15 evidence](../openspec/changes/autonomous-quality/verification.md). Offline quality acceptance does not claim this operational issue has been fixed.

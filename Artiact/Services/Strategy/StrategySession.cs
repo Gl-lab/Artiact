@@ -30,7 +30,9 @@ public interface IProgressionStrategy
 }
 public interface IStrategyObserver { Task<StrategyObservation> ObserveAsync(CancellationToken cancellationToken); }
 public sealed record StrategyDecision(StrategyStatus Status, string Reason, string? Candidate, string? Command,
-    ImmutableArray<StrategyCandidate> Candidates, int Decisions, int Attempts, int NoProgress, long CooldownSeconds);
+    ImmutableArray<StrategyCandidate> Candidates, int Decisions, int Attempts, int NoProgress, long CooldownSeconds,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] RunFailure? Failure = null);
+public sealed record RunFailure(string Operation, string ExceptionType, int ErrorCode, bool ReconciliationRequired);
 
 public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IProgressionStrategy> strategies,
     IMiningCooldownDelay cooldown, StrategyLimits? limits = null, TimeProvider? time = null,
@@ -51,6 +53,7 @@ public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IPro
     private long _seconds;
     private bool _loaded;
     private bool _storageFailed;
+    private string _operation = "Restore";
     private DateTimeOffset _started;
     private SavedObservation? _verified;
     private SavedObservation? _initial, _latest;
@@ -71,11 +74,18 @@ public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IPro
             {
                 if (_storageFailed) return _terminal!;
                 Restore();
+                _operation = "Execution";
                 var result = await TickCoreAsync(token);
                 Save();
                 return result;
             }
-            catch (Exception) { _loaded = true; _storageFailed = true; return Stop(StrategyStatus.Blocked, "CheckpointUnavailableOrInvalid"); }
+            catch (Exception ex)
+            {
+                _loaded = true; _storageFailed = true;
+                var failure = new RunFailure(_operation, ex.GetType().Name, ex.HResult,
+                    _pending is not null || _operation == "Write" && _attempts > 0);
+                return _terminal = Stop(StrategyStatus.Blocked, _operation == "Execution" ? "ExecutionFailed" : "CheckpointUnavailableOrInvalid") with { Failure = failure };
+            }
         }
         finally { _gate.Release(); }
     }
@@ -244,7 +254,9 @@ public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IPro
     {
         if (_loaded) return;
         _started = _time.GetUtcNow();
+        _operation = "Read";
         var saved = checkpoints?.Load();
+        _operation = "Restore";
         _newRun = saved is null;
         if (saved is not null)
         {
@@ -281,9 +293,15 @@ public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IPro
         _loaded = true;
         Save();
     }
-    private void Save() => checkpoints?.Save(new(autonomous ? 2 : 1, identity, _started, _decisions, _attempts, _noProgress, _seconds,
+    private void Save()
+    {
+        var previous = _operation;
+        _operation = "Write";
+        checkpoints?.Save(new(autonomous ? 2 : 1, identity, _started, _decisions, _attempts, _noProgress, _seconds,
         _consumed.ToArray(), _pending?.Id, _baseline is null ? null : SavedObservation.From(_baseline), _terminal, _verified, _journal.ToImmutableArray(),
         _measurements.ToImmutableDictionary(StringComparer.Ordinal), _incumbent, _initial, _latest, _finished, _pending is null ? null : _pendingCandidate, _goals));
+        _operation = previous;
+    }
     private static string MeasureKey(StrategyCandidate candidate) => candidate.Id + ":" + candidate.Command!.Id.Split(':')[0];
     private StrategyRunContext RunContext()
     {

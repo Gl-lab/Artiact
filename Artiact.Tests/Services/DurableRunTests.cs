@@ -8,6 +8,38 @@ namespace Artiact.Tests.Services;
 
 public class DurableRunTests
 {
+    private sealed class BrokenClock : TimeProvider
+    {
+        public override long GetTimestamp() => throw new InvalidOperationException("secret-test-value");
+    }
+
+    [Fact]
+    public async Task ExecutionFailureIsNotReportedAsCheckpointFailure()
+    {
+        var world = new World();
+        var run = new StrategySession(world, [world], new Delay(), time: new BrokenClock(), checkpoints: new Store());
+        var result = await run.TickAsync();
+        Assert.Equal("ExecutionFailed", result.Reason);
+        Assert.Equal("Execution", result.Failure!.Operation);
+        Assert.Equal("InvalidOperationException", result.Failure.ExceptionType);
+        Assert.DoesNotContain("secret-test-value", JsonSerializer.Serialize(result));
+        Assert.Equal(0, world.Actions);
+    }
+
+    [Fact]
+    public void DirectoryAtCheckpointPathIsNotANewRun()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "artiact-run-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            using var store = new FileRunCheckpointStore(directory, "hero");
+            string key = Path.GetFileNameWithoutExtension(Assert.Single(Directory.GetFiles(directory, "*.lock")));
+            Directory.CreateDirectory(Path.Combine(directory, key + ".json"));
+            Assert.ThrowsAny<Exception>(() => store.Load());
+        }
+        finally { Directory.Delete(directory, true); }
+    }
+
     private sealed class Store : IRunCheckpointStore
     {
         public RunCheckpoint? Saved;
@@ -82,7 +114,10 @@ public class DurableRunTests
     public async Task FailedIntentWritePreventsPost()
     {
         var world = new World(); var store = new Store { Fail = c => c.PendingCommand is not null };
-        Assert.Equal(StrategyStatus.Blocked, (await Run(world, store).TickAsync()).Status);
+        var result = await Run(world, store).TickAsync();
+        Assert.Equal(StrategyStatus.Blocked, result.Status);
+        Assert.Equal("Write", result.Failure!.Operation);
+        Assert.Equal("IOException", result.Failure.ExceptionType);
         Assert.Equal(0, world.Actions);
     }
     [Fact]
@@ -98,7 +133,9 @@ public class DurableRunTests
     {
         var world = new World(); var store = new Store { Fail = c => c.Attempts == 1 && c.PendingCommand is null };
         var failed = Run(world, store);
-        await failed.TickAsync(); store.Fail = null;
+        var result = await failed.TickAsync(); store.Fail = null;
+        Assert.Equal("Write", result.Failure!.Operation);
+        Assert.True(result.Failure.ReconciliationRequired);
         await failed.TickAsync(); // A stopped executor cannot overwrite the durable pending intent.
         Assert.Equal(StrategyStatus.Reconciled, (await Run(world, store).TickAsync()).Status);
         Assert.Equal(1, world.Actions);
@@ -172,7 +209,34 @@ public class DurableRunTests
         var world = new World(); var store = new Store();
         await Run(world, store).TickAsync();
         store.Saved = store.Saved! with { Identity = "different-policy" };
-        Assert.Equal("CheckpointUnavailableOrInvalid", (await Run(world, store).TickAsync()).Reason);
+        var result = await Run(world, store).TickAsync();
+        Assert.Equal("CheckpointUnavailableOrInvalid", result.Reason);
+        Assert.Equal("Restore", result.Failure!.Operation);
         Assert.Equal(1, world.Actions);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CorruptOrLockedFileReportsReadFailureWithoutDispatch(bool locked)
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "artiact-run-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var world = new World();
+            using var store = new FileRunCheckpointStore(directory, "hero");
+            await new StrategySession(world, [world], new Delay(), checkpoints: store, identity: "run1").TickAsync();
+            string path = Assert.Single(Directory.GetFiles(directory, "*.json"));
+            if (!locked) File.WriteAllText(path, "invalid secret-test-value");
+            using var owner = locked ? new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None) : null;
+            var run = new StrategySession(world, [world], new Delay(), checkpoints: store, identity: "run1");
+            var result = await run.TickAsync();
+            Assert.Equal("Read", result.Failure!.Operation);
+            Assert.Equal(StrategyStatus.Blocked, result.Status);
+            Assert.DoesNotContain("secret-test-value", JsonSerializer.Serialize(result));
+            Assert.Equal(result, await run.TickAsync());
+            Assert.Equal(1, world.Actions);
+        }
+        finally { Directory.Delete(directory, true); }
     }
 }

@@ -330,9 +330,9 @@ public class AutonomousExecutionFlowTests(Xunit.Abstractions.ITestOutputHelper o
                     result = await h.Run(new(40, 10, 2, 300), observed).TickAsync();
                     if (result.Status == StrategyStatus.Stopped) break;
                 }
-                Assert.True(reason == result!.Reason, $"Expected {reason}, actual {result.Reason}; store={observed.Failure}; checkpoint={JsonSerializer.Serialize(store.Load())}; now={DateTimeOffset.UtcNow:O}"); Assert.Equal(actions, result.Attempts);
+                Assert.True(reason == result!.Reason, $"Expected {reason}, actual {result.Reason}; failure={JsonSerializer.Serialize(result.Failure)}; store={observed.Failure}; checkpoint={JsonSerializer.Serialize(store.Load())}; now={DateTimeOffset.UtcNow:O}"); Assert.Equal(actions, result.Attempts);
                 var restored = await h.Run(new(40, 10, 2, 300), observed).TickAsync();
-                Assert.True(reason == restored.Reason, $"Expected {reason}, actual {restored.Reason}; store={observed.Failure}; started={store.Load()?.Started:O}; now={DateTimeOffset.UtcNow:O}; valid={store.Load()?.Autonomous?.Valid}");
+                Assert.True(reason == restored.Reason, $"Expected {reason}, actual {restored.Reason}; failure={JsonSerializer.Serialize(restored.Failure)}; store={observed.Failure}; started={store.Load()?.Started:O}; now={DateTimeOffset.UtcNow:O}; valid={store.Load()?.Autonomous?.Valid}");
                 Assert.Equal(actions, h.Guard.Posts);
                 saved = store.Load()!;
             }
