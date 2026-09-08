@@ -1,0 +1,7 @@
+# Design
+
+Simulate at most 10,000 estimated gathers with maximum simultaneous drops. Before each gather, if space is insufficient, apply the runtime's ordinal first-20 allowed surplus deposits, retain floors and bank distinct-code capacity. Include movement to bank, one array deposit, return and per-code deposit seconds. No permitted surplus, absent/inaccessible bank, full slots, insufficient working capacity and bounded-estimate overflow have separate refusals. Repeated deposits cannot remove protected stock; no-progress guard remains the existing runtime guard.
+
+All configured stock is immutable; planning uses local copies. Evaluate bank accessibility only when a trip is needed. The estimate uses the same destination preference and BankRetain subset as runtime. Protect unlisted codes, use checked quantity arithmetic, validate bank snapshots and sum drop maxima. Nonbank paths retain R21/R22 rules. Replace the earlier bank time allowance rather than double counting it; compare total action/time budget and project unload count.
+
+Bank-estimate version is part of autonomous bank policy identity; absent BankRetain/manual policy identities remain unchanged. No automatic checkpoint migration. Required cases: multiple unloads, exact capacity, protected output, full/missing bank, insufficient action/time budget, stock conservation, external bank mutation and lost/cancelled pending deposit with no blind replay. Existing bank execution regression tests are required.

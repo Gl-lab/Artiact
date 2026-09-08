@@ -21,6 +21,8 @@ public sealed record PortfolioPolicy(ImmutableArray<SkillMilestone> Skills, int 
     public bool CombatEnabled => CombatTarget > 0;
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string? DiscoveryVersion => AutonomousGoals ? AutonomousGoalDiscovery.Version : null;
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? GatheringBankVersion => AutonomousGoals && Bank is not null ? GatheringBankEstimate.Version : null;
     [System.Text.Json.Serialization.JsonIgnore]
     public string Identity => JsonSerializer.Serialize(this with { Items = Items.IsDefault ? [] : Items, Monsters = Monsters.IsDefault ? [] : Monsters });
     public void Validate()

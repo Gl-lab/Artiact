@@ -12,6 +12,62 @@ namespace Artiact.Tests.Services;
 
 public class AutonomousGoalDiscoveryTests
 {
+    [Theory]
+    [InlineData(20, true, 100, null, 5)]
+    [InlineData(0, true, 100, "BankFull", 0)]
+    [InlineData(20, false, 100, "NoSupportedBank", 0)]
+    [InlineData(20, true, 4, "EstimatedPathExceedsBudget", 5)]
+    public void BankRouteCountsDepositAndRoundTrip(int slots, bool reachable, int actions, string? reason, int required)
+    {
+        var state = World(); var raw = JsonNode.Parse(state.Character.GetRawText())!;
+        raw["inventory_max_items"] = 1;
+        var maps = state.Catalogs["maps"];
+        if (reachable) maps = maps.Add(JsonSerializer.SerializeToElement(new { map_id = 4, layer = "overworld",
+            access = new { type = "standard", conditions = Array.Empty<object>() }, interactions = new { content = new { type = "bank", code = "bank" } } }));
+        var policy = Policy with { Bank = new(ImmutableDictionary<string, int>.Empty.Add("wood_drop", 0)) };
+        state = new(JsonSerializer.SerializeToElement(raw), state.Catalogs.SetItem("maps", maps), policy.Identity,
+            new BankSnapshot(slots, ImmutableDictionary<string, int>.Empty));
+        var candidate = new AutonomousGoalDiscovery(policy, new StrategyActionPort(null!, null!), new(100, 10, actions, 10000))
+            .EvaluateAll(state).Single(x => x.Id == "skill:woodcutting:wood");
+        Assert.Equal(reason, candidate.Rejection);
+        if (required > 0)
+        {
+            Assert.Equal(required, candidate.Feasibility!.RequiredActions);
+            Assert.Equal(54, candidate.Feasibility.RequiredSeconds); // 2 gathers (10), 2 moves (14), one-code deposit (3), multiplier 2.
+            Assert.Equal(1, candidate.Feasibility.Unloads);
+        }
+        Assert.Empty(state.Bank!.Items);
+        Assert.Empty(CharacterObservation.Read(state.Character)!.Inventory);
+    }
+
+    [Fact]
+    public void BankEstimateCountsRepeatedUnloadsAndPreservesFloor()
+    {
+        var state = World(); var raw = JsonNode.Parse(state.Character.GetRawText())!;
+        raw["inventory_max_items"] = 3;
+        raw["inventory"] = JsonSerializer.SerializeToNode(new[] { new { code = "protected", quantity = 1 } });
+        var maps = state.Catalogs["maps"].Add(JsonSerializer.SerializeToElement(new { map_id = 4, layer = "overworld",
+            access = new { type = "standard", conditions = Array.Empty<object>() }, interactions = new { content = new { type = "bank", code = "bank" } } }));
+        var policy = Policy with { Bank = new(ImmutableDictionary<string, int>.Empty.Add("wood_drop", 0)) };
+        state = new(JsonSerializer.SerializeToElement(raw), state.Catalogs.SetItem("maps", maps), policy.Identity,
+            new BankSnapshot(1, ImmutableDictionary<string, int>.Empty));
+        var estimate = GatheringBankEstimate.Calculate(state, state.Catalogs["resources"][1], 6, policy);
+        Assert.Null(estimate.Rejection);
+        Assert.Equal(12, estimate.Actions); Assert.Equal(64, estimate.Seconds); Assert.Equal(2, estimate.Unloads);
+        Assert.Equal(1, CharacterObservation.Read(state.Character)!.Inventory["protected"]);
+    }
+    [Fact]
+    public void BankPolicyCannotMakeProtectedOutputFit()
+    {
+        var state = World(); var raw = JsonNode.Parse(state.Character.GetRawText())!;
+        raw["inventory_max_items"] = 1;
+        var policy = Policy with { Bank = new(ImmutableDictionary<string, int>.Empty.Add("unrelated", 0)) };
+        state = new(JsonSerializer.SerializeToElement(raw), state.Catalogs, policy.Identity,
+            new BankSnapshot(20, ImmutableDictionary<string, int>.Empty));
+        var candidates = new AutonomousGoalDiscovery(policy, new StrategyActionPort(null!, null!), new(100, 10, 100, 10000)).EvaluateAll(state);
+        Assert.DoesNotContain(candidates, x => x.Command is not null);
+        Assert.Contains(candidates, x => x.Rejection == "NoDepositableStock");
+    }
     [Fact]
     public async Task IntermediateEvidenceSurvivesSerializationAndActiveReevaluation()
     {

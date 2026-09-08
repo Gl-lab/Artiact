@@ -90,7 +90,7 @@ public sealed class AutonomousGoalDiscovery(PortfolioPolicy policy, StrategyActi
                 var evaluated = ImmutableArray.CreateBuilder<StrategyCandidate>();
                 var goal = new SkillMilestone(skill, target, goalEvidence.UnlockUtility + goalEvidence.ProgressUtility);
                 var derived = policy with { Skills = [goal], AutonomousGoals = false };
-                var strategy = new FullPathStrategy(new ResourceAlternatives(goal, derived, port), derived);
+                var strategy = new FullPathStrategy(new ResourceAlternatives(goal, derived, port), derived with { Bank = null });
                 foreach (var original in strategy.EvaluateAll(observation))
                 {
                     var candidate = original with { Discovery = goalEvidence };
@@ -103,13 +103,23 @@ public sealed class AutonomousGoalDiscovery(PortfolioPolicy policy, StrategyActi
                         int trainingLevel = resources.Single(x => x.GetProperty("code").GetString() == resourceCode).GetProperty("level").GetInt32();
                         long dropUnits = resources.Single(x => x.GetProperty("code").GetString() == resourceCode).GetProperty("drops").EnumerateArray()
                             .Sum(x => (long)x.GetProperty("max_quantity").GetInt32());
+                        var bank = policy.Bank is null ? null : GatheringBankEstimate.Calculate(observation,
+                            resources.Single(x => x.GetProperty("code").GetString() == resourceCode), work, policy);
+                        decimal actions = bank?.Actions ?? work + (path.TravelSeconds > 0 ? 1 : 0);
+                        if (bank is not null)
+                        {
+                            seconds = bank.Seconds;
+                            candidate = candidate with { Path = path with { PreparationSeconds = Math.Max(0, bank.Seconds - work * path.UnitSeconds),
+                                TravelSeconds = 0, Assumptions = path.Assumptions + " Maximum-drop stock simulation includes permitted bank transfers and travel." } };
+                        }
                         candidate = candidate with { Feasibility = new(state.FreeUnits, work * dropUnits,
                             Math.Max(0, work * dropUnits - state.FreeUnits), policy.Bank is not null,
-                            work + (path.TravelSeconds > 0 ? 1 : 0), observation.Context.RemainingActions ?? limits.Actions,
-                            seconds * multiplier, observation.Context.RemainingSeconds ?? limits.DurationSeconds) };
+                            actions, observation.Context.RemainingActions ?? limits.Actions,
+                            seconds * multiplier, observation.Context.RemainingSeconds ?? limits.DurationSeconds, bank?.Unloads ?? 0) };
                         string? rejection = target - 1 - trainingLevel >= 10 ? "TrainingCannotReachMilestone" :
+                            bank?.Rejection is { } bankRejection ? bankRejection :
                             policy.Bank is null && work * dropUnits > state.FreeUnits ? "EstimatedInventoryInsufficient" :
-                            work + (path.TravelSeconds > 0 ? 1 : 0) > (observation.Context.RemainingActions ?? limits.Actions) ||
+                            actions > (observation.Context.RemainingActions ?? limits.Actions) ||
                             seconds * multiplier > (observation.Context.RemainingSeconds ?? limits.DurationSeconds) ? "EstimatedPathExceedsBudget" : null;
                         if (rejection is not null) candidate = candidate with { Rejection = rejection, Command = null };
                     }

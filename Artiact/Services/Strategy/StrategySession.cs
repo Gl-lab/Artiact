@@ -24,7 +24,7 @@ public sealed record StrategyCandidate(string Id, string Category, decimal Value
 }
 public sealed record SkillPrerequisite(string Parent, string Skill, int Target, string? TrainingItem);
 public sealed record FeasibilityEvidence(long FreeUnits, decimal RequiredUnits, decimal DeficitUnits, bool BankConfigured,
-    decimal RequiredActions, int RemainingActions, decimal RequiredSeconds, decimal RemainingSeconds);
+    decimal RequiredActions, int RemainingActions, decimal RequiredSeconds, decimal RemainingSeconds, int Unloads = 0);
 public sealed record CombatRoute(int Target, string Monster, string? Slot, string? Equipment, long MaximumLoss, decimal PreparationSeconds);
 public interface IProgressionStrategy
 {

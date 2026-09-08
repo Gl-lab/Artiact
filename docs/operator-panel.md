@@ -1,5 +1,7 @@
 # Operator panel
 
+R22/R23 diagnostics also show the original milestone and fallback reason, estimated unload count and distinct bank surplus/slots/access/working-capacity refusals. They are estimates, not promises of a successful live route.
+
 R21 displays candidate refusal codes and Russian explanations for both preparation Inspect and durable terminal results. Inventory facts (free, conservatively required and deficit units, configured bank policy) and action/time estimates come directly from planning. Three alternatives are shown first; the remainder are expandable. Inspect has a separate result timestamp and snapshot warning; saved results use observation freshness. Historical checkpoints without evidence show missing details. The bounded HTTP projection excludes raw planning assumptions and catalogs; it does not change selection, permissions or archival rules. Freeing space can expose another refusal and does not guarantee a feasible plan.
 
 Set `Operator:Enabled=true` to expose `/operator` and `/operator/snapshot` on the existing host. The default is disabled. The panel accepts connections on the host’s configured listening addresses, including a server IP or LAN hostname; it does not enforce loopback-only clients or require login. The page uses embedded assets with no external dependencies, no-store responses and a restrictive content policy. It does not grant game-action permission or change the configured execution mode.
