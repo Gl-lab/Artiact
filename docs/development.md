@@ -181,6 +181,8 @@ The Dockerfile builds from repository-root context: `docker build -f Artiact/Doc
 
 ## Test map
 
+R20 configuration and lifecycle: [finite scheduling](bounded-schedule.md). Focused checks: `dotnet test Artiact.sln --no-restore --filter "FullyQualifiedName~Schedule|FullyQualifiedName~OperationRegistrationTests|FullyQualifiedName~OperatorHttpTests"`. These run with temporary files, fake clocks and socket-free MockService; they do not enable a live schedule.
+
 `SingleDispatchTests` covers action POST failures, response loss, token rejection and terminal worker behavior. `CombatContractTests` covers controlled fight identity and equipment/rest wire details. Run both with `dotnet test Artiact.Tests/Artiact.Tests.csproj --no-restore --filter "FullyQualifiedName~SingleDispatchTests|FullyQualifiedName~CombatContractTests"`. These authored fragment tests do not establish complete combat compatibility.
 
 | Test class | Main responsibility |

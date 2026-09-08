@@ -34,6 +34,17 @@ public static class OperatorEndpoints
             Enabled = options.ControlsEnabled, Token = options.ControlsEnabled ? controlToken : null,
             Profile = options.ControlsEnabled ? (System.Text.Json.JsonElement?)app.Services.GetRequiredService<OperatorCoordinator>().Profile() : null
         })));
+        var schedule = app.Services.GetService<ScheduleSettings>();
+        group.MapGet("/schedule", () => Results.Json(System.Text.Json.JsonSerializer.SerializeToElement(new
+        {
+            Enabled = schedule?.Enabled == true,
+            Token = schedule?.Enabled == true ? controlToken : null,
+            SeriesId = schedule?.Enabled == true ? schedule.SeriesId : null,
+            Limits = schedule?.Enabled == true ? new { schedule.MaxRuns, schedule.MaxTotalActions, schedule.MaxTotalDecisions, schedule.MaxTotalSeconds, schedule.ExpiresUtc } : null,
+            State = schedule?.Enabled == true ? app.Services.GetRequiredService<ScheduleRunner>().Snapshot() : null
+        })));
+        if (schedule?.Enabled == true)
+            group.MapPost("/schedule/stop", (ScheduleRunner runner) => { runner.RequestStop(); return Results.Accepted(); });
         if (!options.ControlsEnabled) return;
         group.MapPost("/inspect", async (OperatorRunRequest request, OperatorCoordinator coordinator) => Control(await coordinator.InspectAsync(request)));
         group.MapPost("/start", async (StartRequest request, OperatorCoordinator coordinator) => Control(await coordinator.StartRunAsync(request.Receipt)));

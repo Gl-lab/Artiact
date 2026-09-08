@@ -44,6 +44,33 @@ public class OperatorHttpTests
     }
 
     [Theory]
+    [InlineData(false, "http://localhost", 403)]
+    [InlineData(true, "http://attacker.example", 403)]
+    [InlineData(true, "http://localhost", 202)]
+    public async Task ScheduleStopRequiresLocalOriginAndTokenWithoutManualControls(bool token, string origin, int expected)
+    {
+        var builder = WebApplication.CreateBuilder(); builder.WebHost.UseTestServer();
+        builder.Services.AddSingleton(new OperatorSettings { Enabled = true });
+        builder.Services.AddSingleton(new ScheduleSettings { Enabled = true, SeriesId = "http-test" });
+        builder.Services.AddSingleton(new ExecutionSettings());
+        builder.Services.AddSingleton(new ApiSettings { BaseUrl = "http://localhost", Character = "hero", Username = "test", Password = "secret-test-value" });
+        builder.Services.AddSingleton(new PortfolioSettings { AutonomousGoals = true });
+        builder.Services.AddSingleton<OperationState>(); builder.Services.AddSingleton<OperatorSnapshotReader>();
+        builder.Services.AddSingleton<IOperatorExecution, NoExecution>(); builder.Services.AddSingleton<IScheduledRun, ScheduledRun>();
+        builder.Services.AddSingleton<ScheduleRunner>();
+        await using var app = builder.Build();
+        app.Use((context, next) => { context.Connection.RemoteIpAddress = IPAddress.Loopback; return next(context); });
+        app.MapOperator(); await app.StartAsync(); using var client = app.GetTestClient();
+        string body = await client.GetStringAsync("/operator/schedule"); Assert.DoesNotContain("secret-test-value", body);
+        using var json = System.Text.Json.JsonDocument.Parse(body);
+        if (token) client.DefaultRequestHeaders.Add("X-Artiact-Control", json.RootElement.GetProperty("Token").GetString());
+        client.DefaultRequestHeaders.Add("Origin", origin);
+        using var stopped = await client.PostAsync("/operator/schedule/stop", null);
+        Assert.Equal(expected, (int)stopped.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.PostAsync("/operator/start", null)).StatusCode);
+    }
+
+    [Theory]
     [InlineData(true, "127.0.0.1", "localhost", 200)]
     [InlineData(false, "127.0.0.1", "localhost", 404)]
     [InlineData(true, "192.0.2.1", "localhost", 403)]

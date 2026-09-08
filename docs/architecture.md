@@ -25,6 +25,10 @@ flowchart LR
     Panel --> Reader[Read-only checkpoint projection]
     Panel --> Control[Opt-in operator coordinator]
     Control --> Staged
+    Host --> Schedule[Opt-in finite ScheduleWorker]
+    Schedule --> Series[Durable series reservations and events]
+    Schedule --> Staged
+    Panel --> Series
     Reader --> Durable[Durable journal and archive]
     Host --> Metrics[/metrics]
     Host --> Telemetry[Console + OTLP + Prometheus]
@@ -67,6 +71,8 @@ Unit and flow-oriented tests using xUnit and Moq. Tests focus on craft-chain con
 The opt-in [operator panel](operator-panel.md) reads bounded snapshots of the durable journal without the character lease or game API requests. OperationState tracks worker lifetime independently of host liveness. Embedded browser assets display a restricted projection; no credentials/catalog payloads reach the page.
 
 With Operator:ControlsEnabled and Inspect startup mode, OperatorCoordinator replaces the automatic StagedWorker registration. Its bounded receipt set and single background task delegate to scoped StagedExecution; the HTTP handlers do not plan or dispatch game commands. Stop and host shutdown retain the existing in-flight response semantics.
+
+Alternatively, [Schedule:Enabled](bounded-schedule.md) registers ScheduleWorker with an observation-only panel and Inspect startup. It reserves aggregate budgets durably before each bounded StagedExecution, archives safe terminal runs, and waits a finite interval without catch-up. Manual controls and schedule cannot be enabled together. Series state and notification IDs survive restart; an interrupted reservation stops for intervention.
 
 In explicit Legacy mode, `ArtiactBackgroundService.ExecuteAsync` creates one dependency-injection scope for its lifetime. It calls `IActionService.InitializeAsync(stoppingToken)` once, then calls `ExecuteCycleAsync(stoppingToken)` serially while decisions are Selected. Each call reads one planning snapshot, evaluates the pure selector and finalizes Selected through run guards and catalog resolution. It explains and returns the exact final immutable decision. Selected constructs a private ResolvedMiningGoal and executes one MiningStep; final Completed/Blocked performs no execution and terminates the worker normally without recovery delay. Mining invokes Move zero/one times and Gathering zero/one times; a later cycle reselects resources. AddMiningProgression binds validated limits and registers the scoped run state shared by ActionService/StepBuilder plus the production cooldown wait. A cycle failure is logged and followed by a cancellable 30-second recovery delay. Shutdown cancellation exits normally; other initialization failures are critical and terminate the hosted service.
 

@@ -1,5 +1,7 @@
 # Main application instructions
 
+R20: ScheduleWorker and manual controls are mutually exclusive. Reserve full per-run ceilings durably before shared StagedExecution; never refund across RunIds/restart. Interrupted reservations and unsafe checkpoints require intervention. Keep stable local event IDs and default-off series policy. See ../docs/bounded-schedule.md.
+
 R17: operator snapshots never acquire the execution lease or call the game API. Preserve local address/Host guards, bounded reads, projected data, optional observation timestamps and worker/host distinction. See ../docs/operator-panel.md.
 
 R18: ControlsEnabled requires Inspect startup and suppresses the automatic worker. Delegate all execution to StagedExecution; preserve fresh profile-bound receipts, single ownership, CSRF/origin guards and archive restrictions. A browser disconnect is not cancellation.

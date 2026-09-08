@@ -1,5 +1,7 @@
 # Known limitations
 
+- R20 [finite scheduling](bounded-schedule.md) is opt-in, autonomous gathering only, with conservative full-run reservations and local panel notifications. Interrupted reservations require intervention; there is no live series acceptance, external push delivery or 24/7 guarantee. File ownership assumes one canonical run directory per character; independent directories/hosts are not coordinated.
+
 - R7/R8a optionally train weaponcrafting, mining, cooking and fishing prerequisites. R8 adds protected capacity-aware batches; R9 reuses them for supported equipment preparation. Other professions and standalone crafting-skill goals require separate acceptance; see [skill preparation](skill-preparation.md) and [capacity production](capacity-production.md).
 
 - R4b supports explicit four-element arithmetic; R9 autonomous mode adds static weapon/shield projection. Standalone weapon replacement remains fire-only. Active effects, negative resistance and non-normal opponents remain unsupported; live combat remains unverified.

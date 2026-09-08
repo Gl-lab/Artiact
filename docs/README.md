@@ -6,6 +6,7 @@ This directory is the source-grounded guide for developers and AI agents working
 
 | Document | Use it for |
 |---|---|
+| [Ограниченные серии](bounded-schedule.md) | R20 конечное расписание, общий бюджет, остановка и локальные уведомления |
 | [Local operator panel](operator-panel.md) | R17 opt-in local dashboard, durable facts, freshness and history |
 | [Checkpoint diagnostics](checkpoint-diagnostics.md) | R16 sanitized failure phases, fail-closed file loading and unresolved historical transient |
 | [Autonomous goals](autonomous-goals.md) | R11/R12 discovery, bounded dynamic milestones, budgets and lifecycle |

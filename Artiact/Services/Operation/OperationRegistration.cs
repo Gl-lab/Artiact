@@ -16,6 +16,16 @@ public static class OperationRegistration
         if (panel.ControlsEnabled && (!panel.Enabled || !string.Equals(execution.Mode, "Inspect", StringComparison.OrdinalIgnoreCase)))
             throw new ArgumentException("Operator control requires an enabled panel and Inspect startup mode.");
         services.AddSingleton(panel);
+        var schedule = configuration.GetSection("Schedule").Get<ScheduleSettings>() ?? new();
+        if (schedule.Enabled)
+        {
+            if (!panel.Enabled || panel.ControlsEnabled || !string.Equals(execution.Mode, "Inspect", StringComparison.OrdinalIgnoreCase))
+                throw new ArgumentException("Schedule requires observation-only panel and Inspect startup mode.");
+            schedule.Validate(execution, configuration.GetSection("ApiSettings").Get<ApiSettings>() ?? throw new ArgumentException("API configuration required."), portfolio);
+        }
+        services.AddSingleton(schedule);
+        services.AddSingleton<IScheduledRun, ScheduledRun>();
+        services.AddSingleton<ScheduleRunner>();
         services.AddSingleton<OperatorSnapshotReader>();
         services.AddSingleton<IOperatorExecution, ScopedOperatorExecution>();
         services.AddSingleton<OperatorCoordinator>();
@@ -29,6 +39,7 @@ public static class OperationRegistration
             execution.Validate(api);
             services.AddHostedService<ArtiactBackgroundService>();
         }
+        else if (schedule.Enabled) services.AddHostedService<ScheduleWorker>();
         else if (panel.ControlsEnabled) services.AddHostedService(services => services.GetRequiredService<OperatorCoordinator>());
         else services.AddHostedService<StagedWorker>();
         return services;

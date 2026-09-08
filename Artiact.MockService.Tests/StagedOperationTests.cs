@@ -1279,6 +1279,36 @@ public class StagedOperationTests(Xunit.Abstractions.ITestOutputHelper output)
             new StagedExecution(settings, api, portfolio, harness.Factory, harness.State).RunAsync(token);
     }
 
+    [Fact]
+    public async Task ScheduleArchivesTwoBoundedRunsAndRestartCannotRefundSeriesBudget()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "artiact-schedule-flow-" + Guid.NewGuid().ToString("N"));
+        var settings = new ExecutionSettings { AllowActions = true, RunDirectory = directory, MaxActions = 6, MaxDecisions = 40, MaxNoProgress = 10, MaxSeconds = 300 };
+        var api = new ApiSettings { BaseUrl = "http://localhost", Character = "researcher", Username = "mock", Password = "mock" };
+        var portfolio = new PortfolioSettings { AutonomousGoals = true };
+        try
+        {
+            await using var h = new Harness(settings); await h.Reset("discovery-new");
+            var schedule = new ScheduleSettings { Enabled = true, SeriesId = "flow", FirstRunUtc = h.Clock.GetUtcNow(), ExpiresUtc = h.Clock.GetUtcNow().AddHours(2),
+                IntervalSeconds = 60, MaxRuns = 2, MaxTotalActions = 12, MaxTotalDecisions = 80, MaxTotalSeconds = 600 };
+            ScheduleRunner Runner() => new(schedule, settings, api, portfolio, h.State,
+                new ScheduledRun(new PanelExecution(h, api, portfolio), api, portfolio), h.Clock);
+            var runner = Runner(); await runner.TickAsync();
+            Assert.Equal("Waiting", runner.Snapshot().Status);
+            Assert.InRange(h.Handler.Actions, 1, 6);
+            int first = h.Handler.Actions;
+            h.Clock.Advance(60); runner = Runner(); await runner.TickAsync();
+            Assert.Equal("Completed", runner.Snapshot().Status);
+            Assert.InRange(h.Handler.Actions - first, 1, 6);
+            Assert.Equal(12, runner.Snapshot().ReservedActions);
+            Assert.Equal(2, runner.Snapshot().Notifications.Count(x => x.Kind == "RunCompleted"));
+            using (var store = new FileRunCheckpointStore(directory, "http://localhost/researcher")) Assert.Null(store.Load());
+            int total = h.Handler.Actions;
+            h.Clock.Advance(60); await Runner().TickAsync(); Assert.Equal(total, h.Handler.Actions);
+        }
+        finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
