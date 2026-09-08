@@ -12,6 +12,20 @@ namespace Artiact.Tests.Services;
 
 public class AutonomousGoalDiscoveryTests
 {
+    [Fact]
+    public async Task AnonymizedInventoryPressureRemainsExplainableWhenNearestLevelAlsoCannotFit()
+    {
+        var state = World(1, 1, true); var raw = JsonNode.Parse(state.Character.GetRawText())!;
+        raw["inventory"] = JsonSerializer.SerializeToNode(new[] { new { code = "plant", quantity = 40 }, new { code = "ore", quantity = 2 }, new { code = "ticket", quantity = 1 } });
+        raw["mining_max_xp"] = 1000; raw["woodcutting_max_xp"] = 1000;
+        var result = await Inspect(new(JsonSerializer.SerializeToElement(raw), state.Catalogs, state.Policy), new(6, 3, 2, 120));
+        Assert.Equal(StrategyStatus.Blocked, result.Status); Assert.Equal(0, result.Attempts);
+        var nearest = Assert.Single(result.Candidates.Where(x => x.Discovery?.OriginalTarget == 10));
+        Assert.Equal("EstimatedInventoryInsufficient", nearest.Rejection);
+        Assert.Equal(57, nearest.Feasibility!.FreeUnits); Assert.Equal(77, nearest.Feasibility.RequiredUnits);
+        Assert.Equal(20, nearest.Feasibility.DeficitUnits);
+        Assert.All(result.Candidates, x => Assert.Null(x.Command));
+    }
     [Theory]
     [InlineData(20, true, 100, null, 5)]
     [InlineData(0, true, 100, "BankFull", 0)]
