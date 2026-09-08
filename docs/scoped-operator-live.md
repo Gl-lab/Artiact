@@ -1,6 +1,6 @@
 # Prepared R19 operator field trial
 
-Status: implementation prepared; live actions require the concrete approval below. This document is a proposed field trial, not evidence that R19 passed. The R16 intermittent checkpoint cause remains open.
+Status: the explicitly approved field trial passed on 2026-09-08:13 verified actions,alchemy2/6XP,copper_ore2 preserved. See [live evidence and precise verification scope](../openspec/changes/scoped-operator-live/live-evidence.md). This single trial must not be replayed. The R16 intermittent checkpoint cause remains open under the user's scoped exception.
 
 Scope is `gllab` at `https://api.artifactsmmo.com/`: initial map277 and copper_ore2, Move:379 followed by bodyless gathering at379, alchemy level1→2. No other character/action/map is allowed. Ceilings:16 actions,20 decisions,3 consecutive no-progress,900 seconds. Stop earlier on the target level, user Stop, drift, rejection or uncertainty. Preserve at least two copper_ore; no bank/combat/crafting. See [budget calculation](../openspec/changes/reassess-live-budget/verification.md).
 
@@ -19,3 +19,5 @@ Quote `console;verbosity=detailed` as one argument in PowerShell and restore the
 After the worker finishes, the harness permanently disables its transport, requires a durable terminal checkpoint without pending intent, reopens through shared execution, and checks unchanged dispatch count and verified journal entries. Unknown outcomes fail acceptance and retain state. It never clears or archives the checkpoint. Use the offline `run-result <absolute directory> https://api.artifactsmmo.com/gllab` command afterward to review actual XP/stock/cooldown and preserve sanitized evidence. Raw authenticated responses must not be committed or printed in the conversation.
 
 Offline checks are `dotnet test Artiact.RealApiTests/Artiact.RealApiTests.csproj --no-restore --filter Category=RealApiOffline` and the solution gate. They verify transport boundaries and actual loopback panel startup, with sentinel data and no production requests. They do not establish real cooldown, XP, successful milestone completion or the complete live operator cycle.
+
+To inspect the retained result after the trial host exits, temporarily set `ARTIACT_OPERATOR_RESULT_VIEW=1` and invoke `dotnet test Artiact.RealApiTests/Artiact.RealApiTests.csproj --no-build --no-restore --filter Category=OperatorResultView`, restoring the previous flag afterward. It serves the panel at the same loopback URL for two minutes with controls/executor disabled; it reads no .env and makes no game API calls. The checkpoint remains retained. This is distinct from rerunning RealApiOperatorLive, which the marker prohibits.

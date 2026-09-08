@@ -17,26 +17,30 @@ public class ScopedOperatorHostTests
     public void RequiresExactScopeBeforeCredentialLoading(string? value) =>
         Assert.Throws<InvalidOperationException>(() => ScopedOperatorHost.RequireApproval(value));
 
-    [Fact]
+    [Theory]
     [Trait("Category", "RealApiOffline")]
-    public async Task HostsRealPanelWithoutAutomaticExecution()
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task HostsRealPanelWithoutAutomaticExecution(bool controlsEnabled)
     {
         var execution = new NeverExecute();
         await using var app = ScopedOperatorHost.Build(new ExecutionSettings
         { RunId = ScopedOperatorHost.RunId, MaxActions = 16, MaxDecisions = 20, MaxNoProgress = 3, MaxSeconds = 900 },
             new ApiSettings { Character = "gllab", BaseUrl = "https://api.artifactsmmo.com", Username = "sentinel", Password = "sentinel" },
-            new PortfolioSettings { AutonomousGoals = true }, new OperationState(), execution, "http://127.0.0.1:0");
+            new PortfolioSettings { AutonomousGoals = true }, new OperationState(), execution, "http://127.0.0.1:0", controlsEnabled);
         await app.StartAsync();
         using var http = new HttpClient { BaseAddress = new Uri(app.Services.GetRequiredService<IServer>()
             .Features.Get<IServerAddressesFeature>()!.Addresses.Single()) };
         using var controls = await http.GetAsync("/operator/controls");
         Assert.True(controls.IsSuccessStatusCode);
-        Assert.Contains("gllab", await controls.Content.ReadAsStringAsync());
+        using var controlData = System.Text.Json.JsonDocument.Parse(await controls.Content.ReadAsStringAsync());
+        Assert.Equal(controlsEnabled, controlData.RootElement.GetProperty("Enabled").GetBoolean());
+        if (!controlsEnabled) Assert.Equal(System.Text.Json.JsonValueKind.Null, controlData.RootElement.GetProperty("Token").ValueKind);
         using var panel = await http.GetAsync("/operator");
         Assert.True(panel.IsSuccessStatusCode);
         Assert.Equal(0, execution.Calls);
         using var refused = await http.PostAsync("/operator/start", new StringContent("{}", System.Text.Encoding.UTF8, "application/json"));
-        Assert.Equal(System.Net.HttpStatusCode.Forbidden, refused.StatusCode);
+        Assert.Equal(controlsEnabled ? System.Net.HttpStatusCode.Forbidden : System.Net.HttpStatusCode.NotFound, refused.StatusCode);
         Assert.Equal(0, execution.Calls);
     }
 

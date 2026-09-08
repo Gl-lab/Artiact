@@ -1,6 +1,6 @@
 # Separate autonomous live acceptance protocol
 
-Status: prepared on 2026-09-08; **game-action acceptance not executed or authorized by the offline roadmap work**. A separate read-only autonomous preflight on 2026-09-08 returned AutonomousBudgetExhausted with zero attempts; see [R19 preparation evidence](../openspec/changes/operator-live-acceptance/verification.md). Previous manually scoped mining/movement authorizations do not authorize this new autonomous run. CombatDiscovery remains outside this protocol under ADR0001.
+Status: the separately authorized gllab/alchemy2 trial passed on 2026-09-08; see [live evidence](../openspec/changes/scoped-operator-live/live-evidence.md) for13 verified actions, stop/reopen results and unverified scope. The earlier two-action preflight remains historical failed preparation. Approval covered this single trial with R16 left open; it does not authorize another run or broader categories. CombatDiscovery remains outside this protocol under ADR0001.
 
 Before any game action, record the exact reviewed commit, official HTTPS origin, one character, current character/catalog fingerprints, policy identity, fresh Inspect result, proposed first command, stock floor and limits. Use current observations, not tracked reference caches. Inspect must contain no game POST. The origin remains `https://api.artifactsmmo.com`; do not transmit credentials elsewhere or include credentials/payloads in evidence.
 

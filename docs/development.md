@@ -117,6 +117,8 @@ R19 adds `Category=RealApiAutonomousInspect`, guarded by the same `ARTIACT_REAL_
 
 `Category=RealApiOperatorLive` is the separately guarded [scoped R19 operator harness](scoped-operator-live.md). It serves the real panel on loopback with a fixed character/route, transport allowlist and durable directory. It requires its own exact action approval and is never part of the read-only or offline categories. Read its protocol before invocation; do not enable it for a build check.
 
+`Category=OperatorResultView` with `ARTIACT_OPERATOR_RESULT_VIEW=1` serves only the retained R19 result for two minutes. It has no executor/control routes or game API client and does not read credentials. Use it to inspect the result after the trial host exits; it does not rerun the trial. Restore the previous flag after invocation.
+
 The live smoke is a separate explicit command. In Git Bash:
 
 ```text

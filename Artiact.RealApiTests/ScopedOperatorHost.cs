@@ -17,7 +17,7 @@ internal static class ScopedOperatorHost
     }
 
     public static WebApplication Build(ExecutionSettings settings, ApiSettings api, PortfolioSettings portfolio,
-        OperationState state, IOperatorExecution execution, string url)
+        OperationState state, IOperatorExecution execution, string url, bool controlsEnabled = true)
     {
         if (!Uri.TryCreate(url, UriKind.Absolute, out var address) || address.Scheme != "http" || !address.IsLoopback ||
             address.AbsolutePath != "/" || address.UserInfo.Length != 0 || address.Query.Length != 0 || address.Fragment.Length != 0)
@@ -30,11 +30,14 @@ internal static class ScopedOperatorHost
         builder.Services.AddSingleton(api);
         builder.Services.AddSingleton(portfolio);
         builder.Services.AddSingleton(state);
-        builder.Services.AddSingleton(execution);
-        builder.Services.AddSingleton(new OperatorSettings { Enabled = true, ControlsEnabled = true });
+        builder.Services.AddSingleton(new OperatorSettings { Enabled = true, ControlsEnabled = controlsEnabled });
         builder.Services.AddSingleton<OperatorSnapshotReader>();
-        builder.Services.AddSingleton<OperatorCoordinator>();
-        builder.Services.AddSingleton<Microsoft.Extensions.Hosting.IHostedService>(services => services.GetRequiredService<OperatorCoordinator>());
+        if (controlsEnabled)
+        {
+            builder.Services.AddSingleton(execution);
+            builder.Services.AddSingleton<OperatorCoordinator>();
+            builder.Services.AddSingleton<Microsoft.Extensions.Hosting.IHostedService>(services => services.GetRequiredService<OperatorCoordinator>());
+        }
         var app = builder.Build();
         app.MapOperator();
         return app;
