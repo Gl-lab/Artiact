@@ -7,6 +7,11 @@ public sealed class OperationState(TimeProvider? time = null)
     private string? _runId;
     private string? _lastCommand, _goal;
     private readonly CancellationTokenSource _stop = new();
+    private bool _running;
+    public void WorkerStarted() { lock (_sync) _running = true; }
+    public void WorkerStopped() { lock (_sync) _running = false; }
+    public (bool Running, bool StopRequested, Strategy.StrategyDecision? Decision) WorkerSnapshot()
+    { lock (_sync) return (_running, _stop.IsCancellationRequested, _decision); }
     public CancellationToken StopToken => _stop.Token;
     public void RequestStop() => _stop.Cancel();
     public void Progress(string runId, Strategy.StrategyDecision decision)

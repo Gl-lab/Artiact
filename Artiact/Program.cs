@@ -111,6 +111,7 @@ internal class Program
         builder.Services.AddStagedOperation(builder.Configuration);
 
         WebApplication app = builder.Build();
+        app.MapOperator();
 
         // Добавляем эндпоинт для метрик Prometheus
         app.UseOpenTelemetryPrometheusScrapingEndpoint();

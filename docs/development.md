@@ -46,6 +46,8 @@ Every deterministic fixture contains replay checks. Run this separate command wh
 
 ## Configuration
 
+`Operator:Enabled=true` enables the loopback-only [observation panel](operator-panel.md) at `/operator`. It reads `Execution:RunDirectory` without API requests; it does not alter execution permissions or mode.
+
 For R11/R12 gathering discovery, set `Portfolio:AutonomousGoals=true` with an empty manual portfolio. Inspect uses MaxActions/MaxSeconds as planning bounds without actions; Bounded executes with the existing opt-in, RunId, directory and durable limits. See [autonomous goals](autonomous-goals.md).
 
 R13 adds optional `Portfolio:Recovery` with explicit action permissions and global use/material allowances. See [autonomous recovery](autonomous-recovery.md) for configuration and finite HP outcomes.

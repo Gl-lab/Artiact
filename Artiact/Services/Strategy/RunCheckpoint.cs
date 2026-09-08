@@ -5,10 +5,11 @@ namespace Artiact.Services.Strategy;
 
 public sealed record SavedObservation(JsonElement Character,
     ImmutableDictionary<string, ImmutableArray<JsonElement>> Catalogs, string Policy, Artiact.Contracts.Models.Api.BankSnapshot? Bank = null,
-    StrategyRunContext? Context = null)
+    StrategyRunContext? Context = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] DateTimeOffset? ObservedAt = null)
 {
     public StrategyObservation Restore() => new(Character, Catalogs, Policy, Bank, Context);
-    public static SavedObservation From(StrategyObservation state) => new(state.Character, state.Catalogs, state.Policy, state.Bank, state.Context);
+    public static SavedObservation From(StrategyObservation state, DateTimeOffset? observedAt = null) => new(state.Character, state.Catalogs, state.Policy, state.Bank, state.Context, observedAt);
 }
 public sealed record RunCheckpoint(int Version, string Identity, DateTimeOffset Started,
     int Decisions, int Attempts, int NoProgress, long Seconds, string[] Consumed,
@@ -35,7 +36,7 @@ public sealed class FileRunCheckpointStore : IRunCheckpointStore, IDisposable
     {
         directory = Path.GetFullPath(directory);
         Directory.CreateDirectory(directory);
-        string key = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(characterIdentity.ToUpperInvariant())));
+        string key = CharacterKey(characterIdentity);
         _lease = new FileStream(Path.Combine(directory, key + ".lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
         _path = Path.Combine(directory, key + ".json");
         _history = Path.Combine(directory, "history", key);
@@ -66,6 +67,7 @@ public sealed class FileRunCheckpointStore : IRunCheckpointStore, IDisposable
     }
     public static string IdentityDigest(string identity) => Convert.ToHexString(
         System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(identity)));
+    public static string CharacterKey(string characterIdentity) => IdentityDigest(characterIdentity.ToUpperInvariant());
     private static string? RunId(string identity)
     {
         try

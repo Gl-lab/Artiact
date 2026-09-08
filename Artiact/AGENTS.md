@@ -1,5 +1,7 @@
 # Main application instructions
 
+R17: operator snapshots never acquire the execution lease or call the game API. Preserve local address/Host guards, bounded reads, projected data, optional observation timestamps and worker/host distinction. See ../docs/operator-panel.md.
+
 R14 CombatDiscovery preserves explicit combat/gear/production permissions, Recovery allowances and combat:materials charges. Route-opening parents retain their opponent/value through equip. See ../docs/combat-goal-discovery.md; the combat ADR live no-go remains.
 
 R11/R12: autonomous gathering uses Inspect or durable Bounded execution. Preserve version-1 manual identity, version-2 active goal/history, pending baseline context, explicit bank permission, bounded generation and zero recipe utility without a proven need. Stopped is distinct from milestone completion and Blocked. See ../docs/autonomous-goals.md.

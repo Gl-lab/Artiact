@@ -41,4 +41,8 @@
         <ProjectReference Include="..\Artiact.Contracts\Artiact.Contracts.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+        <EmbeddedResource Include="Operator\*" />
+    </ItemGroup>
+
 </Project>

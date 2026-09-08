@@ -113,14 +113,14 @@ public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IPro
         try { State = (await observer.ObserveAsync(token)).WithContext(RunContext()); }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { return Stop(StrategyStatus.Cancelled, "Cancelled"); }
         catch (Exception) { return Stop(_pending is null ? StrategyStatus.Blocked : StrategyStatus.UnknownOutcome, "ObservationFailed"); }
-        _latest = SavedObservation.From(State);
+        _latest = SavedObservation.From(State, _time.GetUtcNow());
         if (_newRun && _initial is null) _initial = _latest;
         if (_pending is not null)
         {
             var pending = _pending;
             if (!Matches(pending, State, _baseline!)) return Stop(StrategyStatus.UnknownOutcome, "UnresolvedOutcome");
             _consumed.Add(Key(pending)); _pending = null;
-            _verified = SavedObservation.From(State);
+            _verified = SavedObservation.From(State, _time.GetUtcNow());
             RecordOutcome("Reconciled", State.Fingerprint);
             if (_goals is not null) _goals = _goals.CompleteObserved(State);
             if (pending.Productive) _noProgress = 0;
@@ -183,7 +183,7 @@ public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IPro
         catch (OperationCanceledException) when (token.IsCancellationRequested) { return Stop(StrategyStatus.Cancelled, "Cancelled"); }
         catch (Exception) { return Stop(StrategyStatus.Blocked, "PreflightFailed"); }
         State = preflight;
-        _latest = SavedObservation.From(State);
+        _latest = SavedObservation.From(State, _time.GetUtcNow());
         if (preflight.Fingerprint != command.SourceFingerprint)
         { _noProgress++; return Decision(StrategyStatus.Replan, "StaleObservation", selected.Id); }
         if (token.IsCancellationRequested) return Stop(StrategyStatus.Cancelled, "Cancelled");
@@ -206,13 +206,13 @@ public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IPro
             return Decision(StrategyStatus.UnknownOutcome, "DispatchOutcomeUnknown", selected.Id, command.Id);
         }
         State = reply.State.WithContext(RunContext());
-        _latest = SavedObservation.From(State);
+        _latest = SavedObservation.From(State, _time.GetUtcNow());
         _pending = null;
         _consumed.Add(Key(command));
         if (reply.Defeat) { RecordOutcome("Defeat"); return Stop(StrategyStatus.Blocked, "Defeat"); }
         if (!reply.Valid || reply.Cooldown < 0 || !Matches(command, State, _baseline))
         { RecordOutcome("InvalidPostcondition"); return Stop(StrategyStatus.Blocked, "InvalidPostcondition"); }
-        _verified = SavedObservation.From(State);
+        _verified = SavedObservation.From(State, _time.GetUtcNow());
         RecordOutcome("Verified", State.Fingerprint);
         if (_goals is not null) _goals = _goals.CompleteObserved(State);
         var facts = ActionFacts.Read(_baseline, State, selected, _time.GetElapsedTime(tickStarted, dispatched).TotalSeconds, _time.GetElapsedTime(dispatched).TotalSeconds);

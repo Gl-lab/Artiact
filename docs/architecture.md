@@ -21,6 +21,9 @@ flowchart LR
     HTTP --> API[Artifacts API or MockService]
     Client --> Cache[JSON reference-data cache]
     Host --> Health[/health]
+    Host --> Panel[Opt-in local operator panel]
+    Panel --> Reader[Read-only checkpoint projection]
+    Reader --> Durable[Durable journal and archive]
     Host --> Metrics[/metrics]
     Host --> Telemetry[Console + OTLP + Prometheus]
 ```
@@ -58,6 +61,8 @@ Unit and flow-oriented tests using xUnit and Moq. Tests focus on craft-chain con
 3. Registers application services as scoped; `ActivitySource` is singleton. `AddGoalSelection` binds and validates the positive mining target on startup before worker initialization.
 4. Registers StagedWorker by default; explicit validated Legacy mode registers ArtiactBackgroundService.
 5. Maps metrics, liveness and freshness-sensitive readiness, then starts the web host.
+
+The opt-in [operator panel](operator-panel.md) reads bounded snapshots of the durable journal without the character lease or game API requests. OperationState tracks worker lifetime independently of host liveness. Embedded browser assets display a restricted projection; no credentials/catalog payloads reach the page.
 
 In explicit Legacy mode, `ArtiactBackgroundService.ExecuteAsync` creates one dependency-injection scope for its lifetime. It calls `IActionService.InitializeAsync(stoppingToken)` once, then calls `ExecuteCycleAsync(stoppingToken)` serially while decisions are Selected. Each call reads one planning snapshot, evaluates the pure selector and finalizes Selected through run guards and catalog resolution. It explains and returns the exact final immutable decision. Selected constructs a private ResolvedMiningGoal and executes one MiningStep; final Completed/Blocked performs no execution and terminates the worker normally without recovery delay. Mining invokes Move zero/one times and Gathering zero/one times; a later cycle reselects resources. AddMiningProgression binds validated limits and registers the scoped run state shared by ActionService/StepBuilder plus the production cooldown wait. A cycle failure is logged and followed by a cancellable 30-second recovery delay. Shutdown cancellation exits normally; other initialization failures are critical and terminate the hosted service.
 

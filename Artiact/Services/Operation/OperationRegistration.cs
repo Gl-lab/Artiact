@@ -12,6 +12,8 @@ public static class OperationRegistration
         services.AddSingleton(execution);
         services.AddSingleton(portfolio);
         services.AddSingleton<OperationState>();
+        services.AddSingleton(configuration.GetSection("Operator").Get<OperatorSettings>() ?? new());
+        services.AddSingleton<OperatorSnapshotReader>();
         services.AddScoped<ApiCompatibility>();
         services.AddScoped<StagedExecution>();
         services.AddHttpClient("Artifacts", client => client.Timeout = TimeSpan.FromSeconds(30))

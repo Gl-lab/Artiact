@@ -15,6 +15,7 @@ public sealed class StagedExecution(ExecutionSettings settings, ApiSettings api,
         {
             if (_ran) return _result;
             _ran = true;
+            status.WorkerStarted();
             ExecutionMode mode;
             PortfolioPolicy policy;
             try { mode = settings.Validate(api); policy = portfolio.Policy(); }
@@ -33,7 +34,7 @@ public sealed class StagedExecution(ExecutionSettings settings, ApiSettings api,
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { status.Set("Cancelled"); return null; }
         catch (Exception) { status.Set("ExecutionFailed"); return null; }
-        finally { _gate.Release(); }
+        finally { status.WorkerStopped(); _gate.Release(); }
     }
 
     private async Task<StrategyDecision?> RunBoundedAsync(PortfolioPolicy policy, CancellationToken token)

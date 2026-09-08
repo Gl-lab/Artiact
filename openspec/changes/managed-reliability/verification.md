@@ -13,3 +13,5 @@ Compiling RED: `dotnet test Artiact.Tests/Artiact.Tests.csproj --no-restore --fi
 Review covered fail-closed reads, constructor ownership release, no action replay, failure after intent/response persistence, unchanged counters, optional diagnostic JSON compatibility and absence of raw exception text. Existing architecture diagrams still describe the same session/store/observer graph. No shared Contracts, DI constructors or game routes changed. Diagnostics and remaining limitations are documented together.
 
 Open: the historical R12/R13/R15 causal relationship remains unproven; R16 is **not fully closed**. No live actions, external API acceptance or filesystem power-loss guarantees were verified. R17–R20 are separate changes; local diagnostics do not authorize gameplay.
+
+Final sequential `dotnet test Artiact.sln --no-restore`: 560 application + 279 mock passed, no failures/skips or build warnings. Published as `47d7f5f`, pushed to origin/master. The user explicitly approved proceeding with local R17/R18 while leaving the historical R16 criterion open.
