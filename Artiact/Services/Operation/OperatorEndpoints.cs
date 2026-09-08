@@ -53,7 +53,10 @@ public static class OperatorEndpoints
 
     public sealed record StartRequest(string Receipt);
     public sealed record ArchiveRequest(string IdentityDigest);
-    private static IResult Control(OperatorControlResult result) => Results.Json(System.Text.Json.JsonSerializer.SerializeToElement(result), statusCode: result.Accepted ? 200 : 409);
+    private static IResult Control(OperatorControlResult result) => Results.Json(System.Text.Json.JsonSerializer.SerializeToElement(new
+    {
+        result.Accepted, result.Reason, result.Receipt, Decision = OperatorDecisionProjection.Decision(result.Decision)
+    }), statusCode: result.Accepted ? 200 : 409);
 
     public static bool SameOrigin(HttpContext context)
     {

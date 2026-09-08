@@ -7,6 +7,26 @@ namespace Artiact.Tests.Services;
 
 public class OperatorSnapshotTests
 {
+    [Fact]
+    public void TerminalDiagnosticsSurviveStorageAndExcludePlanningPayloads()
+    {
+        WithDirectory(directory =>
+        {
+            var clock = new Clock();
+            using var store = new FileRunCheckpointStore(directory, "http://localhost/hero");
+            var candidate = new StrategyCandidate("skill:mining:ore", "skill", 1, 1, 0, 0,
+                "EstimatedInventoryInsufficient", false, null,
+                Discovery: new("discovery-v1", "mining", 10, null, 0, 1, 0, [], "secret-test-value", "secret-test-value"),
+                Feasibility: new(57, 80, 23, false, 80, 2, 400, 120));
+            store.Save(Checkpoint(clock.Now) with { Terminal = new(StrategyStatus.Blocked, "NoFeasibleCandidate", null, null, [candidate], 1, 1, 0, 5) });
+            var view = Reader(directory, clock).Read();
+            var detail = view.GetProperty("Run").GetProperty("Candidates")[0];
+            Assert.Equal(23, detail.GetProperty("Feasibility").GetProperty("DeficitUnits").GetDecimal());
+            Assert.Equal("mining", detail.GetProperty("Skill").GetString());
+            Assert.DoesNotContain("secret-test-value", view.GetRawText());
+            Assert.DoesNotContain("secret-test-value", JsonSerializer.Serialize(OperatorDecisionProjection.Decision(store.Load()!.Terminal)));
+        });
+    }
     [Theory]
     [InlineData(StrategyStatus.Completed)]
     [InlineData(StrategyStatus.Stopped)]

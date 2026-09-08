@@ -84,6 +84,10 @@ public sealed class AutonomousGoalDiscovery(PortfolioPolicy policy, StrategyActi
                     int trainingLevel = resources.Single(x => x.GetProperty("code").GetString() == resourceCode).GetProperty("level").GetInt32();
                     long dropUnits = resources.Single(x => x.GetProperty("code").GetString() == resourceCode).GetProperty("drops").EnumerateArray()
                         .Sum(x => (long)x.GetProperty("max_quantity").GetInt32());
+                    candidate = candidate with { Feasibility = new(state.FreeUnits, work * dropUnits,
+                        Math.Max(0, work * dropUnits - state.FreeUnits), policy.Bank is not null,
+                        work + (path.TravelSeconds > 0 ? 1 : 0), observation.Context.RemainingActions ?? limits.Actions,
+                        seconds * multiplier, observation.Context.RemainingSeconds ?? limits.DurationSeconds) };
                     string? rejection = target - 1 - trainingLevel >= 10 ? "TrainingCannotReachMilestone" :
                         policy.Bank is null && work * dropUnits > state.FreeUnits ? "EstimatedInventoryInsufficient" :
                         work + (path.TravelSeconds > 0 ? 1 : 0) > (observation.Context.RemainingActions ?? limits.Actions) ||

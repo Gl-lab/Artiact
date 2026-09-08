@@ -12,6 +12,21 @@ namespace Artiact.Tests.Services;
 
 public class AutonomousGoalDiscoveryTests
 {
+    [Fact]
+    public async Task InventoryRefusalCarriesCalculatedQuantities()
+    {
+        var state = World(); var character = JsonNode.Parse(state.Character.GetRawText())!;
+        character["inventory_max_items"] = 1;
+        var result = await Inspect(new(JsonSerializer.SerializeToElement(character), state.Catalogs, state.Policy));
+        var candidate = result.Candidates.Single(x => x.Id == "skill:woodcutting:wood");
+        var json = JsonSerializer.SerializeToElement(candidate);
+        Assert.True(json.TryGetProperty("Feasibility", out var detail), "Planner must retain numeric feasibility evidence");
+        Assert.Equal(1, detail.GetProperty("FreeUnits").GetInt32());
+        // 26 XP remaining, estimated 13 XP and one maximum drop per action: two units.
+        Assert.Equal(2, detail.GetProperty("RequiredUnits").GetDecimal());
+        Assert.Equal(1, detail.GetProperty("DeficitUnits").GetDecimal());
+        Assert.False(detail.GetProperty("BankConfigured").GetBoolean());
+    }
     private sealed class Clock : TimeProvider
     {
         public DateTimeOffset Now = DateTimeOffset.UtcNow;

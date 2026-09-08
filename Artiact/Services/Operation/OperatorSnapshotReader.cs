@@ -92,6 +92,7 @@ public sealed class OperatorSnapshotReader(ExecutionSettings settings, ApiSettin
             CanArchive = FileRunCheckpointStore.CanArchive(saved),
             Status = saved.PendingCommand is not null ? "UnknownOutcome" : saved.Terminal?.Status.ToString() ?? "Nonterminal",
             Reason = saved.Terminal?.Reason, Goal = goal is null ? saved.Autonomous is null ? saved.Journal.LastOrDefault()?.Candidate : null : goal.Skill + ":" + goal.Target,
+            Candidates = OperatorDecisionProjection.Candidates(saved.Terminal?.Candidates ?? []),
             Origin = saved.Autonomous is null ? "Configured" : "Autonomous",
             Explanation = goal,
             LastConfirmedAction = saved.Journal.LastOrDefault(x => x.Status == "Verified")?.Command,

@@ -13,7 +13,8 @@ public sealed record AtomicCommand(string Id, string SourceFingerprint, bool Pro
 public sealed record StrategyCandidate(string Id, string Category, decimal Value, decimal ActionSeconds,
     decimal TravelSeconds, decimal RecoverySeconds, string? Rejection, bool Complete, [property: JsonIgnore] AtomicCommand? Command,
     string EstimateSource = "Configured", int Samples = 0, SkillPrerequisite? Prerequisite = null, CombatRoute? CombatRoute = null, PathEstimate? Path = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] GoalDiscoveryEvidence? Discovery = null)
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] GoalDiscoveryEvidence? Discovery = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] FeasibilityEvidence? Feasibility = null)
 {
     public decimal? TotalSeconds => ActionSeconds is >= 0.001m and <= 1_000_000 &&
         TravelSeconds is >= 0 and <= 1_000_000 && RecoverySeconds is >= 0 and <= 1_000_000
@@ -22,6 +23,8 @@ public sealed record StrategyCandidate(string Id, string Category, decimal Value
         TotalSeconds is { } total ? Value / total : null;
 }
 public sealed record SkillPrerequisite(string Parent, string Skill, int Target, string? TrainingItem);
+public sealed record FeasibilityEvidence(long FreeUnits, decimal RequiredUnits, decimal DeficitUnits, bool BankConfigured,
+    decimal RequiredActions, int RemainingActions, decimal RequiredSeconds, decimal RemainingSeconds);
 public sealed record CombatRoute(int Target, string Monster, string? Slot, string? Equipment, long MaximumLoss, decimal PreparationSeconds);
 public interface IProgressionStrategy
 {

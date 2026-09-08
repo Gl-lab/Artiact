@@ -3,6 +3,30 @@ const assert=require('node:assert/strict');
 const {readFileSync}=require('node:fs');
 const vm=require('node:vm');
 
+test('Rejected preparation shows numeric inventory evidence without a saved run',async()=>{
+    const p=panel({Accepted:false,Reason:'NoFeasibleCandidate',Decision:{Candidates:[{Id:'skill:mining:ore',Skill:'mining',Target:10,Rejection:'EstimatedInventoryInsufficient',Feasibility:{FreeUnits:57,RequiredUnits:80,DeficitUnits:23,BankConfigured:false}}]}});
+    await p.settle();await p.element('start').click();await p.settle();
+    assert.match(p.element('inspect-diagnostics').children.map(x=>x.textContent).join(' '),/57.*80.*23/);
+    assert.equal(p.calls.some(c=>c.url.endsWith('/start')),false);
+});
+
+test('Saved mixed refusals retain stale label, unknown codes and expandable alternatives',async()=>{
+    const p=panel(undefined,{Executor:'Blocked',Freshness:'Stale',Run:{Status:'Blocked',Candidates:[
+        {Id:'one',Rejection:'EstimatedPathExceedsBudget',Feasibility:{FreeUnits:57,RequiredUnits:2,DeficitUnits:0,BankConfigured:false,RequiredActions:3,RemainingActions:2,RequiredSeconds:140,RemainingSeconds:120}},
+        {Id:'two',Rejection:'NoSupportedResource'},{Id:'three',Rejection:'FutureCode<script>'},{Id:'four',Rejection:'UnsupportedAccess'}]}});
+    await p.settle();const rows=p.element('run-diagnostics').children;
+    assert.match(rows[0].textContent,/действий: 3, осталось: 2/);
+    assert.match(rows[1].textContent,/Нет поддерживаемого ресурса/);
+    assert.match(rows[2].textContent,/FutureCode<script>/);
+    assert.match(rows[3].children[0].textContent,/альтернативы \(1\)/);
+    assert.match(p.element('freshness').textContent,/Устаревшие/);
+});
+
+test('Historical result without diagnostic evidence explicitly shows missing details',async()=>{
+    const p=panel(undefined,{Executor:'Blocked',Run:{Status:'Blocked'}});await p.settle();
+    assert.match(p.element('run-diagnostics').children[0].textContent,/отсутствуют/);
+});
+
 function panel(inspect={Accepted:true,Reason:'InspectReady',Receipt:'fresh'},snapshot={Executor:'Idle',Storage:'NoRun',Freshness:'Unavailable',Enabled:false},start={Accepted:true,Reason:'StartAccepted'}){
     const elements=new Map(), calls=[];
     const element=id=>{

@@ -1,4 +1,24 @@
 const el=id=>document.getElementById(id);
+function diagnosticText(c){
+    const names={mining:'Добыча',woodcutting:'Рубка',fishing:'Рыбалка',alchemy:'Алхимия'};
+    const explanations={EstimatedInventoryInsufficient:'Недостаточно места для оценённого сбора',EstimatedPathExceedsBudget:'Оценённый путь превышает бюджет',NoSupportedResource:'Нет поддерживаемого ресурса',UnsupportedAccess:'Маршрут недоступен',UnsupportedResourceAccess:'Маршрут к ресурсу недоступен',TrainingCannotReachMilestone:'Ресурс не позволяет достичь рубежа',InventoryFull:'Инвентарь заполнен'};
+    let value=`${names[c.Skill]??c.Skill??c.Id}${c.Target!=null?' → '+c.Target:''}: ${explanations[c.Rejection]??(c.Rejection?'Причина требует проверки':'Доступный маршрут')} [${c.Rejection??'Selected'}]`;
+    const f=c.Feasibility;
+    if(f){value+=` · свободно ${f.FreeUnits}, оценочно нужно ${f.RequiredUnits}, дефицит ${f.DeficitUnits}. Банковская политика ${f.BankConfigured?'задана; выполнимость проверяется отдельно':'не задана'}.`;
+        if(c.Rejection==='EstimatedPathExceedsBudget')value+=` Нужно действий: ${f.RequiredActions}, осталось: ${f.RemainingActions}; оценка времени: ${f.RequiredSeconds} сек, осталось: ${f.RemainingSeconds} сек.`;
+        if(c.Rejection==='EstimatedInventoryInsufficient')value+=' Освободите место или проверьте разрешённую банковскую политику, затем повторите Inspect. Другие ограничения могут сохраниться.';
+    }else value+=' Числовые детали отсутствуют.';
+    return value;
+}
+function diagnostics(id,candidates){
+    candidates=candidates??[];
+    if(!changed(id,candidates))return;
+    const root=el(id);root.replaceChildren();
+    if(!candidates?.length){const p=document.createElement('p');p.textContent='Детали кандидатов отсутствуют.';root.append(p);return}
+    const ordered=[...candidates].sort((a,b)=>Number(!a.Feasibility)-Number(!b.Feasibility));
+    let more;
+    ordered.forEach((c,i)=>{if(i===3){more=document.createElement('details');const summary=document.createElement('summary');summary.textContent=`Остальные альтернативы (${ordered.length-3})`;more.append(summary);root.append(more)}const p=document.createElement('p');p.textContent=diagnosticText(c);(i<3?root:more).append(p)});
+}
 let seriesToken=null,seriesSignature=null;
 const seriesLabels={Waiting:'Ожидает следующего запуска',Running:'Серия исполняется',Completed:'Серия завершена',Stopped:'Серия остановлена',InterventionRequired:'Серия требует вмешательства',Disabled:'Расписание выключено',RunCompleted:'Запуск завершён',RunFailed:'Отказ запуска',SeriesCompleted:'Серия завершена',SeriesStopped:'Серия остановлена'};
 function seriesReason(reason){return ({SeriesBudgetExhausted:'Исчерпан бюджет серии',SeriesWindowExhausted:'Окончилось окно запуска',InterruptedReservation:'Предыдущий запуск прерван; требуется проверка',StopRequested:'Запрошена остановка',ScheduleStorageOrConfigurationInvalid:'Состояние серии или настройки недоступны либо изменены',RunUnavailableOrInvalid:'Не удалось безопасно выполнить запуск'}[reason]??reasons[reason]??reason)}
@@ -12,7 +32,7 @@ const labels={Running:'Исполняется',Idle:'Нет активного �
 const facts={name:'Имя',hp:'HP',max_hp:'Максимум HP',level:'Уровень',xp:'XP',max_xp:'XP до уровня',map_id:'Карта',x:'X',y:'Y',inventory_max_items:'Вместимость',mining_level:'Добыча · уровень',mining_xp:'Добыча · XP',woodcutting_level:'Рубка · уровень',woodcutting_xp:'Рубка · XP',fishing_level:'Рыбалка · уровень',fishing_xp:'Рыбалка · XP',alchemy_level:'Алхимия · уровень',alchemy_xp:'Алхимия · XP'};
 function list(id,entries){if(!changed(id,entries))return;el(id).replaceChildren();for(const [key,value] of entries){const dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=facts[key]??key;dd.textContent=value;el(id).append(dt,dd)}if(!entries.length){const dt=document.createElement('dt');dt.textContent='Данные отсутствуют';el(id).append(dt)}}
 const reasons={AutonomousBudgetExhausted:'Достигнут предел запуска',BudgetExhausted:'Бюджет исчерпан',NoUsefulSupportedGoals:'Поддерживаемые цели исчерпаны',TargetsReached:'Заданные цели достигнуты',CheckpointUnavailableOrInvalid:'Не удалось прочитать или сохранить состояние',ExecutionFailed:'Технический отказ исполнения',Cancelled:'Остановка подтверждена',UnresolvedOutcome:'Результат команды не удалось установить',DispatchOutcomeUnknown:'Ответ на команду не подтверждён',NoFeasibleCandidate:'Нет доступной поддерживаемой цели',ObservationFailed:'Не удалось обновить наблюдение',StaleObservation:'Наблюдение устарело',ResourceBudgetExhausted:'Лимит расхода запасов исчерпан'};
-function render(v){const r=v.Run;currentRun=r;executor=v.Executor;connected=true;updateControls();if(startAccepted&&finishedRun()){text('control-result',savedRunHelp());startAccepted=false}text('connection','Хост доступен');text('executor',labels[v.Executor]??v.Executor);text('reason',(reasons[r?.Reason]??r?.Reason)??(v.Storage==='Unavailable'?'Хранилище недоступно':v.Storage==='NotConfigured'?'Каталог запусков не настроен':(r?'Работа в пределах заданных лимитов':'Запуск ещё не начат')));
+function render(v){const r=v.Run;diagnostics('run-diagnostics',r?.Candidates);currentRun=r;executor=v.Executor;connected=true;updateControls();if(startAccepted&&finishedRun()){text('control-result',savedRunHelp());startAccepted=false}text('connection','Хост доступен');text('executor',labels[v.Executor]??v.Executor);text('reason',(reasons[r?.Reason]??r?.Reason)??(v.Storage==='Unavailable'?'Хранилище недоступно':v.Storage==='NotConfigured'?'Каталог запусков не настроен':(r?'Работа в пределах заданных лимитов':'Запуск ещё не начат')));
 text('run-id',r?.RunId);text('freshness',`${{Fresh:'Свежие данные',Stale:'Устаревшие данные',Unavailable:'Свежесть неизвестна'}[v.Freshness]}${v.ObservedAt?' · '+new Date(v.ObservedAt).toLocaleString():''}`);
 text('actions',r?`${r.UsedActions} / ${r.MaxActions??'неизвестно'}`:'—');text('time',r?.RemainingSeconds==null?'Неизвестно':Math.floor(r.RemainingSeconds)+' сек');text('cooldown',r?r.VerifiedCooldownSeconds+' сек':'—');text('timing',r?.TimingComplete?'Ожидания подтверждены':'Не все ожидания подтверждены');text('goal',r?.Goal??'Нет активной цели');text('origin',r?.Origin==='Autonomous'?'Автоматически обнаруженная цель':r?'Настроенная цель':'—');text('explanation',r?.Explanation?`Полезность открытия: ${r.Explanation.UnlockUtility}; прогресса: ${r.Explanation.ProgressUtility}`:'Объяснение текущей цели отсутствует');text('last-action',r?.LastConfirmedAction??'Нет подтверждённых действий');text('pending',r?.PendingCommand?'Незавершённая команда: '+r.PendingCommand:'');
 list('character',Object.entries(r?.Character??{}));list('resources',Object.entries(r?.ChargedResources??{}));if(changed('milestones',r?.Milestones)){el('milestones').replaceChildren();for(const m of r?.Milestones??[]){const li=document.createElement('li');li.textContent=`${m.Skill} → ${m.Target} · ${m.Outcome}`;el('milestones').append(li)}if(!el('milestones').children.length){const li=document.createElement('li');li.textContent='История отсутствует';el('milestones').append(li)}}if(changed('history',v.History)){el('history').replaceChildren();for(const h of v.History??[]){const row=document.createElement('div');row.textContent=`${h.RunId??'Без RunId'} · ${labels[h.Status]??h.Status} · ${h.UsedActions} действий · ${h.VerifiedCooldownSeconds} сек cooldown`;el('history').append(row)}if(!el('history').children.length)text('history','Архив пуст');}
@@ -70,6 +90,8 @@ async function prepare(start){
         text('start',start?'Проверяем и запускаем…':'Запустить');
         text('control-result',start?'Проверяем актуальное состояние персонажа перед запуском…':'Строим план. Игровые действия не выполняются…');
         const result=await command('inspect',request());
+        diagnostics('inspect-diagnostics',result.Decision?.Candidates);
+        text('inspect-freshness',`Результат Inspect получен ${new Date().toLocaleString()}. Это снимок проверки; он может устареть. Следующий запуск проверит состояние заново.`);
         if(!result.Accepted||!result.Receipt)return;
         if(!start){if(result.Decision)text('control-result',messages.InspectReady+' Цель: '+(result.Decision.Candidate??'—')+'; действие: '+(result.Decision.Command??'—'));return}
         text('control-result','Проверка пройдена. Запускаем…');
