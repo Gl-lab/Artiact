@@ -10,4 +10,4 @@
 - [x] Implement/review proposed scoped transport and operator harness (see scoped-operator-live change).
 - [x] Run the concretely approved operator live cycle (13 verified actions,alchemy2).
 - [x] Verify retained terminal/costs/stock through shared execution reopen and a restarted read-only panel process; exact limits in scoped-operator-live/live-evidence.md.
-- [ ] Publish R19 live evidence.
+- [x] Publish R19 live evidence (`47593f3`, origin/master).
