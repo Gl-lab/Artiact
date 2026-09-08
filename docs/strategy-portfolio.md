@@ -1,6 +1,6 @@
 # Explicit strategy portfolio
 
-Manual profiles supply explicit goals and values, including in R10 full-path mode. R11/R12 add [automatic gathering discovery and bounded milestone renewal](autonomous-goals.md); R13 adds [HP-driven production](autonomous-recovery.md). Combat discovery remains pending in the [R11–R15 roadmap](roadmap-autonomous-goals-ru.md).
+Manual profiles supply explicit goals and values, including in R10 full-path mode. R11/R12 add [automatic gathering discovery and bounded milestone renewal](autonomous-goals.md); R13 adds [HP-driven production](autonomous-recovery.md). R14 adds [combat discovery](combat-goal-discovery.md); operational quality remains R15.
 
 R5 optionally ranks [alternative resources/opponents/items using measured cooldowns](measured-selection.md), persisted sample metadata and an incumbent switching threshold. Fixed ranking remains the default; unknown prerequisite costs remain explicit assumptions.
 

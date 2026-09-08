@@ -78,9 +78,10 @@ public sealed class FileRunCheckpointStore : IRunCheckpointStore, IDisposable
             terminal is { Status: StrategyStatus.Stopped, Reason: "AutonomousBudgetExhausted" or "NoUsefulSupportedGoals" } && saved.Initial is not null &&
             saved.PendingCandidate is null && saved.Latest is not null && CharacterObservation.Read(saved.Latest.Character) is not null &&
             saved.Autonomous.History.Where(x => x.Outcome == "Completed").All(x => x.Goal.Skill == "recovery" ? x.ObservedHp >= x.Goal.Target :
-                saved.Latest.Character.TryGetProperty(x.Goal.Skill + "_level", out var level) && level.TryGetInt32(out int value) && value >= x.Goal.Target) &&
+                saved.Latest.Character.TryGetProperty(x.Goal.Skill == "combat" ? "level" : x.Goal.Skill + "_level", out var level) && level.TryGetInt32(out int value) && value >= x.Goal.Target) &&
             (terminal.Reason != "NoUsefulSupportedGoals" || saved.Autonomous.Active is null && ObservedCaps(saved.Latest) &&
-                terminal.Candidates.Length == 4 && terminal.Candidates.All(x => x.Rejection == "SupportedSkillCapReached"));
+                terminal.Candidates.Length is 4 or 5 && terminal.Candidates.All(x => x.Rejection == "SupportedSkillCapReached") &&
+                (terminal.Candidates.Length == 4 || saved.Latest.Character.GetProperty("level").GetInt32() == 50));
         if (!string.Equals(IdentityDigest(saved.Identity), expectedIdentityDigest, StringComparison.Ordinal) ||
             !(manual || autonomous) || saved.PendingCommand is not null || terminal is null ||
             saved.Decisions <= 0 || saved.Attempts < 0 || saved.Attempts > saved.Decisions || saved.NoProgress < 0 || saved.Seconds < 0 ||

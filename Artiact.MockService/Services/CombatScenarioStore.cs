@@ -10,6 +10,7 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
     private readonly JsonNode _fixture = JsonNode.Parse(File.ReadAllText(Path.Combine(environment.ContentRootPath, "CombatScenario.json")))!;
     private JsonNode? _character;
     private string? _scenario;
+    private bool _combatDiscovery;
     private int _seconds;
     private readonly JsonArray _trace = [];
     private JsonArray _bank = [];
@@ -45,6 +46,8 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
                     scenario = properties[0].Value.GetString();
                 }
                 catch (System.Text.Json.JsonException) { return null; }
+                _combatDiscovery = scenario is "combat-discovery-shield" or "combat-discovery-weapon";
+                scenario = scenario switch { "combat-discovery-shield" => "autonomous-shield", "combat-discovery-weapon" => "autonomous-weapon", _ => scenario };
                 if (scenario is "basic-mining" or "mining-progression") { _scenario = null; return null; }
                 if (scenario is not ("combat-progression" or "combat-equipment" or "combat-crafting" or "strategy-portfolio" or "gathering-bank" or "item-production" or "item-production-bank" or "combat-preparation" or "skill-preparation" or "resource-preparation" or "capacity-production" or "capacity-training" or "consumable-production" or "consumable-bank" or "consumable-training" or "consumable-capacity" or "consumable-full" or "autonomous-shield" or "autonomous-weapon" or "discovery-new" or "discovery-uneven" or "discovery-bank" or "discovery-locked" or "discovery-capped" or "recovery-training")) return null;
                 _scenario = scenario;
@@ -344,6 +347,8 @@ public sealed class CombatScenarioStore(IWebHostEnvironment environment)
         if (IsTraining) state["weaponcrafting_max_xp"] = 10;
         if (IsConsumable) state["hp"] = _scenario == "consumable-full" ? 20 : 4;
         if (IsAutonomous) state["hp"] = 20;
+        if (_combatDiscovery)
+            foreach (string skill in new[] { "mining", "fishing", "woodcutting" }) state[skill + "_max_xp"] = 1000;
         if (_scenario == "consumable-capacity") state["inventory_max_items"] = 3;
         if (_scenario is "gathering-bank" or "capacity-production" or "capacity-training")
         {

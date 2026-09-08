@@ -31,10 +31,14 @@ public sealed class StrategySessionFactory(GameClient client, CombatCatalog cata
         if (policy.Measurement?.FullPaths == true) strategies = strategies.Select(x => (IProgressionStrategy)new FullPathStrategy(x, policy)).ToList();
         if (policy.AutonomousGoals) strategies.Add(new AutonomousGoalDiscovery(policy, port, limits ?? new()));
         if (policy.Recovery is not null) strategies.Add(new RecoveryGoalDiscovery(policy, port));
+        if (policy.CombatDiscovery is not null) strategies.Add(new CombatGoalDiscovery(policy, port));
+        var resources = new Dictionary<string, int>();
+        if (policy.Consumable is { } food) { resources["use:" + food.Code] = food.MaxUsed; resources["materials:" + food.Code] = food.MaxMaterialUnits; }
+        if (policy.Recovery is { } recovery) { resources["recovery:use"] = recovery.MaxUsed; resources["recovery:materials"] = recovery.MaxMaterialUnits; }
+        if (policy.CombatDiscovery is { } combatPolicy) resources["combat:materials"] = combatPolicy.MaxMaterialUnits;
         return new(new HttpStrategyObserver(client, catalog, characters, policy.Identity, compatibility, policy), strategies, cooldown, limits,
             checkpoints: checkpoints, identity: identity, selection: policy.Measurement,
-            resourceLimits: policy.Consumable is { } food ? new Dictionary<string, int> { ["use:" + food.Code] = food.MaxUsed, ["materials:" + food.Code] = food.MaxMaterialUnits } :
-                policy.Recovery is { } recovery ? new Dictionary<string, int> { ["recovery:use"] = recovery.MaxUsed, ["recovery:materials"] = recovery.MaxMaterialUnits } : null,
+            resourceLimits: resources.Count == 0 ? null : resources,
             inspectOnly: policy.AutonomousGoals && checkpoints is null, autonomous: policy.AutonomousGoals);
     }
 }
@@ -50,7 +54,7 @@ public sealed class HttpStrategyObserver(GameClient client, CombatCatalog catalo
         var started = compatibility?.Now;
         if (compatibility is not null) await compatibility.CheckAsync(token, profile);
         var catalogs = ImmutableDictionary.CreateBuilder<string, ImmutableArray<System.Text.Json.JsonElement>>(StringComparer.Ordinal);
-        foreach (string name in profile is { CombatEnabled: false } ? new[] { "maps", "resources" } : new[] { "maps", "resources", "items", "monsters" })
+        foreach (string name in profile is { CombatEnabled: false, CombatDiscovery: null } ? new[] { "maps", "resources" } : new[] { "maps", "resources", "items", "monsters" })
             catalogs[name] = (await catalog.ReadPagesAsync(name, token)).ToImmutableArray();
         if (profile is not null && (profile.AutonomousGoals || !profile.Items.IsDefaultOrEmpty) && !catalogs.ContainsKey("items"))
             catalogs["items"] = (await catalog.ReadPagesAsync("items", token)).ToImmutableArray();

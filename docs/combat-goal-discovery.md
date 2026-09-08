@@ -1,0 +1,15 @@
+# Combat goal discovery (R14)
+
+Add `Portfolio:CombatDiscovery` to an autonomous profile without manual CombatTarget, Monster, Equipment or stages. AllowFight, AllowEquip, AllowCraft and AllowBankWithdrawal default to false. MaxMaterialUnits defaults to 100; Reserved defines stock floors. Bank withdrawal also requires BankRetain. Optional Recovery supplies permitted rest/use/food-production choices. Absent combat discovery preserves earlier profiles and their schema requirements.
+
+combat-discovery-v1 discovers the next combat level up to 50. Ten ordinal opponents and twenty supported weapon/shield alternatives bound the search; catalogs above 4096 monsters/16384 items reject. The R9 model excludes unsupported opponents, effects and equipped slots. Current safe fights receive progress utility 0.1; making an unsafe opponent safe with a supported replacement receives unlock utility 1. Ingredients and equipment receive no independent reward. R10 compares preparation, training, travel, equipment, fight and recovery against gathering and standalone HP needs.
+
+A selected route-opening parent retains its opponent and utility through recovery/preparation/equip until the level milestone ends. Otherwise equipping the item would erase its opening value and divert the run. Current-progress parents can compare supported opponents on each observation. A safe ordinary opponent supplies the bounded loot fallback for supported equipment production; unavailable/unsafe loot rejects. No arbitrary loot search or combined loadout optimization is claimed.
+
+At any HP deficit, combat uses Recovery with effective threshold 100, irrespective of the standalone threshold. Allowed rest and finite food routes compete; without a permitted route, combat blocks. Food belongs to the combat parent; only fight progress resets its no-progress counter. Intent charges global combat:materials for gear/training inputs and existing recovery allowances for food. Total limits apply across parents and restart.
+
+Version-2 checkpoints preserve combat provenance and pending baseline. Completion reads actual `level`; no `combat_level` field is required. A milestone does not finish the entire run. NoUsefulSupportedGoals additionally requires the combat cap when this category is present. Archive and run-result retain verified-result rules.
+
+The deterministic combat-discovery-shield/weapon fixtures reuse R9 responses with slow gathering thresholds. They reach level 3 with ward in 12 actions/78 cooldown seconds and water_blade in 20/120, matching the fixed portfolio. Both retain protected1/feather2; material charges are 2/4. Comparisons replay all three policies. See [protocol](../openspec/changes/combat-goal-discovery/comparisons.md) and [verification](../openspec/changes/combat-goal-discovery/verification.md).
+
+[Official mechanics](https://docs.artifactsmmo.com/concepts/stats_and_fights) were checked on 2026-09-08. Future XP, preparation and cooldown remain estimates. [ADR 0001](decisions/0001-combat-viability-and-recovery.md) retains the live no-go. No live game actions were performed.

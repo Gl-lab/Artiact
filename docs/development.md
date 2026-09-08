@@ -50,6 +50,8 @@ For R11/R12 gathering discovery, set `Portfolio:AutonomousGoals=true` with an em
 
 R13 adds optional `Portfolio:Recovery` with explicit action permissions and global use/material allowances. See [autonomous recovery](autonomous-recovery.md) for configuration and finite HP outcomes.
 
+R14 adds optional `Portfolio:CombatDiscovery`; see [combat discovery](combat-goal-discovery.md). This category does not change the combat ADR's live no-go.
+
 `Artiact/Program.cs` loads configuration from the build output directory in this order:
 
 1. `appsettings.json`;

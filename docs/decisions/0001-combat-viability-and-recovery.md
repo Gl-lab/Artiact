@@ -2,6 +2,8 @@
 
 Date: 2026-09-06. Status: research decision for Epic 6 design; not production rollout approval.
 
+Revisited 2026-09-08 for R14: [combat discovery](../combat-goal-discovery.md) derives next-level/opponent/gear alternatives and recovery prerequisites using the supported R9 predictor. No matched live/simulator corpus was added; the live no-go remains.
+
 Revisited 2026-09-07 for R9: [autonomous preparation](../autonomous-combat.md) adds bounded stages, static weapon/shield projection and healing outside fights. The [mechanics matrix](../../openspec/changes/autonomous-combat/mechanics.md) and two-stage mock evidence support local implementation only. Active effects/utilities/runes, combined loadouts and defeat recovery stay excluded. Live combat remains no-go: no matched live/simulator corpus was obtained. Historical prototype restart statements below do not replace the production durable journal and fresh-state reconciliation.
 
 Revisited 2026-09-07 for [R4b](../../openspec/changes/elemental-combat/design.md): official separate-element arithmetic supports extending the local predictor to four explicit channels under the same conservative bounds. This supersedes the single-active-element restriction only for production normalization/prediction; the historical research prototype remains unchanged. Effects, negative resistances and unsupported equipment families stay rejected. No matched live/simulator corpus was obtained, so real-character combat remains no-go on this evidence.

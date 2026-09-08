@@ -1,5 +1,7 @@
 # Autonomous combat preparation (R9)
 
+R14 adds [combat goal discovery](combat-goal-discovery.md) without manual opponents/stages/equipment. The R9 configuration below remains supported unchanged.
+
 The existing portfolio configuration accepts `AutonomousCombat`:
 
 ```json

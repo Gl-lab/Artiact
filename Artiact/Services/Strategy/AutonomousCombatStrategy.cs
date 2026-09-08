@@ -3,7 +3,7 @@ using Artiact.Services.Combat;
 
 namespace Artiact.Services.Strategy;
 
-public sealed class AutonomousCombatStrategy(PortfolioPolicy policy, StrategyActionPort port) : IProgressionStrategy
+public sealed class AutonomousCombatStrategy(PortfolioPolicy policy, StrategyActionPort port, bool lootPreparation = false) : IProgressionStrategy
 {
     public StrategyCandidate Evaluate(StrategyObservation observation) => EvaluateAll(observation)
         .OrderByDescending(x => x.Score).ThenBy(x => x.Id, StringComparer.Ordinal).First();
@@ -63,7 +63,7 @@ public sealed class AutonomousCombatStrategy(PortfolioPolicy policy, StrategyAct
 
     private decimal PreparationCost(StrategyObservation observation, string code, StrategyCandidate preparation)
     {
-        var plan = ProductionStock.Plan(observation, new(code, 1), policy, true);
+        var plan = ProductionStock.Plan(observation, new(code, 1), policy with { PrepareEquipment = policy.PrepareEquipment || lootPreparation }, true);
         if (plan.Rejection is not null) return 0; // Rejected routes have no executable cost; do not invalidate other candidates with a sentinel.
         return policy.EquipmentSeconds * 2 + plan.Steps.Sum(x => x.Kind switch
         {
@@ -76,7 +76,7 @@ public sealed class AutonomousCombatStrategy(PortfolioPolicy policy, StrategyAct
 
     private StrategyCandidate Prepare(StrategyObservation observation, string slot, string code)
     {
-        var production = new SkillPrerequisiteStrategy(new(code, 1, policy.CombatValue), policy, port, true).Evaluate(observation);
+        var production = new SkillPrerequisiteStrategy(new(code, 1, policy.CombatValue), policy with { PrepareEquipment = policy.PrepareEquipment || lootPreparation }, port, true).Evaluate(observation);
         if (!production.Complete) return production;
         var state = CharacterObservation.Read(observation.Character)!;
         string old = observation.Character.GetProperty(slot + "_slot").GetString()!;

@@ -6,4 +6,4 @@
 - [x] Extend only required schema probes, mock scenario and HP outcome measurement.
 - [x] Verify exact training/bank/rest/healthy flows and permission, stock, cycle, cancellation and lost-response boundaries.
 - [x] Repeat accumulated comparison matrix, review, update docs and run solution gate; see verification.md.
-- [ ] Commit and push before R14.
+- [x] Commit and push before R14: `c7e0b1f`, origin/master.

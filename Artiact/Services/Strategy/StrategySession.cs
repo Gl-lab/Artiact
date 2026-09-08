@@ -146,7 +146,7 @@ public sealed class StrategySession(IStrategyObserver observer, IEnumerable<IPro
                 return Stop(StrategyStatus.Blocked, "InvalidPolicy");
         }
         catch (Exception) { return Stop(StrategyStatus.Blocked, "InvalidObservationOrPolicy"); }
-        if (autonomous && _candidates.Length == 4 && _candidates.All(x => x.Rejection == "SupportedSkillCapReached"))
+        if (autonomous && _candidates.Length is 4 or 5 && _candidates.All(x => x.Rejection == "SupportedSkillCapReached"))
             return Stop(StrategyStatus.Stopped, "NoUsefulSupportedGoals");
         if (_candidates.All(x => x.Complete)) return Stop(StrategyStatus.Completed, "TargetsReached");
         var selected = _candidates.Where(x => x.Score.HasValue && x.Command is not null)

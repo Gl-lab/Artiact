@@ -33,10 +33,15 @@ public sealed class ApiCompatibility(IGameHttpClient http, ExecutionSettings set
         {
             if (root.GetProperty("info").GetProperty("version").GetString() != version) return false;
             var paths = root.GetProperty("paths");
-            bool gatheringOnly = profile is { CombatEnabled: false };
+            bool gatheringOnly = profile is { CombatEnabled: false, CombatDiscovery: null };
             foreach (string path in gatheringOnly ? new[] { "/characters/{name}", "/maps", "/resources" } : new[] { "/characters/{name}", "/maps", "/resources", "/items", "/monsters" })
                 if (paths.GetProperty(path).GetProperty("get").ValueKind != JsonValueKind.Object) return false;
-            foreach (string action in gatheringOnly ? new[] { "move", "gathering" } : new[] { "move", "gathering", "fight", "rest", "equip", "unequip", "crafting" })
+            var actions = profile?.CombatDiscovery is { } discovered ? new[] { "move", "gathering" }
+                .Concat(discovered.AllowFight ? ["fight"] : Array.Empty<string>())
+                .Concat(discovered.AllowEquip ? ["equip", "unequip"] : Array.Empty<string>())
+                .Concat(discovered.AllowCraft ? ["crafting"] : Array.Empty<string>()) :
+                gatheringOnly ? new[] { "move", "gathering" } : new[] { "move", "gathering", "fight", "rest", "equip", "unequip", "crafting" };
+            foreach (string action in actions)
                 if (paths.GetProperty("/my/{name}/action/" + action).GetProperty("post").ValueKind != JsonValueKind.Object) return false;
             var schemas = root.GetProperty("components").GetProperty("schemas");
             if (profile?.AutonomousGoals == true && paths.GetProperty("/items").GetProperty("get").ValueKind != JsonValueKind.Object) return false;
@@ -67,7 +72,15 @@ public sealed class ApiCompatibility(IGameHttpClient http, ExecutionSettings set
                  !Reference(schemas, "UseItemSchema", "item") || !Reference(schemas, "UseItemSchema", "character") || !Reference(schemas, "UseItemSchema", "cooldown") ||
                  !Type(schemas, "CharacterSchema", "hp", "integer") || !Type(schemas, "CharacterSchema", "max_hp", "integer") ||
                  profile.Consumable.AllowRest && paths.GetProperty("/my/{name}/action/rest").GetProperty("post").ValueKind != JsonValueKind.Object)) return false;
-            if (profile?.AutonomousCombat is not null && !Type(schemas, "CharacterSchema", "shield_slot", "string")) return false;
+            if ((profile?.AutonomousCombat is not null || profile?.CombatDiscovery is not null) && !Type(schemas, "CharacterSchema", "shield_slot", "string")) return false;
+            if (profile?.CombatDiscovery is { } combat)
+            {
+                if (combat.AllowCraft)
+                    foreach (string field in new[] { "weaponcrafting_level", "weaponcrafting_xp", "weaponcrafting_max_xp" })
+                        if (!Type(schemas, "CharacterSchema", field, "integer")) return false;
+                if (combat.AllowBankWithdrawal && paths.GetProperty("/my/{name}/action/bank/withdraw/item").GetProperty("post")
+                    .GetProperty("requestBody").GetProperty("content").GetProperty("application/json").GetProperty("schema").GetProperty("type").GetString() != "array") return false;
+            }
             if (profile is not null && (!profile.Items.IsDefaultOrEmpty || profile.PrepareEquipment || profile.AutonomousCombat is not null))
             {
                 if (paths.GetProperty("/items").GetProperty("get").ValueKind != JsonValueKind.Object ||
@@ -94,7 +107,7 @@ public sealed class ApiCompatibility(IGameHttpClient http, ExecutionSettings set
                 !gatheringOnly && (!Type(schemas, "CharacterFightDataSchema", "characters", "array") || !Reference(schemas, "CharacterFightDataSchema", "fight") ||
                 !Reference(schemas, "CharacterFightDataSchema", "cooldown"))) return false;
             foreach (string field in new[] { "character", "cooldown", "details" }) if (!Reference(schemas, "SkillDataSchema", field)) return false;
-            foreach (string action in gatheringOnly ? Array.Empty<string>() : new[] { "equip", "unequip" })
+            foreach (string action in gatheringOnly || profile?.CombatDiscovery is { AllowEquip: false } ? Array.Empty<string>() : new[] { "equip", "unequip" })
                 if (paths.GetProperty("/my/{name}/action/" + action).GetProperty("post").GetProperty("requestBody").GetProperty("content")
                     .GetProperty("application/json").GetProperty("schema").GetProperty("type").GetString() != "array") return false;
             var move = schemas.GetProperty("DestinationSchema").GetProperty("properties").GetProperty("map_id");

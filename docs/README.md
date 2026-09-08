@@ -8,6 +8,7 @@ This directory is the source-grounded guide for developers and AI agents working
 |---|---|
 | [Autonomous goals](autonomous-goals.md) | R11/R12 discovery, bounded dynamic milestones, budgets and lifecycle |
 | [Autonomous recovery](autonomous-recovery.md) | R13 HP needs, explicit permissions, generated food and bounded preparation |
+| [Combat goal discovery](combat-goal-discovery.md) | R14 next levels, catalog-derived opponents/gear and recovery prerequisites |
 | [Full-path selection](full-path-selection.md) | R10 context-aware progress/cost estimates, factual run performance and comparison evidence |
 | [Autonomous combat](autonomous-combat.md) | R9 stages, opponent/weapon/shield selection, preparation and immediate healing |
 | [Architecture](architecture.md) | Components, dependencies, startup, background execution, HTTP and observability |

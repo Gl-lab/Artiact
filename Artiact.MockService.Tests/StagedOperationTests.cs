@@ -336,6 +336,195 @@ public class StagedOperationTests
         Production: new(ImmutableDictionary<string, int>.Empty),
         AutonomousCombat: new([new(2, ["dummy"]), new(3, ["guardian"])], [gear]));
 
+    private static PortfolioPolicy CombatDiscoveryProfile() => new PortfolioSettings { AutonomousGoals = true,
+        CombatDiscovery = new(AllowFight: true, AllowEquip: true, AllowCraft: true, AllowBankWithdrawal: true),
+        Recovery = new(AllowRest: true), BankRetain = new() { ["protected"] = 1, ["feather"] = 0 } }.Policy();
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task CombatDiscoveryRequiresFightSchemaOnlyWhenPermitted(bool allowed)
+    {
+        await using var h = new Harness(new()); await h.Reset("combat-discovery-shield"); h.Handler.Corruption = "route";
+        var policy = CombatDiscoveryProfile() with { CombatDiscovery = new(AllowFight: allowed) };
+        var result = await h.Factory.Create(policy).InspectAsync();
+        Assert.Equal(allowed, result.Reason == "ObservationFailed"); Assert.Equal(0, h.Handler.Actions);
+    }
+
+    [Fact]
+    public async Task CombatCompletionCanBeArchivedWithoutCombatLevelField()
+    {
+        await using var h = new Harness(new()); await h.Reset("combat-discovery-shield");
+        var saved = new Checkpoint(); var policy = CombatDiscoveryProfile();
+        for (int i = 0; i < 13; i++) await h.Factory.Create(policy, new(NoProgress: 30, Actions: 12), saved, "archive-combat").TickAsync();
+        Assert.Equal("AutonomousBudgetExhausted", saved.Load()!.Terminal!.Reason);
+        string directory = Path.Combine(Path.GetTempPath(), "artiact-combat-archive-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            using var store = new FileRunCheckpointStore(directory, "researcher"); store.Save(saved.Load()!);
+            Assert.True(File.Exists(store.ArchiveCompleted(FileRunCheckpointStore.IdentityDigest("archive-combat"))));
+            Assert.Null(store.Load());
+        }
+        finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
+    }
+
+    [Theory]
+    [InlineData("fight")]
+    [InlineData("equip")]
+    [InlineData("craft")]
+    [InlineData("materials")]
+    [InlineData("cycle")]
+    [InlineData("effect")]
+    [InlineData("monster")]
+    public async Task CombatDiscoveryRejectsForbiddenOrUnsupportedPreparation(string failure)
+    {
+        await using var h = new Harness(new()); await h.Reset("combat-discovery-shield");
+        var policy = CombatDiscoveryProfile(); var run = h.Factory.Create(AutonomousPolicy("ward"));
+        for (int i = 0; i < 4; i++) await run.TickAsync();
+        var observed = run.State!; var character = JsonNode.Parse(observed.Character.GetRawText())!; character["hp"] = 20;
+        var items = observed.Catalogs["items"].Select(x => JsonNode.Parse(x.GetRawText())!).ToArray();
+        var monsters = observed.Catalogs["monsters"].Select(x => JsonNode.Parse(x.GetRawText())!).ToArray();
+        var ward = items.Single(x => x["code"]!.GetValue<string>() == "ward");
+        if (failure == "cycle") ward["craft"]!["items"]![0]!["code"] = "ward";
+        if (failure == "effect") ward["effects"]![0]!["code"] = "healing";
+        if (failure == "monster") monsters.Single(x => x["code"]!.GetValue<string>() == "guardian")["type"] = "boss";
+        policy = policy with { CombatDiscovery = policy.CombatDiscovery! with {
+            AllowFight = failure != "fight", AllowEquip = failure != "equip", AllowCraft = failure != "craft", MaxMaterialUnits = failure == "materials" ? 1 : 100 } };
+        var state = new StrategyObservation(System.Text.Json.JsonSerializer.SerializeToElement(character), observed.Catalogs
+            .SetItem("items", items.Select(x => System.Text.Json.JsonSerializer.SerializeToElement(x)).ToImmutableArray())
+            .SetItem("monsters", monsters.Select(x => System.Text.Json.JsonSerializer.SerializeToElement(x)).ToImmutableArray()), observed.Policy, observed.Bank);
+        var result = new CombatGoalDiscovery(policy, new(null!, null!)).EvaluateAll(state).ToArray();
+        Assert.DoesNotContain(result, x => x.CombatRoute?.Equipment == "ward" && (failure != "monster" || x.CombatRoute.Monster == "guardian") && x.Command is not null && x.Rejection is null);
+        if (failure == "fight") Assert.All(result, x => Assert.Null(x.Command));
+        if (failure == "effect") Assert.Contains(result, x => x.Rejection == "UnsupportedDiscoveryEquipment:ward");
+        if (failure is "materials" or "craft") Assert.Contains(result, x => x.Rejection == (failure == "materials" ? "CombatMaterialBudgetExhausted" : "CombatProductionNotAllowed"));
+        Assert.Equal(4, h.Handler.Actions);
+    }
+
+    [Fact]
+    public async Task CombatDiscoveryReadyEquipmentAvoidsCraftAndTraining()
+    {
+        await using var h = new Harness(new()); await h.Reset("combat-discovery-weapon");
+        var run = h.Factory.Create(AutonomousPolicy("water_blade")); for (int i = 0; i < 4; i++) await run.TickAsync();
+        var observed = run.State!; var character = JsonNode.Parse(observed.Character.GetRawText())!; character["hp"] = 20;
+        character["inventory"]!.AsArray().Add(new JsonObject { ["slot"] = 3, ["code"] = "water_blade", ["quantity"] = 1 });
+        var policy = CombatDiscoveryProfile() with { CombatDiscovery = new(AllowFight: true, AllowEquip: true) };
+        var result = new CombatGoalDiscovery(policy, new(null!, null!)).EvaluateAll(new(System.Text.Json.JsonSerializer.SerializeToElement(character), observed.Catalogs, observed.Policy));
+        var gear = Assert.Single(result, x => x.CombatRoute?.Monster == "guardian" && x.CombatRoute.Equipment == "water_blade");
+        Assert.Null(gear.Rejection); Assert.Null(gear.Prerequisite); Assert.StartsWith("Unequip:", gear.Command!.Id);
+    }
+
+    [Theory]
+    [InlineData("combat-discovery-shield", "ward", 12, 78)]
+    [InlineData("combat-discovery-weapon", "water_blade", 20, 120)]
+    public async Task CombatDiscoveryComparisonReplaysAllThreePolicies(string scenario, string gear, int actions, int seconds)
+    {
+        async Task<(int Actions, long Seconds, int Moves, bool Achieved, string State)> Execute(string mode)
+        {
+            await using var h = new Harness(new()); await h.Reset(scenario);
+            var policy = mode == "fixed" ? AutonomousPolicy(gear) : CombatDiscoveryProfile();
+            var saved = new Checkpoint(); var limits = new StrategyLimits(NoProgress: 30, Actions: actions);
+            var run = mode == "lowest" ? h.LowestSession(policy, limits) : h.Factory.Create(policy, limits, saved, "comparison");
+            StrategyDecision? result = null; int moves = 0; bool achieved = false;
+            for (int i = 0; i < 40; i++)
+            {
+                result = await run.TickAsync(); if (result.Command?.StartsWith("Move:", StringComparison.Ordinal) == true) moves++;
+                achieved = run.State?.Character.GetProperty("level").GetInt32() == 3;
+                if (achieved || result.Status != StrategyStatus.Selected) break;
+            }
+            if (achieved)
+            {
+                var stock = CharacterObservation.Read(run.State!.Character)!.Inventory;
+                Assert.Equal(2, stock["feather"]); Assert.Equal(1, stock["protected"]);
+                Assert.Equal(gear, run.State.Character.GetProperty(gear == "ward" ? "shield_slot" : "weapon_slot").GetString());
+            }
+            return (result!.Attempts, result.CooldownSeconds, moves, achieved, run.State!.Character.GetRawText());
+        }
+        var auto = await Execute("auto"); var fixedRun = await Execute("fixed"); var lowest = await Execute("lowest");
+        Assert.Equal((actions, (long)seconds, true), (auto.Actions, auto.Seconds, auto.Achieved));
+        Assert.Equal((fixedRun.Actions, fixedRun.Seconds, fixedRun.Moves), (auto.Actions, auto.Seconds, auto.Moves));
+        Assert.False(lowest.Achieved);
+        Assert.Equal(auto, await Execute("auto")); Assert.Equal(fixedRun, await Execute("fixed")); Assert.Equal(lowest, await Execute("lowest"));
+    }
+
+    [Theory]
+    [InlineData("Fight")]
+    [InlineData("Equip:shield:ward")]
+    public async Task DiscoveredCombatLostActionReconcilesWithoutReplay(string desired)
+    {
+        await using var h = new Harness(new()); await h.Reset("combat-discovery-shield");
+        var policy = CombatDiscoveryProfile(); var saved = new Checkpoint();
+        for (int i = 0; i < 20; i++)
+        {
+            // Inspect the current observation; the durable active parent remains in the saved context.
+            var preview = h.Factory.Create(policy, new(NoProgress: 30), saved, "lost-combat");
+            if (saved.Load()?.Latest is { } latest)
+            {
+                var state = latest.Restore();
+                var command = new CombatGoalDiscovery(policy, new(null!, null!)).EvaluateAll(new(state.Character, state.Catalogs, state.Policy, state.Bank,
+                    state.Context with { Autonomous = saved.Load()!.Autonomous })).Where(x => x.Command is not null && x.Rejection is null)
+                    .Any(x => x.Command!.Id == desired);
+                if (command) h.Handler.Corruption = "loss";
+            }
+            var decision = await preview.TickAsync();
+            if (decision.Status == StrategyStatus.UnknownOutcome)
+            {
+                int count = h.Handler.Actions; h.Handler.Corruption = null;
+                Assert.Equal(desired, saved.Load()!.PendingCommand);
+                Assert.Equal(StrategyStatus.Reconciled, (await h.Factory.Create(policy, new(NoProgress: 30), saved, "lost-combat").TickAsync()).Status);
+                Assert.Equal(count, h.Handler.Actions); return;
+            }
+            Assert.Equal(StrategyStatus.Selected, decision.Status);
+        }
+        Assert.Fail("Expected action was never dispatched");
+    }
+
+    [Fact]
+    public async Task CombatRecoveryUsesFoodAtDeficitAboveStandaloneThreshold()
+    {
+        await using var h = new Harness(new()); await h.Reset("combat-discovery-shield");
+        var initial = CombatDiscoveryProfile(); var saved = new Checkpoint();
+        var policy = initial with { Recovery = new(AllowUse: true, AllowCraft: true, AllowBankWithdrawal: true) };
+        bool used = false;
+        for (int i = 0; i < 30; i++)
+        {
+            var run = h.Factory.Create(policy, new(NoProgress: 60), saved, "food-combat"); var result = await run.TickAsync();
+            Assert.True(result.Status == StrategyStatus.Selected, result.Reason + ":" + string.Join(',', result.Candidates.Select(x => x.Rejection)));
+            if (result.Command?.StartsWith("Use:", StringComparison.Ordinal) == true)
+            {
+                used = true; Assert.Equal(20, run.State!.Character.GetProperty("hp").GetInt32());
+                Assert.Equal("combat", saved.Load()!.Autonomous!.Active!.Skill);
+                Assert.True(result.NoProgress > 0); Assert.Equal(1, run.State.Context.Used["recovery:use"]);
+                Assert.Equal(0, saved.Load()!.Journal[^1].Facts!.UsefulProgress); break;
+            }
+            Assert.NotEqual("Rest", result.Command);
+        }
+        Assert.True(used);
+    }
+
+    [Theory]
+    [InlineData("combat-discovery-shield", "ward", 12, 78)]
+    [InlineData("combat-discovery-weapon", "water_blade", 20, 120)]
+    public async Task DiscoveredCombatPreparesUsefulSlotWithoutManualGoals(string scenario, string gear, int actions, int seconds)
+    {
+        await using var h = new Harness(new()); await h.Reset(scenario);
+        var policy = CombatDiscoveryProfile(); var saved = new Checkpoint();
+        var decisions = new List<StrategyDecision>(); StrategySession? run = null;
+        for (int i = 0; i < 40; i++)
+        {
+            run = h.Factory.Create(policy, new(NoProgress: 30, Actions: actions), saved, "combat-discovery");
+            var decision = await run.TickAsync(); decisions.Add(decision);
+            if (run.State?.Character.GetProperty("level").GetInt32() >= 3 || decision.Status != StrategyStatus.Selected) break;
+        }
+        Assert.True(run!.State?.Character.GetProperty("level").GetInt32() == 3, System.Text.Json.JsonSerializer.Serialize(decisions));
+        Assert.Equal(actions, h.Handler.Actions); Assert.Equal(seconds, decisions[^1].CooldownSeconds);
+        Assert.Equal(gear, run.State.Character.GetProperty(gear == "ward" ? "shield_slot" : "weapon_slot").GetString());
+        Assert.Equal(2, CharacterObservation.Read(run.State.Character)!.Inventory["feather"]);
+        Assert.Equal(1, CharacterObservation.Read(run.State.Character)!.Inventory["protected"]);
+        Assert.Equal(2, saved.Load()!.Autonomous!.History.Count(x => x.Goal.Skill == "combat" && x.Outcome == "Completed"));
+        Assert.Equal(gear == "ward" ? 2 : 4, run.State.Context.Used["combat:materials"]);
+    }
+
     [Theory]
     [InlineData("autonomous-shield", "ward", 12, 78)]
     [InlineData("autonomous-weapon", "water_blade", 20, 120)]
