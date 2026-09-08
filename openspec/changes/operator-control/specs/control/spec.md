@@ -7,5 +7,5 @@
 - Stop is separately requested/confirmed; an in-flight successful response is saved before further actions stop. New requests cannot reset budgets of an existing run.
 - Archive delegates to existing digest/completion/unknown guards. Repeated archive does not destroy history.
 - Host restart discards receipts, not durable facts. Host shutdown awaits bounded cancellation.
-- Missing CSRF, cross-origin and remote/hostile-host POSTs are refused. Exact local same-origin controls work. Default control-off cannot start.
+- Missing CSRF and cross-origin POSTs are refused. Same-origin controls work over localhost, server IP and LAN hostname; no login is required for the trusted-network deployment. Default control-off cannot start.
 - Focused coordinator/HTTP tests and socket-free existing execution boundaries, solution gate, UI verification and self-review before commit/push.

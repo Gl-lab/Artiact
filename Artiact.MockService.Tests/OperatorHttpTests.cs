@@ -18,10 +18,13 @@ public class OperatorHttpTests
     }
 
     [Theory]
-    [InlineData(false, "http://localhost", 403)]
-    [InlineData(true, "http://attacker.example", 403)]
-    [InlineData(true, "http://localhost", 200)]
-    public async Task ControlPostsRequireSameOriginAndReceiptHeader(bool token, string origin, int expected)
+    [InlineData(false, "http://localhost", 403, false)]
+    [InlineData(true, "http://attacker.example", 403, false)]
+    [InlineData(true, "http://localhost", 200, false)]
+    [InlineData(true, "http://artiact.lan:5080", 200, true)]
+    [InlineData(false, "http://artiact.lan:5080", 403, true)]
+    [InlineData(true, "http://attacker.example", 403, true)]
+    public async Task ControlPostsRequireSameOriginAndReceiptHeader(bool token, string origin, int expected, bool lan)
     {
         var builder = WebApplication.CreateBuilder(); builder.WebHost.UseTestServer();
         builder.Services.AddSingleton(new OperatorSettings { Enabled = true, ControlsEnabled = true });
@@ -31,9 +34,10 @@ public class OperatorHttpTests
         builder.Services.AddSingleton<OperationState>(); builder.Services.AddSingleton<OperatorSnapshotReader>();
         builder.Services.AddSingleton<IOperatorExecution, NoExecution>(); builder.Services.AddSingleton<OperatorCoordinator>();
         await using var app = builder.Build();
-        app.Use((context, next) => { context.Connection.RemoteIpAddress = IPAddress.Loopback; return next(context); });
+        app.Use((context, next) => { context.Connection.RemoteIpAddress = lan ? IPAddress.Parse("192.168.1.50") : IPAddress.Loopback; return next(context); });
         app.MapOperator(); await app.StartAsync();
         using var client = app.GetTestClient();
+        if (lan) client.BaseAddress = new Uri("http://artiact.lan:5080");
         using var response = await client.GetAsync("/operator/controls");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         using var controls = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync());
@@ -44,10 +48,13 @@ public class OperatorHttpTests
     }
 
     [Theory]
-    [InlineData(false, "http://localhost", 403)]
-    [InlineData(true, "http://attacker.example", 403)]
-    [InlineData(true, "http://localhost", 202)]
-    public async Task ScheduleStopRequiresLocalOriginAndTokenWithoutManualControls(bool token, string origin, int expected)
+    [InlineData(false, "http://localhost", 403, false)]
+    [InlineData(true, "http://attacker.example", 403, false)]
+    [InlineData(true, "http://localhost", 202, false)]
+    [InlineData(true, "http://artiact.lan:5080", 202, true)]
+    [InlineData(false, "http://artiact.lan:5080", 403, true)]
+    [InlineData(true, "http://attacker.example", 403, true)]
+    public async Task ScheduleStopRequiresSameOriginAndTokenWithoutManualControls(bool token, string origin, int expected, bool lan)
     {
         var builder = WebApplication.CreateBuilder(); builder.WebHost.UseTestServer();
         builder.Services.AddSingleton(new OperatorSettings { Enabled = true });
@@ -59,8 +66,9 @@ public class OperatorHttpTests
         builder.Services.AddSingleton<IOperatorExecution, NoExecution>(); builder.Services.AddSingleton<IScheduledRun, ScheduledRun>();
         builder.Services.AddSingleton<ScheduleRunner>();
         await using var app = builder.Build();
-        app.Use((context, next) => { context.Connection.RemoteIpAddress = IPAddress.Loopback; return next(context); });
+        app.Use((context, next) => { context.Connection.RemoteIpAddress = lan ? IPAddress.Parse("192.168.1.50") : IPAddress.Loopback; return next(context); });
         app.MapOperator(); await app.StartAsync(); using var client = app.GetTestClient();
+        if (lan) client.BaseAddress = new Uri("http://artiact.lan:5080");
         string body = await client.GetStringAsync("/operator/schedule"); Assert.DoesNotContain("secret-test-value", body);
         using var json = System.Text.Json.JsonDocument.Parse(body);
         if (token) client.DefaultRequestHeaders.Add("X-Artiact-Control", json.RootElement.GetProperty("Token").GetString());
@@ -73,9 +81,10 @@ public class OperatorHttpTests
     [Theory]
     [InlineData(true, "127.0.0.1", "localhost", 200)]
     [InlineData(false, "127.0.0.1", "localhost", 404)]
-    [InlineData(true, "192.0.2.1", "localhost", 403)]
-    [InlineData(true, "127.0.0.1", "attacker.example", 403)]
-    public async Task PanelReadIsExplicitAndLocal(bool enabled, string remote, string host, int expected)
+    [InlineData(true, "192.168.1.50", "192.168.1.10:5080", 200)]
+    [InlineData(true, "192.168.1.50", "artiact.lan:5080", 200)]
+    [InlineData(false, "192.168.1.50", "artiact.lan:5080", 404)]
+    public async Task PanelReadIsExplicitAndSupportsServerAddresses(bool enabled, string remote, string host, int expected)
     {
         var builder = WebApplication.CreateBuilder();
         builder.WebHost.UseTestServer();
@@ -90,7 +99,7 @@ public class OperatorHttpTests
         await app.StartAsync();
         using var client = app.GetTestClient();
         client.DefaultRequestHeaders.Host = host;
-        foreach (string path in new[] { "/operator", "/operator/snapshot" })
+        foreach (string path in new[] { "/operator", "/operator/snapshot", "/operator/panel.js", "/operator/panel.css" })
         {
             var response = await client.GetAsync(path);
             Assert.Equal(expected, (int)response.StatusCode);

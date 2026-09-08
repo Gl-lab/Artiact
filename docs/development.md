@@ -46,7 +46,7 @@ Every deterministic fixture contains replay checks. Run this separate command wh
 
 ## Configuration
 
-`Operator:Enabled=true` enables the loopback-only [observation panel](operator-panel.md) at `/operator`. It reads `Execution:RunDirectory` without API requests; it does not alter execution permissions or mode.
+`Operator:Enabled=true` enables the trusted-network [observation panel](operator-panel.md) at `/operator`. It reads `Execution:RunDirectory` without API requests; it does not alter execution permissions or mode.
 
 `Operator:ControlsEnabled=true` additionally requires Inspect startup mode and replaces automatic startup execution with explicit panel commands. Existing action opt-ins remain mandatory; configure a supported noncombat portfolio and bounded directory/ceilings. See [control contract](operator-panel.md#explicit-control-r18).
 
@@ -178,6 +178,10 @@ Default local endpoints:
 The Compose file contains development-only Grafana credentials (`admin`/`admin`) and uses mutable `latest` image tags. Do not reuse this configuration for production. Its Prometheus target is `localhost:5000` inside the Prometheus container, so it cannot scrape a host-run Artiact instance without a host-gateway or network target change.
 
 The Dockerfile builds from repository-root context: `docker build -f Artiact/Dockerfile -t artiact:local .`. CI builds without running it. Local Docker verification depends on an installed daemon; see dated epic evidence.
+
+## Operator browser behavior checks
+
+With Node.js 22 or newer, run `node --test Artiact.Tests/operator-panel.test.cjs`. These dependency-free tests execute the actual panel script with simulated DOM/HTTP boundaries and cover automatic fresh preparation, rejection and duplicate clicks without contacting the game API. They are separate from the .NET solution gate.
 
 ## Test map
 

@@ -17,7 +17,6 @@ public static class OperatorEndpoints
         group.AddEndpointFilter(async (context, next) =>
         {
             var http = context.HttpContext;
-            if (!IsLocal(http)) return Results.StatusCode(403);
             if (HttpMethods.IsPost(http.Request.Method) && (!SameOrigin(http) || http.Request.Headers["X-Artiact-Control"] != controlToken))
                 return Results.StatusCode(403);
             http.Response.Headers.CacheControl = "no-store";
