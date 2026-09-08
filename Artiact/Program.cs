@@ -73,16 +73,20 @@ internal class Program
                                        .AddAspNetCoreInstrumentation()
                                        .AddMeter( "Artiact.Application" )
                                        .AddPrometheusExporter() )
-               .WithTracing( tracing => tracing
+               .WithTracing( tracing =>
+                {
+                    tracing
                                        .AddSource( artiactClientSourceName )
                                        .AddAspNetCoreInstrumentation()
                                        .AddHttpClientInstrumentation()
-                                       .AddConsoleExporter()
                                        .AddOtlpExporter( options =>
                                         {
                                             options.Endpoint = new Uri(builder.Configuration["Telemetry:Endpoint"] ?? "http://localhost:4318/v1/traces");
                                             options.Protocol = OtlpExportProtocol.HttpProtobuf;
-                                        } ) );
+                                        } );
+                    if (builder.Configuration.GetValue<bool>("Telemetry:ConsoleExporterEnabled"))
+                        tracing.AddConsoleExporter();
+                } );
 
         // Регистрация сервисов
         builder.Services.AddScoped<ICacheService>(services => new CacheService(services.GetRequiredService<ILogger<ICacheService>>(),

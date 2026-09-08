@@ -73,7 +73,7 @@ public class DecisionObservabilityTests
             ActionService action=new(TestMining.State(), client.Object,selector.Object,builder.Object,Mock.Of<IGoalDecomposer>(),character.Object,source,logger);
             Assert.Same(expected,await action.ExecuteCycleAsync(CancellationToken.None));
             var entry=Assert.Single(logger.Events);
-            Assert.Equal(LogLevel.Information,entry.Level);
+            Assert.Equal(expected.Status == GoalDecisionStatus.Selected ? LogLevel.Debug : LogLevel.Information,entry.Level);
             Assert.Equal("GoalDecision",entry.Event.Name);
             Assert.Equal(fields.OrderBy(x=>x.Key),entry.Fields.OrderBy(x=>x.Key));
             if(listen) Assert.Equal(fields.OrderBy(x=>x.Key),stopped!.TagObjects.OrderBy(x=>x.Key));

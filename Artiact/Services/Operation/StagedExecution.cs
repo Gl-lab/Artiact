@@ -88,7 +88,13 @@ public sealed class StagedWorker(IServiceScopeFactory scopes, OperationState sta
         {
             using var scope = scopes.CreateScope();
             var result = await scope.ServiceProvider.GetRequiredService<StagedExecution>().RunAsync(stoppingToken);
-            if (result is not null) logger.LogInformation("Staged decision {Decision}", System.Text.Json.JsonSerializer.Serialize(result));
+            if (result is not null)
+            {
+                logger.LogInformation("Staged result: {Status}, {Reason}; actions={Actions}, decisions={Decisions}, cooldown={CooldownSeconds}s",
+                    result.Status, result.Reason, result.Attempts, result.Decisions, result.CooldownSeconds);
+                if (logger.IsEnabled(LogLevel.Debug))
+                    logger.LogDebug("Staged decision {Decision}", System.Text.Json.JsonSerializer.Serialize(result));
+            }
             else logger.LogWarning("Staged execution did not produce a decision: {State}", state.Snapshot(30).State);
         }
         catch (Exception) { state.Set("ConfigurationRequiredOrInvalid"); logger.LogWarning("Staged initialization failed; no game action scheduled"); }

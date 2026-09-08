@@ -183,6 +183,16 @@ The Dockerfile builds from repository-root context: `docker build -f Artiact/Doc
 
 With Node.js 22 or newer, run `node --test Artiact.Tests/operator-panel.test.cjs`. These dependency-free tests execute the actual panel script with simulated DOM/HTTP boundaries and cover automatic fresh preparation, rejection and duplicate clicks without contacting the game API. They are separate from the .NET solution gate.
 
+## Logging verbosity
+
+OpenTelemetry console span dumps are off by default (`Telemetry:ConsoleExporterEnabled=false`); OTLP tracing and Prometheus metrics remain enabled. Set `Telemetry__ConsoleExporterEnabled=true` only when console traces are needed.
+
+Default console logging keeps application and host lifecycle Information messages, warnings and errors. `Logging:LogLevel:Microsoft.AspNetCore=Warning` suppresses routine request/endpoint/response lines, including operator polling; `Logging:LogLevel:System.Net.Http.HttpClient=Warning` suppresses routine outgoing HTTP lines. NLog writes only application Information and above to its existing file target, with no second system console target. Character reads and Selected legacy goal decisions use Debug. StagedWorker emits a compact result summary; its full decision JSON is Debug only and is serialized only when enabled.
+
+To diagnose application details in the console, override `Logging__LogLevel__Artiact=Debug`. HTTP details can be enabled separately with `Logging__LogLevel__System.Net.Http.HttpClient=Information`; ASP.NET request logs with `Logging__LogLevel__Microsoft.AspNetCore=Information`. Environment-specific settings or deployment overrides take precedence over the defaults. For Debug in the NLog file as well, change the `Artiact.*` rule's `minlevel` in `nlog.config` to `Debug`. These changes do not require game actions for verification.
+
+Focused checks: `dotnet test Artiact.Tests/Artiact.Tests.csproj --no-restore --filter "FullyQualifiedName~LoggingDefaultsTests|FullyQualifiedName~DecisionObservabilityTests"`.
+
 ## Test map
 
 R20 configuration and lifecycle: [finite scheduling](bounded-schedule.md). Focused checks: `dotnet test Artiact.sln --no-restore --filter "FullyQualifiedName~Schedule|FullyQualifiedName~OperationRegistrationTests|FullyQualifiedName~OperatorHttpTests"`. These run with temporary files, fake clocks and socket-free MockService; they do not enable a live schedule.

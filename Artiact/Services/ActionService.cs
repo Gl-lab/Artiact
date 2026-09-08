@@ -123,7 +123,7 @@ public class ActionService : IActionService
         }
         foreach (var field in fields)
             activity?.SetTag(field.Key, field.Value);
-        _logger.Log(LogLevel.Information, new EventId(1, "GoalDecision"), fields, null,
+        _logger.Log(decision.Status == GoalDecisionStatus.Selected ? LogLevel.Debug : LogLevel.Information, new EventId(1, "GoalDecision"), fields, null,
             static (state, _) => string.Join(", ", state.Select(field => $"{field.Key}={field.Value}")));
     }
 

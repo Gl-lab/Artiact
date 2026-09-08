@@ -44,7 +44,7 @@ public class GameClient : IGameClient
     {
         string detailsUrl = $"/characters/{_characterName}";
 
-        _logger.LogInformation( detailsUrl );
+        _logger.LogDebug( "Reading character {Path}", detailsUrl );
         using HttpResponseMessage response = await _httpClient.ReadAsync( detailsUrl, _operationToken.Value );
         if ( response.IsSuccessStatusCode )
         {

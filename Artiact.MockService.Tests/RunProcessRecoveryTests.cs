@@ -99,7 +99,7 @@ public class RunProcessRecoveryTests(Xunit.Abstractions.ITestOutputHelper output
             if (e.Data is not null)
             {
                 output.WriteLine(e.Data);
-                if (e.Data.Contains("Staged decision", StringComparison.Ordinal)) finished.TrySetResult();
+                if (e.Data.Contains("Staged result:", StringComparison.Ordinal)) finished.TrySetResult();
             }
         };
         process.ErrorDataReceived += (_, e) => { if (e.Data is not null) output.WriteLine(e.Data); };

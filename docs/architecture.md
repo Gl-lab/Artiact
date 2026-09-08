@@ -31,7 +31,7 @@ flowchart LR
     Panel --> Series
     Reader --> Durable[Durable journal and archive]
     Host --> Metrics[/metrics]
-    Host --> Telemetry[Console + OTLP + Prometheus]
+    Host --> Telemetry[OTLP + Prometheus; optional console traces]
 ```
 
 ## Project boundaries
@@ -135,12 +135,13 @@ CacheService stores atomic versioned envelopes in OS local application data, par
 
 ## Observability
 
-- Console and NLog logging.
-- `ActionService` alone emits one Information `GoalDecision` event per evaluated cycle and matching activity tags: `goal.decision.status`, `goal.decision.reason`, `goal.mining.target_level`; observed current level adds `goal.mining.current_level`. Valid inventory facts add `goal.inventory.capacity`, `.used`, `.free`, `.required_free` (each with the `goal.inventory` prefix). Completed/invalid snapshots omit inventory fields; absent characters omit current level. No character/account/inventory contents enter the decision event. Worker logs do not duplicate it; tracing listeners are optional.
+- OpenTelemetry console export is opt-in through `Telemetry:ConsoleExporterEnabled`; OTLP tracing is unchanged.
+- Console logging plus an NLog application file sink at Information and above; NLog does not duplicate system messages to the console. Routine ASP.NET and HttpClient Information events are filtered by default.
+- `ActionService` alone emits one `GoalDecision` event per evaluated cycle (Debug for Selected, Information for terminal outcomes) and matching activity tags: `goal.decision.status`, `goal.decision.reason`, `goal.mining.target_level`; observed current level adds `goal.mining.current_level`. Valid inventory facts add `goal.inventory.capacity`, `.used`, `.free`, `.required_free` (each with the `goal.inventory` prefix). Completed/invalid snapshots omit inventory fields; absent characters omit current level. No character/account/inventory contents enter the decision event. Worker logs do not duplicate it; tracing listeners are optional.
 - Final Selected adds resource code/level and destination X/Y. Selected and progression-only Blocked add attempted_cycles, max_cycles, consecutive_no_progress and max_no_progress under goal.mining. Other terminal decisions omit these fields. Failed catalog loading emits no fabricated decision; it retains the attempt and propagates through existing error recovery.
 - W3C activity IDs and `ActivitySource("Artiact.Client")`.
 - ASP.NET Core and `HttpClient` tracing.
-- Console and OTLP HTTP/protobuf trace exporters; Telemetry:Endpoint replaces ZipkinSettings.
+- OTLP HTTP/protobuf trace exporter and opt-in console exporter; Telemetry:Endpoint replaces ZipkinSettings.
 - `Meter("Artiact.Application")` and Prometheus exporter.
 - `/health/live` reports process liveness; `/health` and `/health/ready` expose staged state and freshness-sensitive readiness without calling the API.
 
