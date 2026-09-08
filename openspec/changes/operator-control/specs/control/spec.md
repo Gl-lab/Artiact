@@ -9,3 +9,5 @@
 - Host restart discards receipts, not durable facts. Host shutdown awaits bounded cancellation.
 - Missing CSRF and cross-origin POSTs are refused. Same-origin controls work over localhost, server IP and LAN hostname; no login is required for the trusted-network deployment. Default control-off cannot start.
 - Focused coordinator/HTTP tests and socket-free existing execution boundaries, solution gate, UI verification and self-review before commit/push.
+
+- Verified Blocked/NoFeasibleCandidate results (including zero actions) can be archived without changing status, reason or bytes. Pending commands, unverified journal entries, inconsistent counters and unfinished checkpoints still refuse. Snapshot CanArchive uses the write guard; finished-run start returns RunFinished, and UI offers archival rather than ineffective continuation.

@@ -16,8 +16,8 @@
 <details class="advanced"><summary>План, продолжение и дополнительные настройки</summary>
 <div class="action-help"><button type="button" id="inspect" class="secondary">Посмотреть план</button><p>Показать доступную цель без игровых действий. Необязательный шаг: запуск всегда выполняет свою свежую проверку.</p></div>
 <div class="fields"><label>Идентификатор запуска<input id="input-run" required maxlength="80" pattern="[A-Za-z0-9][A-Za-z0-9_-]{0,79}"><small>Создаётся автоматически; связывает запуск с его историей.</small></label><label>Максимум решений<input id="input-decisions" type="number" min="1" required><small>Сколько раз можно выбирать следующий шаг.</small></label><label>Решений без прогресса<input id="input-no-progress" type="number" min="1" required><small>Когда остановиться, если цель не приближается.</small></label></div>
-<div class="action-help"><button type="button" id="recover" class="secondary">Продолжить сохранённый запуск</button><p>Загрузить прежние параметры. Затем нажмите «Запустить». Потраченные лимиты не обнуляются.</p></div>
-<div class="action-help"><button type="button" id="archive" class="secondary">Сохранить итог в архив</button><p>Освободить место для новой сессии после подтверждённого завершения. История останется доступной внизу страницы.</p></div>
+<div class="action-help"><button type="button" id="recover" class="secondary">Продолжить сохранённый запуск</button><p id="recover-help">Загрузить прежние параметры. Затем нажмите «Запустить». Потраченные лимиты не обнуляются.</p></div>
+<div class="action-help"><button type="button" id="archive" aria-describedby="archive-help" class="secondary">Сохранить итог в архив</button><p id="archive-help">Освободить место для новой сессии после подтверждённого завершения. История останется доступной внизу страницы.</p></div>
 <div class="action-help"><button type="button" id="new-run" class="secondary">Создать новый идентификатор</button><p>Подготовить отдельную сессию. Текущий запуск и его результат сохраняются.</p></div>
 </details></form>
 <details><summary>Профиль, запасы и ограничения</summary><pre id="profile"></pre></details></section>

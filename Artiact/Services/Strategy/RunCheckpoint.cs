@@ -80,6 +80,15 @@ public sealed class FileRunCheckpointStore : IRunCheckpointStore, IDisposable
     public string ArchiveCompleted(string expectedIdentityDigest)
     {
         var saved = Load() ?? throw new IOException("No active checkpoint.");
+        if (!string.Equals(IdentityDigest(saved.Identity), expectedIdentityDigest, StringComparison.Ordinal) || !CanArchive(saved))
+            throw new IOException("Run does not have a verified, archivable outcome.");
+        Directory.CreateDirectory(_history);
+        string destination = Path.Combine(_history, IdentityDigest(saved.Identity) + ".json");
+        File.Move(_path, destination, false);
+        return destination;
+    }
+    public static bool CanArchive(RunCheckpoint saved)
+    {
         var terminal = saved.Terminal;
         bool manual = saved.Version == 1 && saved.Autonomous is null && terminal is { Status: StrategyStatus.Completed, Reason: "TargetsReached" } &&
             !terminal.Candidates.IsDefaultOrEmpty && terminal.Candidates.All(x => x.Complete);
@@ -91,8 +100,10 @@ public sealed class FileRunCheckpointStore : IRunCheckpointStore, IDisposable
             (terminal.Reason != "NoUsefulSupportedGoals" || saved.Autonomous.Active is null && ObservedCaps(saved.Latest) &&
                 terminal.Candidates.Length is 4 or 5 && terminal.Candidates.All(x => x.Rejection == "SupportedSkillCapReached") &&
                 (terminal.Candidates.Length == 4 || saved.Latest.Character.GetProperty("level").GetInt32() == 50));
-        if (!string.Equals(IdentityDigest(saved.Identity), expectedIdentityDigest, StringComparison.Ordinal) ||
-            !(manual || autonomous) || saved.PendingCommand is not null || terminal is null ||
+        bool noGoal = terminal is { Status: StrategyStatus.Blocked, Reason: "NoFeasibleCandidate", Failure: null } &&
+            (saved.Version == 1 && saved.Autonomous is null || saved.Version == 2 && saved.Autonomous is { Valid: true }) &&
+            saved.PendingCandidate is null;
+        if (!(manual || autonomous || noGoal) || saved.PendingCommand is not null || terminal is null ||
             saved.Decisions <= 0 || saved.Attempts < 0 || saved.Attempts > saved.Decisions || saved.NoProgress < 0 || saved.Seconds < 0 ||
             saved.Journal.IsDefault || saved.Journal.Length != saved.Attempts || saved.Consumed is null ||
             saved.Consumed.Length != saved.Attempts || saved.Consumed.Distinct(StringComparer.Ordinal).Count() != saved.Attempts ||
@@ -101,12 +112,10 @@ public sealed class FileRunCheckpointStore : IRunCheckpointStore, IDisposable
             saved.Latest is null || saved.Finished is null || saved.Finished < saved.Started || saved.Finished > DateTimeOffset.UtcNow ||
             saved.Journal.Any(x => x.Status is not ("Verified" or "Reconciled") || string.IsNullOrEmpty(x.ResultFingerprint)) ||
             saved.Journal.Any(x => !saved.Consumed.Contains(x.SourceFingerprint + ":" + x.Command, StringComparer.Ordinal)))
-            throw new IOException("Run is not a reviewed, verified completion.");
-        Directory.CreateDirectory(_history);
-        string destination = Path.Combine(_history, IdentityDigest(saved.Identity) + ".json");
-        File.Move(_path, destination, false);
-        return destination;
+            return false;
+        return true;
     }
+
     private static bool ObservedCaps(SavedObservation saved)
     {
         try

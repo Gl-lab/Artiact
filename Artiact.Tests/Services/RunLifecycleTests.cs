@@ -19,6 +19,55 @@ public class RunLifecycleTests
             store.Save(checkpoint with { Identity = JsonSerializer.Serialize(new { RunId = "new", Policy = "new", Limit = 100 }) });
         });
     }
+    [Theory]
+    [InlineData(1, false)]
+    [InlineData(2, false)]
+    [InlineData(2, true)]
+    public void NoAvailableGoalArchivesExactFailureAndAllowsNewIdentity(int version, bool noActions)
+    {
+        WithDirectory(directory =>
+        {
+            var saved = Completed();
+            saved = saved with { Version = version, Autonomous = version == 2 ? AutonomousRunState.Empty : null,
+                Terminal = saved.Terminal! with { Status = StrategyStatus.Blocked, Reason = "NoFeasibleCandidate" } };
+            if (noActions) saved = saved with { Attempts = 0, Seconds = 0, Consumed = [], Journal = [],
+                Terminal = saved.Terminal! with { Attempts = 0, CooldownSeconds = 0 } };
+            using var store = new FileRunCheckpointStore(directory, "hero");
+            store.Save(saved);
+            byte[] before = File.ReadAllBytes(Assert.Single(Directory.GetFiles(directory, "*.json")));
+            string archive = store.ArchiveCompleted(FileRunCheckpointStore.IdentityDigest(saved.Identity));
+            Assert.Equal(before, File.ReadAllBytes(archive));
+            Assert.Null(store.Load());
+            Assert.Equal(StrategyStatus.Blocked, JsonSerializer.Deserialize<RunCheckpoint>(File.ReadAllBytes(archive))!.Terminal!.Status);
+            store.Save(saved with { Identity = "new-run" });
+        });
+    }
+
+    [Theory]
+    [InlineData("pending")]
+    [InlineData("unverified")]
+    [InlineData("counters")]
+    [InlineData("unfinished")]
+    public void NoAvailableGoalDoesNotHideUnresolvedExecution(string failure)
+    {
+        WithDirectory(directory =>
+        {
+            var saved = Completed();
+            saved = saved with { Terminal = saved.Terminal! with { Status = StrategyStatus.Blocked, Reason = "NoFeasibleCandidate" } };
+            saved = failure switch
+            {
+                "pending" => saved with { PendingCommand = "Gather:mining" },
+                "unverified" => saved with { Journal = [new("Gather:mining", "before", "Intent")] },
+                "counters" => saved with { Attempts = 2 },
+                _ => saved with { Finished = null }
+            };
+            using var store = new FileRunCheckpointStore(directory, "hero"); store.Save(saved);
+            byte[] before = File.ReadAllBytes(Assert.Single(Directory.GetFiles(directory, "*.json")));
+            Assert.Throws<IOException>(() => store.ArchiveCompleted(FileRunCheckpointStore.IdentityDigest(saved.Identity)));
+            Assert.Equal(before, File.ReadAllBytes(Assert.Single(Directory.GetFiles(directory, "*.json"))));
+        });
+    }
+
     private static RunCheckpoint Completed()
     {
         var state = new SavedObservation(JsonSerializer.SerializeToElement(new { name = "hero", mining_level = 2, mining_xp = 4 }),

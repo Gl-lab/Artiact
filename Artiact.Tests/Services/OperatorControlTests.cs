@@ -121,6 +121,20 @@ public class OperatorControlTests : IDisposable
         Assert.Equal(0, execution.Starts);
     }
 
+    [Fact]
+    public async Task FinishedCheckpointRefusesStartWithoutLaunchingAnExecutor()
+    {
+        var execution = new Execution(); var coordinator = Create(execution);
+        var inspected = await coordinator.InspectAsync(Request);
+        using (var store = new FileRunCheckpointStore(_directories[^1], "http://localhost/hero"))
+            store.Save(new(1, "saved-run", DateTimeOffset.UtcNow, 1, 0, 0, 0, [], null, null,
+                new(StrategyStatus.Blocked, "NoFeasibleCandidate", null, null, [], 1, 0, 0, 0), null, []));
+        var result = await coordinator.StartRunAsync(inspected.Receipt!);
+        Assert.False(result.Accepted);
+        Assert.Equal("RunFinished", result.Reason);
+        Assert.Equal(0, execution.Starts);
+    }
+
     private OperatorCoordinator Create(Execution execution, TimeProvider? clock = null, bool allowActions = true, bool live = false)
     {
         string directory = Path.Combine(Path.GetTempPath(), "artiact-control-" + Guid.NewGuid().ToString("N"));

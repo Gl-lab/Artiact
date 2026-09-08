@@ -52,6 +52,29 @@ public class OperatorSnapshotTests
         });
     }
 
+    [Theory]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    public void ArchiveAvailabilityUsesVerifiedJournalEvenForNoAvailableGoal(bool pending, bool expected)
+    {
+        WithDirectory(directory =>
+        {
+            var clock = new Clock();
+            using var store = new FileRunCheckpointStore(directory, "http://localhost/hero");
+            var saved = Checkpoint(clock.Now) with
+            {
+                Terminal = new(StrategyStatus.Blocked, "NoFeasibleCandidate", null, null, [], 1, 1, 0, 5),
+                Finished = clock.Now,
+                PendingCommand = pending ? "Gather:mining" : null
+            };
+            store.Save(saved);
+            var run = Reader(directory, clock).Read().GetProperty("Run");
+            Assert.Equal(expected, run.GetProperty("CanArchive").GetBoolean());
+            Assert.Equal(pending ? "UnknownOutcome" : "Blocked", run.GetProperty("Status").GetString());
+            Assert.Equal("NoFeasibleCandidate", run.GetProperty("Reason").GetString());
+        });
+    }
+
     private sealed class Clock : TimeProvider
     {
         public DateTimeOffset Now = DateTimeOffset.UtcNow;

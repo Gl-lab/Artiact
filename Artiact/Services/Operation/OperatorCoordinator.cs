@@ -57,6 +57,7 @@ public sealed class OperatorCoordinator(ExecutionSettings settings, ApiSettings 
             using (var store = Store())
             {
                 var saved = store.Load();
+                if (saved?.Terminal is not null) return new(false, "RunFinished");
                 if (saved is not null && saved.Identity != StagedExecution.RunIdentity(prepared, api, portfolio.Policy()))
                     return new(false, "ExistingRunIdentityMismatch");
             }
