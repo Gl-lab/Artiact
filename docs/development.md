@@ -111,6 +111,8 @@ dotnet test Artiact.RealApiTests/Artiact.RealApiTests.csproj --no-restore --filt
 
 The separate restore is necessary on a fresh checkout because solution restore excludes this project. Run these offline checks whenever its code or the shared DTOs it consumes change; do not run the project without a category filter.
 
+R19 adds `Category=RealApiAutonomousInspect`, guarded by the same `ARTIACT_REAL_API_READONLY=1`. It reads only the named character, OpenAPI and paginated maps/resources/items, with a two-action/six-decision/120-second planning scope. It never sends a game POST, prints compact fingerprints/stock/path rejections, and fails actionable acceptance when no Selected candidate exists. This is distinct from live execution approval; see [protocol](autonomous-live-protocol.md). Always restore the prior opt-in environment value after the command.
+
 The live smoke is a separate explicit command. In Git Bash:
 
 ```text

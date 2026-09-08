@@ -17,3 +17,5 @@ CUA visually checked the actual form assets with a loopback Python synthetic res
 Self-review checked DI startup selection, exact old identity serialization, noncombat policy restrictions, receipt expiry/profile binding, no budget reset, shared archive guards, background task cancellation independent of HTTP, same-origin protections and absence of credentials from the projected profile. Architecture, application instructions and panel/development docs updated. The legacy stop route's new loopback restriction is documented.
 
 Unverified: live game/operator acceptance, remote/multi-user deployment, R16 historical transient, and continuous operation/scheduling. R19's existing six-decision protocol conflicts with the runtime's ten-decision minimum; this is explicitly left as a concrete R19 preparation issue, not resolved by increasing live bounds.
+
+Published as `a5d5352`, pushed to origin/master before the R19 specification.

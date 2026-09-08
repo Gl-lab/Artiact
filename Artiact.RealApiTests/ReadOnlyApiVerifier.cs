@@ -9,7 +9,15 @@ namespace Artiact.RealApiTests;
 internal sealed class ReadOnlyApiVerifier( HttpClient httpClient )
 {
     public async Task<Artiact.Services.Strategy.StrategyDecision> InspectAsync(
-        RealApiConfiguration configuration, CancellationToken cancellationToken)
+        RealApiConfiguration configuration, CancellationToken cancellationToken) =>
+        (await InspectReportAsync(configuration, cancellationToken, false)).Decision;
+
+    internal sealed record InspectionReport(string Character, string? Fingerprint, string? WorldFingerprint, string PolicyDigest,
+        DateTimeOffset? ObservedAt, int? MapId, int? Capacity, long? FreeUnits,
+        IReadOnlyDictionary<string, int>? Stock, Artiact.Services.Strategy.StrategyDecision Decision);
+
+    internal async Task<InspectionReport> InspectReportAsync(
+        RealApiConfiguration configuration, CancellationToken cancellationToken, bool autonomous)
     {
         Uri baseUri = DestinationValidator.Validate(configuration.BaseUri);
         string token = await AuthenticateAsync(baseUri, configuration, cancellationToken);
@@ -18,7 +26,7 @@ internal sealed class ReadOnlyApiVerifier( HttpClient httpClient )
             using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(baseUri, path));
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
             return await SendAsync(request, "inspection", cancellationToken);
-        });
+        }, includeItems: autonomous);
         var settings = new Artiact.Services.Operation.ExecutionSettings();
         var status = new Artiact.Services.Operation.OperationState();
         var compatibility = new Artiact.Services.Operation.ApiCompatibility(transport, settings, status);
@@ -30,11 +38,16 @@ internal sealed class ReadOnlyApiVerifier( HttpClient httpClient )
         var factory = new Artiact.Services.Strategy.StrategySessionFactory(client,
             new Artiact.Services.Combat.CombatCatalog(transport), new Artiact.Services.CharacterService(),
             new Artiact.Services.MiningCooldownDelay(), compatibility);
-        var policy = new Artiact.Services.Operation.PortfolioSettings
+        var policy = (autonomous ? new Artiact.Services.Operation.PortfolioSettings { AutonomousGoals = true } : new Artiact.Services.Operation.PortfolioSettings
         {
             Skills = [new("mining", 2, 30)]
-        }.Policy();
-        return await factory.Create(policy).InspectAsync(cancellationToken);
+        }).Policy();
+        var run = factory.Create(policy, autonomous ? new(6, 3, 2, 120) : null);
+        var decision = await run.InspectAsync(cancellationToken);
+        var observed = run.State is null ? null : Artiact.Services.Strategy.CharacterObservation.Read(run.State.Character);
+        return new(configuration.Character, run.State?.Fingerprint, run.State?.WorldFingerprint,
+            Artiact.Services.Strategy.FileRunCheckpointStore.IdentityDigest(policy.Identity), status.Snapshot(30).ObservedAt,
+            observed?.MapId, observed?.Capacity, observed?.FreeUnits, observed?.Inventory, decision);
     }
 
     private sealed class InspectionCache : Artiact.Client.ICacheService

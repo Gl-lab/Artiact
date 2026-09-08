@@ -22,7 +22,7 @@ public sealed class ExecutionSettings
         if (!Enum.TryParse<ExecutionMode>(Mode, true, out var mode) || !Enum.IsDefined(mode) ||
             FreshnessSeconds is < 1 or > 300 || string.IsNullOrWhiteSpace(ExpectedApiVersion)) throw new ArgumentException("Invalid execution settings.");
         if (mode == ExecutionMode.Bounded && (string.IsNullOrWhiteSpace(RunId) || string.IsNullOrWhiteSpace(RunDirectory) ||
-            MaxActions <= 0 || MaxDecisions < 10 || MaxNoProgress <= 0 || MaxNoProgress > MaxDecisions || MaxSeconds is <= 0 or > 86400)) throw new ArgumentException("Invalid bounded run settings.");
+            MaxActions <= 0 || MaxDecisions <= 0 || MaxNoProgress <= 0 || MaxNoProgress > MaxDecisions || MaxSeconds is <= 0 or > 86400)) throw new ArgumentException("Invalid bounded run settings.");
         if (!Uri.TryCreate(api.BaseUrl, UriKind.Absolute, out var uri) || uri.UserInfo.Length != 0 || uri.Query.Length != 0 ||
             uri.Fragment.Length != 0 || uri.AbsolutePath != "/" ||
             !(uri.IsLoopback && uri.Scheme == "http" || uri.Scheme == "https" && uri.Host == "api.artifactsmmo.com" && uri.Port == 443))

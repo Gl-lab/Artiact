@@ -5,4 +5,4 @@
 - [x] Implement coordinator, scoped execution reuse and HTTP/browser guards.
 - [x] Add panel controls and documentation.
 - [x] Focused/solution tests, visual verification and review.
-- [ ] Commit and push before R19 specification.
+- [x] Commit and push before R19 specification (`a5d5352`).

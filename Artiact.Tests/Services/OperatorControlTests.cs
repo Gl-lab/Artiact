@@ -8,6 +8,20 @@ public class OperatorControlTests : IDisposable
     private readonly List<string> _directories = [];
 
     [Fact]
+    public async Task SixDecisionProtocolDoesNotRequireIncreasingLiveBudget()
+    {
+        var execution = new Execution(); var coordinator = Create(execution);
+        var result = await coordinator.InspectAsync(Request with { MaxDecisions = 6, MaxNoProgress = 3 });
+        Assert.True(result.Accepted, result.Reason);
+        var settings = new ExecutionSettings { Mode = "Bounded", AllowActions = true, RunId = "small", RunDirectory = _directories[^1],
+            MaxActions = 2, MaxDecisions = 6, MaxNoProgress = 3, MaxSeconds = 120 };
+        var api = new Artiact.ApiSettings { BaseUrl = "http://localhost", Character = "hero", Username = "test", Password = "test" };
+        Assert.Equal(ExecutionMode.Bounded, settings.Validate(api));
+        settings.MaxDecisions = 0; Assert.Throws<ArgumentException>(() => settings.Validate(api));
+        settings.MaxDecisions = 2; Assert.Throws<ArgumentException>(() => settings.Validate(api));
+    }
+
+    [Fact]
     public async Task ChangedServerPolicyInvalidatesInspectReceipt()
     {
         var execution = new Execution();

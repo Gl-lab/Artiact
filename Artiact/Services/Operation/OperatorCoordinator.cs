@@ -119,7 +119,7 @@ public sealed class OperatorCoordinator(ExecutionSettings settings, ApiSettings 
     {
         if (request is null || request.RunId is null || !System.Text.RegularExpressions.Regex.IsMatch(request.RunId, "^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$") ||
             request.MaxActions <= 0 || request.MaxActions > settings.MaxActions || request.MaxSeconds <= 0 || request.MaxSeconds > settings.MaxSeconds ||
-            request.MaxDecisions < 10 || request.MaxDecisions > settings.MaxDecisions || request.MaxNoProgress <= 0 ||
+            request.MaxDecisions <= 0 || request.MaxDecisions > settings.MaxDecisions || request.MaxNoProgress <= 0 ||
             request.MaxNoProgress > settings.MaxNoProgress || request.MaxNoProgress > request.MaxDecisions)
             throw new ArgumentException("Invalid run bounds.");
         var policy = portfolio.Policy();

@@ -81,6 +81,8 @@ R9 local [autonomous combat](autonomous-combat.md) supports bounded stage/gear a
 
 R16 now distinguishes storage and unexpected execution failures and rejects a directory at the checkpoint path. These reproduced defects do not establish the cause of the historical intermittent failures below; see [checkpoint diagnostics](checkpoint-diagnostics.md).
 
+R19 read-only autonomous preflight for the configured character on 2026-09-08 found no actionable route under the agreed two-action/120-second protocol (AutonomousBudgetExhausted, zero attempts). Some milestone paths exceed budget or estimated inventory. No bounds were increased and no game actions were sent. R19 real operator acceptance and its R20 dependency remain open; see [evidence](../openspec/changes/operator-live-acceptance/verification.md).
+
 An intermittent R12/R13 file-checkpoint reopen test returned `CheckpointUnavailableOrInvalid` in two full runs. Twenty isolated replays and five additional full mock replays passed; cause remains unproven. Expanded test diagnostics are retained. See [R13 evidence](../openspec/changes/autonomous-recovery/verification.md); do not treat passing retries as a diagnosed fix.
 
 R15 also observed a transient Blocked result in the older BoundedMining completion test. One diagnostic full run plus four more passed; temporary exception instrumentation captured only expected injected faults and was removed. The relation to the earlier failures is unproven. See [R15 evidence](../openspec/changes/autonomous-quality/verification.md). Offline quality acceptance does not claim this operational issue has been fixed.
