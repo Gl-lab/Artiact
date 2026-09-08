@@ -7,5 +7,6 @@
 - [x] Publish preparation and record revision (`e1e1c9f`, origin/master).
 - [ ] Resolve R16 operational prerequisite or record an explicit scoped acceptance decision.
 - [ ] Capture fresh actionable character/command/stock/revision and obtain concrete live scope approval.
-- [ ] Implement/review approved transport allowlist and run the operator live cycle.
+- [x] Implement/review proposed scoped transport and operator harness (see scoped-operator-live change).
+- [ ] Run the concretely approved operator live cycle.
 - [ ] Verify durable terminal restart, costs/stock and publish R19 live evidence.

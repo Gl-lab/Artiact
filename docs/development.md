@@ -115,6 +115,8 @@ R19 adds `Category=RealApiAutonomousInspect`, guarded by the same `ARTIACT_REAL_
 
 `Category=RealApiBudgetAssessment` uses the same read-only guard and transport, acquires one fresh snapshot, reports acquisition time/GET count, and evaluates six finite budget cases locally against that same snapshot. Its passing result establishes that inspection completed without attempts; it does not require or imply an actionable row. Read each row's status. The original `RealApiAutonomousInspect` remains the 2/120 baseline; the revised proposed execution limits and reasoning are in the protocol. Neither category starts the host or grants game-action permission.
 
+`Category=RealApiOperatorLive` is the separately guarded [scoped R19 operator harness](scoped-operator-live.md). It serves the real panel on loopback with a fixed character/route, transport allowlist and durable directory. It requires its own exact action approval and is never part of the read-only or offline categories. Read its protocol before invocation; do not enable it for a build check.
+
 The live smoke is a separate explicit command. In Git Bash:
 
 ```text
