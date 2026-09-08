@@ -21,3 +21,5 @@ Final `dotnet test Artiact.sln --no-restore`: **556 application +279 mock passed
 Review covered unchanged policy identities/formula, absence of diagnostic production output, guarded bank mock actions, strict initial-state aliases, semantic replay metrics, useful-outcome failures vs early stops, corrected predictions, per-skill counters, stock, durable budgets and missing fact coverage. Existing architecture diagrams still describe the same observer/session/journal; no structural update is needed. Scenario instructions and known limitations match the final code.
 
 Unverified: real API/live actions, matched combat simulator corpus, RealApiOffline (no shared DTO/route changes), scheduler/remote hosting and filesystem power-loss guarantees. The constrained noncombat live protocol is delivered but unexecuted; the combat ADR live no-go remains.
+
+Published implementation/test revision: `845946b`, pushed to origin/master after the final gate. The following documentation-only publication record closes the task checkbox and records all epic revisions; no code or test change follows that tested revision.

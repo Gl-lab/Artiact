@@ -6,4 +6,4 @@
 - [x] Verify uncertain combat use, durable long-run stop and existing process kill cases.
 - [x] Publish dated quality matrix, failure evidence and separate constrained live protocol.
 - [x] Review final code/docs/diagrams and run solution gate: 556 +279 passed; see verification.md.
-- [ ] Commit and push R15.
+- [x] Commit and push R15: `845946b`, origin/master.
