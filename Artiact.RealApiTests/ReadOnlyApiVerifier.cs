@@ -14,15 +14,21 @@ internal sealed class ReadOnlyApiVerifier( HttpClient httpClient )
 
     internal sealed record InspectionReport(string Character, string? Fingerprint, string? WorldFingerprint, string PolicyDigest,
         DateTimeOffset? ObservedAt, int? MapId, int? Capacity, long? FreeUnits,
-        IReadOnlyDictionary<string, int>? Stock, Artiact.Services.Strategy.StrategyDecision Decision);
+        IReadOnlyDictionary<string, int>? Stock, Artiact.Services.Strategy.StrategyDecision Decision,
+        double AcquisitionSeconds, int GetRequests, InspectionBudgetMatrix.Row[]? BudgetMatrix);
 
     internal async Task<InspectionReport> InspectReportAsync(
-        RealApiConfiguration configuration, CancellationToken cancellationToken, bool autonomous)
+        RealApiConfiguration configuration, CancellationToken cancellationToken, bool autonomous,
+        IReadOnlyList<Artiact.Services.Strategy.StrategyLimits>? budgets = null)
     {
+        if (budgets is not null && !autonomous) throw new ArgumentException("Budget assessment requires autonomous discovery.");
+        var acquisition = System.Diagnostics.Stopwatch.StartNew();
+        int getRequests = 0;
         Uri baseUri = DestinationValidator.Validate(configuration.BaseUri);
         string token = await AuthenticateAsync(baseUri, configuration, cancellationToken);
         var transport = new InspectionTransport(configuration.Character, async path =>
         {
+            getRequests++;
             using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(baseUri, path));
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
             return await SendAsync(request, "inspection", cancellationToken);
@@ -44,10 +50,19 @@ internal sealed class ReadOnlyApiVerifier( HttpClient httpClient )
         }).Policy();
         var run = factory.Create(policy, autonomous ? new(6, 3, 2, 120) : null);
         var decision = await run.InspectAsync(cancellationToken);
+        acquisition.Stop();
+        int acquisitionReads = getRequests;
+        var matrix = budgets is not null && run.State is not null
+            ? await InspectionBudgetMatrix.EvaluateAsync(run.State,
+                limits => new Artiact.Services.Strategy.AutonomousGoalDiscovery(policy,
+                    new Artiact.Services.Strategy.StrategyActionPort(client, new Artiact.Services.CharacterService()), limits),
+                policy.Measurement, budgets, cancellationToken) : null;
+        if (getRequests != acquisitionReads) throw new InvalidOperationException("Budget matrix performed network reads.");
         var observed = run.State is null ? null : Artiact.Services.Strategy.CharacterObservation.Read(run.State.Character);
         return new(configuration.Character, run.State?.Fingerprint, run.State?.WorldFingerprint,
             Artiact.Services.Strategy.FileRunCheckpointStore.IdentityDigest(policy.Identity), status.Snapshot(30).ObservedAt,
-            observed?.MapId, observed?.Capacity, observed?.FreeUnits, observed?.Inventory, decision);
+            observed?.MapId, observed?.Capacity, observed?.FreeUnits, observed?.Inventory, decision,
+            acquisition.Elapsed.TotalSeconds, getRequests, matrix);
     }
 
     private sealed class InspectionCache : Artiact.Client.ICacheService

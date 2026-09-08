@@ -5,6 +5,37 @@ namespace Artiact.RealApiTests;
 public class RealApiLiveTests( ITestOutputHelper output )
 {
     [Fact]
+    [Trait("Category", "RealApiBudgetAssessment")]
+    public async Task BudgetAssessment_OneReadOnlySnapshot()
+    {
+        RealApiLiveGuard.RequireEnabled(Environment.GetEnvironmentVariable("ARTIACT_REAL_API_READONLY"));
+        var configuration = RealApiConfiguration.Resolve(DotenvParser.Parse(
+            await File.ReadAllTextAsync(Path.Combine(FindRepositoryRoot(), ".env"))));
+        using var http = new HttpClient(ReadOnlyApiVerifier.CreatePrimaryHandler()) { Timeout = TimeSpan.FromSeconds(30) };
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(120));
+        Artiact.Services.Strategy.StrategyLimits[] budgets =
+            [new(20, 3, 2, 120), new(20, 3, 12, 600), new(20, 3, 13, 120),
+             new(20, 3, 13, 134), new(20, 3, 16, 180), new(20, 3, 16, 600)];
+        var report = await new ReadOnlyApiVerifier(http).InspectReportAsync(configuration, deadline.Token, true, budgets);
+        output.WriteLine(System.Text.Json.JsonSerializer.Serialize(new
+        {
+            report.Character, report.Fingerprint, report.WorldFingerprint, report.PolicyDigest, report.ObservedAt,
+            report.MapId, report.Capacity, report.FreeUnits, report.Stock, report.AcquisitionSeconds, report.GetRequests,
+            Rows = report.BudgetMatrix?.Select(row => new
+            {
+                row.Limits, Status = row.Decision.Status.ToString(), row.Decision.Reason,
+                row.Decision.Attempts, row.Decision.Command,
+                Paths = row.Decision.Candidates.Where(x => x.Path is not null).Select(x => new
+                { x.Id, x.Rejection, Target = x.Discovery?.Target, x.Path })
+            })
+        }));
+        Assert.Equal(0, report.Decision.Attempts);
+        Assert.NotNull(report.BudgetMatrix);
+        Assert.Equal(budgets.Length, report.BudgetMatrix.Length);
+        Assert.All(report.BudgetMatrix, row => Assert.Equal(0, row.Decision.Attempts));
+    }
+
+    [Fact]
     [Trait("Category", "RealApiAutonomousInspect")]
     public async Task AutonomousInspect_ExplicitReadOnlyOptIn()
     {

@@ -113,6 +113,8 @@ The separate restore is necessary on a fresh checkout because solution restore e
 
 R19 adds `Category=RealApiAutonomousInspect`, guarded by the same `ARTIACT_REAL_API_READONLY=1`. It reads only the named character, OpenAPI and paginated maps/resources/items, with a two-action/six-decision/120-second planning scope. It never sends a game POST, prints compact fingerprints/stock/path rejections, and fails actionable acceptance when no Selected candidate exists. This is distinct from live execution approval; see [protocol](autonomous-live-protocol.md). Always restore the prior opt-in environment value after the command.
 
+`Category=RealApiBudgetAssessment` uses the same read-only guard and transport, acquires one fresh snapshot, reports acquisition time/GET count, and evaluates six finite budget cases locally against that same snapshot. Its passing result establishes that inspection completed without attempts; it does not require or imply an actionable row. Read each row's status. The original `RealApiAutonomousInspect` remains the 2/120 baseline; the revised proposed execution limits and reasoning are in the protocol. Neither category starts the host or grants game-action permission.
+
 The live smoke is a separate explicit command. In Git Bash:
 
 ```text
