@@ -98,3 +98,5 @@ The operator panel supports server IP/hostname access without login for a truste
 ## R25: цели от потребностей
 
 См. [Needs mode](needs-driven-goals.md): отдельные сохраняемые заказы, полный поддерживаемый путь, конечные срезы, исход NoActiveSupportedNeeds и ограничения. R20 этот режим не исполняет; live-приёмка новых цепочек не выполнена.
+
+The scoped live gathering acceptance guard pins the entire map catalog. On 2026-09-09 an unrelated event at map523 stopped fishing at91/150XP after eight verified actions. See [fishing trial evidence](scoped-fishing-live-2026-09-09.md); the retained Blocked/Rejected checkpoint must not be cleared to resume.

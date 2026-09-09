@@ -18,6 +18,39 @@ public class ScopedFishingLiveTests(ITestOutputHelper output)
     private const string RunId = "gllab-fishing2-20260909-v1";
 
     [Fact]
+    [Trait("Category", "FishingResultReview")]
+    public async Task RetainedTerminalReopensOfflineWithoutObservingOrDispatching()
+    {
+        string directory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".artiact-runs", RunId);
+        RunCheckpoint saved;
+        using (var store = new FileRunCheckpointStore(directory, "https://api.artifactsmmo.com/gllab")) saved = store.Load()!;
+        Assert.NotNull(saved.Terminal); Assert.Null(saved.PendingCommand);
+        var memory = new SnapshotStore(saved);
+        var reopened = await new StrategySession(new NoObservation(), [], new MiningCooldownDelay(), new(20, 3, 16, 900),
+            checkpoints: memory, identity: saved.Identity, autonomous: true).TickAsync();
+        Assert.Equal(saved.Terminal.Status, reopened.Status); Assert.Equal(saved.Terminal.Reason, reopened.Reason);
+        Assert.Equal(saved.Attempts, reopened.Attempts);
+        var last = saved.Latest!.Character;
+        output.WriteLine(JsonSerializer.Serialize(new { RunId, saved.Started, saved.Finished,
+            Status = reopened.Status.ToString(), reopened.Reason, saved.Attempts, saved.Decisions, saved.NoProgress,
+            Verified = saved.Journal.Count(x => x.Status == "Verified"), Rejected = saved.Journal.Count(x => x.Status == "Rejected"),
+            CooldownSeconds = saved.Seconds, FishingLevel = last.GetProperty("fishing_level").GetInt32(),
+            FishingXp = last.GetProperty("fishing_xp").GetInt32(), Stock = CharacterObservation.Read(last)!.Inventory,
+            InitialWorld = saved.Initial!.Restore().WorldFingerprint, LatestWorld = saved.Latest.Restore().WorldFingerprint,
+            CanArchive = FileRunCheckpointStore.CanArchive(saved), ReopenedWithoutObservation = true }));
+    }
+
+    private sealed class SnapshotStore(RunCheckpoint saved) : IRunCheckpointStore
+    {
+        public RunCheckpoint? Load() => saved;
+        public void Save(RunCheckpoint checkpoint) { }
+    }
+    private sealed class NoObservation : IStrategyObserver
+    {
+        public Task<StrategyObservation> ObserveAsync(CancellationToken cancellationToken) => throw new InvalidOperationException("Offline terminal review must not observe.");
+    }
+
+    [Fact]
     [Trait("Category", "RealApiFishingLive")]
     public async Task ApprovedFishingMilestoneAndTerminalReopen()
     {
